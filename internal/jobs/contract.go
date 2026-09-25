@@ -1,6 +1,7 @@
-// Package jobs runs Bunkarr's background work: a persistent, resumable queue with worker limits,
-// cancellation and progress, plus the cron scheduler. This file is the contract between the
-// manager and the job runners (internal/syncer, internal/plexdb, ...); see docs/design/phase1.md §5.
+// Package jobs is the contract between Bunkarr's job manager (internal/jobqueue: a persistent,
+// resumable queue with worker limits, cancellation, progress and the cron scheduler) and the job
+// runners (internal/catalog, internal/syncer, internal/plexdb). It holds types and interfaces
+// only, so runners never depend on the manager's implementation; see docs/design/phase1.md §6.
 package jobs
 
 import (
@@ -158,7 +159,7 @@ type Item struct {
 	Detail  json.RawMessage `json:"detail,omitempty"`
 }
 
-// ItemStore persists a job's items. Implemented by the manager's store.
+// ItemStore persists a job's items. Implemented by internal/jobqueue.
 type ItemStore interface {
 	// Planned reports whether the job's plan is complete (jobs.planned_at is set). A resumed job
 	// with a complete plan executes its pending items; one with items but no complete plan was

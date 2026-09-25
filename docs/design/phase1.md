@@ -242,7 +242,7 @@ destination, editable).
 
 ## 6. Jobs
 ### 6.1 Contract
-`internal/jobs/contract.go` defines the types. Every runner is idempotent and resumable: a job
+`internal/jobs/contract.go` defines the types; `internal/jobqueue` implements the manager. Every runner is idempotent and resumable: a job
 re-run after a crash has `Attempt > 1`, `Trigger = resume`; a planned job executes only pending
 items, re-checking each (§4.2). Cancellation = ctx cancellation: stop promptly, remove own temp
 files, return `ctx.Err()`. Fatal (destination-wide: S3/S10(a) failures, `ENOSPC`, `EIO`/
@@ -346,7 +346,8 @@ Each package owns its tables' SQL; other packages use its exported API.
 | `internal/syncer` | `destination_files` | `Planner`, runners `sync`, `verify`, `retention`; guards S10(b), S11. |
 | `internal/plexdb` | `snapshots` | runner `plexdb_backup`, `Backup`, `Verify`, version pruning. |
 | `internal/notify` | `notifications` | `Store`, Apprise client, `Dispatcher` (`jobs.Manager.OnFinish`), `Test`. |
-| `internal/jobs` | `jobs`, `job_items`, `job_logs`, `schedules` | `Manager`, `Scheduler` (robfig/cron), `Store`; implements `contract.go`. |
+| `internal/jobs` | — | The contract only (`contract.go`): types and interfaces shared by runners. Stable; no implementation. |
+| `internal/jobqueue` | `jobs`, `job_items`, `job_logs`, `schedules` | `Manager`, `Scheduler` (robfig/cron), `Store`; implements the `jobs` contract. |
 | `internal/logging` | — | + `RegisterSecret(value)`, `RedactSecrets(text)` value-based redaction (done). |
 | `internal/faultinject` | — | `Point(name)`, `SetHook`, `CrashAt`, `InitFromEnv` (done). |
 | `internal/api` + `cmd/bunkarr` | — | Handlers (§7), openapi.json, wiring. |
