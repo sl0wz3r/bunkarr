@@ -89,7 +89,9 @@ describe('Polling', () => {
   });
 });
 
-describe('Job log', () => {
+// These render the capped log (about 2000 lines) several times; shared CI runners are several
+// times slower than a workstation, so they get more than Vitest's default 5 s.
+describe('Job log', { timeout: 30_000 }, () => {
   afterEach(() => {
     vi.useRealTimers();
   });
