@@ -1,3 +1,7 @@
+// API types. Phase 0: auth, settings, status. Phase 1: the contract in docs/design/phase1.md §7
+// and internal/jobs/contract.go (Job, Item, Progress, ItemCount). Times are RFC 3339 strings,
+// sizes are bytes.
+
 export type AuthRequired = 'enabled' | 'disabled_for_local_addresses';
 
 export interface AuthStatus {
@@ -32,4 +36,503 @@ export interface GeneralSettings {
   authenticationMethod: string;
   bindAddress: string;
   port: number;
+}
+
+/** Paged is one page of a list endpoint (`page` is 1-based). */
+export interface Paged<T> {
+  page: number;
+  pageSize: number;
+  totalRecords: number;
+  records: T[];
+}
+
+// ---- Jobs (internal/jobs/contract.go) ----
+
+export type JobType = 'scan' | 'sync' | 'plexdb_backup' | 'retention' | 'verify';
+
+export type JobStatus = 'queued' | 'running' | 'completed' | 'completed_with_warnings' | 'failed' | 'cancelled';
+
+export type JobTrigger = 'schedule' | 'manual' | 'webhook' | 'resume' | 'startup';
+
+export interface JobParams {
+  destinationId?: number;
+  sourceIds?: number[];
+  integrationId?: number;
+  allowChanges?: boolean;
+}
+
+export interface JobProgress {
+  phase?: string;
+  filesTotal: number;
+  filesDone: number;
+  bytesTotal: number;
+  bytesDone: number;
+  currentFile?: string;
+  bytesPerSec: number;
+  etaSeconds: number;
+}
+
+export interface Job {
+  id: number;
+  type: JobType;
+  status: JobStatus;
+  trigger: JobTrigger;
+  dryRun: boolean;
+  params: JobParams;
+  attempt: number;
+  progress: JobProgress;
+  /** Runner-specific counters (see SyncStats); null until the job finishes. */
+  stats: Record<string, unknown> | null;
+  warnings: number;
+  summary: string;
+  error?: string;
+  queuedAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+/** SyncSourceSummary is one source's part of a sync (SyncStats.sources). */
+export interface SyncSourceSummary {
+  sourceId: number;
+  name: string;
+  files: number;
+  added: number;
+  changed: number;
+  deleted: number;
+  skipped: number;
+  changes: number;
+  held: number;
+}
+
+/** SyncStats are the stats of a sync job (design §6.1, internal/syncer). */
+export interface SyncStats {
+  dryRun: boolean;
+  filesPlanned: number;
+  filesCopied: number;
+  filesUpdated: number;
+  filesMoved: number;
+  filesAdopted: number;
+  filesLinked: number;
+  filesPromoted: number;
+  filesRetained: number;
+  filesDisplaced: number;
+  filesHeld: number;
+  filesFailed: number;
+  filesSkipped: number;
+  bytesPlanned: number;
+  bytesCopied: number;
+  durationMs: number;
+  /** Per source; empty when a resumed job skipped scanning and planning. */
+  sources: SyncSourceSummary[];
+}
+
+export type ItemAction = 'copy' | 'update' | 'move' | 'adopt' | 'link' | 'promote' | 'retain' | 'expire' | 'verify' | 'backup' | 'skip';
+
+export type ItemStatus = 'pending' | 'done' | 'failed' | 'skipped' | 'held';
+
+export interface JobItem {
+  id: number;
+  jobId: number;
+  fileId?: number;
+  relPath: string;
+  action: ItemAction;
+  status: ItemStatus;
+  bytes: number;
+  error?: string;
+  detail?: Record<string, unknown> | null;
+}
+
+/** JobListQuery filters GET /jobs. */
+export interface JobListQuery {
+  state: 'active' | 'finished';
+  type?: JobType | '';
+  status?: JobStatus | '';
+  page: number;
+  pageSize: number;
+}
+
+/** ItemListQuery filters GET /jobs/{id}/items. */
+export interface ItemListQuery {
+  action?: ItemAction | '';
+  status?: ItemStatus | '';
+  page: number;
+  pageSize: number;
+}
+
+export interface ItemCount {
+  action: ItemAction;
+  status: ItemStatus;
+  files: number;
+  bytes: number;
+}
+
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+export interface JobLog {
+  id: number;
+  at: string;
+  level: LogLevel;
+  message: string;
+  fields: Record<string, unknown> | null;
+}
+
+export interface Schedule {
+  id: number;
+  jobType: JobType;
+  params: JobParams;
+  description: string;
+  cron: string;
+  enabled: boolean;
+  lastRunAt: string | null;
+  /** null when disabled or blocked. */
+  nextRunAt: string | null;
+  /** Why the scheduler refuses the schedule's jobs (its destination or Plex server is disabled); '' when they can run. */
+  blockedReason: string;
+}
+
+/** CronSchedule is a destination's (or Plex backup's) schedule. */
+export interface CronSchedule {
+  cron: string;
+  enabled: boolean;
+}
+
+// ---- Integrations ----
+
+export type IntegrationType = 'plex' | 'sonarr' | 'radarr' | 'lidarr' | 'tautulli' | 'seerr' | 'maintainerr';
+
+export interface PathMapping {
+  plex: string;
+  local: string;
+}
+
+export interface PlexBackupSettings {
+  /** 0 or missing: no backup destination chosen. */
+  destinationId: number;
+  cron: string;
+  enabled: boolean;
+}
+
+export interface PlexSettings {
+  dataPath: string;
+  pathMappings: PathMapping[];
+  backup: PlexBackupSettings;
+}
+
+export interface Integration {
+  id: number;
+  type: IntegrationType;
+  name: string;
+  url: string;
+  enabled: boolean;
+  hasApiKey: boolean;
+  settings: PlexSettings;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** IntegrationInput is the body of POST/PUT /integrations; an empty apiKey keeps the stored one. */
+export interface IntegrationInput {
+  type: IntegrationType;
+  name: string;
+  url: string;
+  enabled: boolean;
+  apiKey?: string;
+  /** Update only: remove the stored token. */
+  clearApiKey?: boolean;
+  settings: PlexSettings;
+}
+
+export interface IntegrationTestInput {
+  type: IntegrationType;
+  url: string;
+  apiKey?: string;
+  id?: number;
+}
+
+export interface IntegrationTestResult {
+  ok: boolean;
+  message: string;
+  version?: string;
+  machineIdentifier?: string;
+  /** Plex butler window, when the server reports it (GET /:/prefs ButlerStartHour/EndHour). */
+  butlerStartHour?: number;
+  butlerEndHour?: number;
+}
+
+export interface PlexLocation {
+  /** The folder as Plex sees it. */
+  path: string;
+  /** The same folder as Bunkarr sees it, after the path mappings ('' when no mapping applies). */
+  localPath: string;
+  exists: boolean;
+}
+
+export interface PlexSection {
+  key: string;
+  title: string;
+  type: string;
+  locations: PlexLocation[];
+}
+
+// ---- Sources and catalog ----
+
+export interface SourceStats {
+  files: number;
+  bytes: number;
+  uniqueBytes: number;
+  hardlinkGroups: number;
+  hardlinkedFiles: number;
+  skipped: number;
+}
+
+export type ScanStatus = 'ok' | 'failed' | 'warnings';
+
+/** Source is a media folder Bunkarr backs up. Unset strings are '' (not null). */
+export interface Source {
+  id: number;
+  name: string;
+  path: string;
+  destFolder: string;
+  exclude: string[];
+  enabled: boolean;
+  plexIntegrationId: number | null;
+  /** '' when the source was not imported from Plex. */
+  plexSectionId: string;
+  plexPath: string;
+  arrIntegrationId: number | null;
+  /** '' until the first successful scan after the source was saved. */
+  fsType: string;
+  lastScanAt: string | null;
+  /** '' when never scanned. */
+  lastScanStatus: ScanStatus | '';
+  stats: SourceStats;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * SourceInput is the body of POST/PUT /sources. On PUT the Plex and *arr links are replaced:
+ * leaving them out clears them.
+ */
+export interface SourceInput {
+  name: string;
+  path: string;
+  /** Empty: the server derives it from the name (create) or keeps it (update). */
+  destFolder?: string;
+  exclude: string[];
+  enabled: boolean;
+  plexIntegrationId?: number | null;
+  plexSectionId?: string;
+  plexPath?: string;
+  arrIntegrationId?: number | null;
+}
+
+export interface SourceTestResult {
+  ok: boolean;
+  /** The tested path, resolved. */
+  path: string;
+  exists: boolean;
+  isDir: boolean;
+  fsType: string;
+  fuse: boolean;
+  entries: number;
+  message: string;
+  warnings: string[] | null;
+}
+
+export type FileFilter = 'all' | 'hardlinked' | 'deleted';
+
+export interface CatalogFile {
+  id: number;
+  relPath: string;
+  size: number;
+  mtime: string;
+  hardlinkGroup: string | null;
+  nlink: number;
+  deleted: boolean;
+  /** When a scan no longer found the file (deleted files only). */
+  deletedAt?: string;
+}
+
+/** FileListQuery filters GET /sources/{id}/files. */
+export interface FileListQuery {
+  page: number;
+  pageSize: number;
+  search?: string;
+  filter?: FileFilter;
+}
+
+export interface CatalogStats {
+  sources: number;
+  files: number;
+  bytes: number;
+  uniqueBytes: number;
+  hardlinkGroups: number;
+  hardlinkedFiles: number;
+}
+
+export interface DirEntry {
+  name: string;
+  path: string;
+}
+
+export interface DirListing {
+  path: string;
+  /** '' at the filesystem root. */
+  parent: string;
+  directories: DirEntry[] | null;
+  /** More subdirectories exist than the server lists. */
+  truncated?: boolean;
+}
+
+// ---- Destinations ----
+
+export interface Capabilities {
+  hardlinks: boolean;
+  /**
+   * Inode numbers do not tell whether two names are one file (a CIFS mount with noserverino):
+   * such names are compared by content. Jobs check it again before they compare two names.
+   */
+  unstableInodes: boolean;
+  caseInsensitive: boolean;
+  invalidChars: string;
+  trailingDotSpace: boolean;
+  mtimeGranularityNs: number;
+  fsType: string;
+  checkedAt: string;
+  /** The probe version that found these (0 or missing: an older one; the next job probes again). */
+  probeVersion: number;
+}
+
+export type VerifyMode = 'off' | 'sample' | 'full';
+export type HardlinkMode = 'recreate' | 'copy';
+export type AdoptMode = 'size+mtime' | 'size+hash' | 'off';
+
+export interface DestinationSettings {
+  verify: { mode: VerifyMode; samplePercent: number };
+  hardlinks: HardlinkMode;
+  adoptExisting: AdoptMode;
+  mtimeWindowSec: number;
+  maxChangePercent: number;
+  maxChangeFiles: number;
+}
+
+export interface Retention {
+  deletedDays: number;
+  plexDbDaily: number;
+  plexDbWeekly: number;
+}
+
+export interface Destination {
+  id: number;
+  name: string;
+  engine: 'filecopy';
+  target: string;
+  enabled: boolean;
+  sourceIds: number[];
+  fsType: string;
+  /** The probe's findings (design §3); zero values until the first probe. */
+  capabilities: Partial<Capabilities> | null;
+  /** {cron: '', enabled: false} when the destination has no schedule of that kind. */
+  schedule: CronSchedule;
+  verifySchedule: CronSchedule;
+  settings: DestinationSettings;
+  retention: Retention;
+  /** The newest job of any type that worked on the destination. */
+  lastJob: Job | null;
+  /** The newest sync (queued, running or finished; previews excluded): the last sync status. */
+  lastSync: Job | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DestinationInput {
+  name: string;
+  engine: 'filecopy';
+  target: string;
+  enabled: boolean;
+  sourceIds: number[];
+  schedule: CronSchedule;
+  verifySchedule: CronSchedule;
+  settings: DestinationSettings;
+  retention: Retention;
+  /** Create only: adopt the id of an existing .bunkarr/destination.json marker. */
+  attach?: boolean;
+  /** Create only: accept a target on the root/config filesystem or on tmpfs/overlay. */
+  allowLocal?: boolean;
+}
+
+export type MarkerStatus = 'ok' | 'missing' | 'mismatch' | 'foreign';
+
+export interface DestinationTestResult {
+  ok: boolean;
+  marker: MarkerStatus;
+  writable: boolean;
+  fsType: string;
+  local: boolean;
+  capabilities: Partial<Capabilities> | null;
+  freeBytes: number;
+  totalBytes: number;
+  entries: number;
+  message: string;
+  warnings: string[] | null;
+}
+
+export interface Snapshot {
+  id: number;
+  destinationId: number;
+  /** The Plex integration backed up; 0 once that integration was deleted. */
+  integrationId: number;
+  /** The job that recorded the version; 0 once that job's history was deleted. */
+  jobId: number;
+  /** The version directory, relative to the destination target. */
+  path: string;
+  createdAt: string;
+  size: number;
+  method: string;
+  integrity: 'ok' | 'failed';
+  manifest: Record<string, unknown> | null;
+}
+
+// ---- Notifications ----
+
+export interface Notification {
+  id: number;
+  name: string;
+  kind: 'apprise';
+  enabled: boolean;
+  apiUrl: string;
+  configKey: string;
+  hasUrls: boolean;
+  onFailure: boolean;
+  onWarning: boolean;
+  onSuccess: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * NotificationInput is the body of POST/PUT /notifications. `urls` is write-only (Apprise URLs,
+ * comma separated); leaving it out on PUT keeps the stored URLs.
+ */
+export interface NotificationInput {
+  name: string;
+  kind: 'apprise';
+  enabled: boolean;
+  apiUrl: string;
+  configKey: string;
+  urls?: string;
+  onFailure: boolean;
+  onWarning: boolean;
+  onSuccess: boolean;
+}
+
+/** NotificationTestInput tests a form; with id and no urls the stored URLs are used. */
+export interface NotificationTestInput extends NotificationInput {
+  id?: number;
+}
+
+export interface TestResult {
+  ok: boolean;
+  message: string;
 }

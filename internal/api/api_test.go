@@ -7,44 +7,83 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/sl0wz3r/bunkarr/internal/auth"
 	"github.com/sl0wz3r/bunkarr/internal/config"
 	"github.com/sl0wz3r/bunkarr/internal/db"
+	"github.com/sl0wz3r/bunkarr/internal/integrations/plex"
 )
 
 type env struct {
 	srv  *httptest.Server
 	auth *auth.Service
 	api  *Server
+	app  *App
+	db   *db.DB
+	// base is a resolved (symlink-free) temp directory for sources and destinations; config is
+	// Bunkarr's config directory inside it.
+	base, config string
 }
 
 func newEnv(t *testing.T, web fstest.MapFS) *env {
 	t.Helper()
+	return newEnvWith(t, web, nil)
+}
+
+// newEnvWith builds a server with every Phase 1 service on a fresh database, started; tweak may
+// adjust the App options.
+func newEnvWith(t *testing.T, web fstest.MapFS, tweak func(*AppOptions)) *env {
+	t.Helper()
 	ctx := context.Background()
-	dir := t.TempDir()
+	base := resolvedTempDir(t)
+	dir := filepath.Join(base, "config")
+	if err := os.Mkdir(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
 	d, err := db.Open(ctx, filepath.Join(dir, "bunkarr.db"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = d.Close() })
 	kr, _ := config.NewKeyring(make([]byte, 32))
-	a := auth.New(d, config.NewSettings(d, kr), nil)
+	settings := config.NewSettings(d, kr)
+	a := auth.New(d, settings, nil)
 	a.SetBcryptCost(4)
 	if err := a.Init(ctx); err != nil {
 		t.Fatal(err)
 	}
-	s := New(Options{Auth: a, DB: d, Env: config.Env{ConfigDir: dir, Port: 8787}, Web: web})
+	o := AppOptions{DB: d, Keyring: kr, Settings: settings, ConfigDir: dir, ProgressEvery: 10 * time.Millisecond,
+		ShutdownGrace: 5 * time.Second, Plex: plex.Options{Timeout: 5 * time.Second}}
+	if tweak != nil {
+		tweak(&o)
+	}
+	app, err := NewApp(ctx, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		if err := app.Stop(sctx); err != nil {
+			t.Errorf("stop app: %v", err)
+		}
+	})
+	s := New(Options{Auth: a, DB: d, Env: config.Env{ConfigDir: dir, Port: 8787}, Web: web, App: app})
 	srv := httptest.NewServer(s.Handler())
 	t.Cleanup(srv.Close)
-	return &env{srv: srv, auth: a, api: s}
+	return &env{srv: srv, auth: a, api: s, app: app, db: d, base: base, config: dir}
 }
 
 func (e *env) client(t *testing.T) *http.Client {

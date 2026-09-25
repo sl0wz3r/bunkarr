@@ -12,3 +12,13 @@ config
 docs
 testdata
 scripts
+# Runtime data anywhere in the tree (e.g. deploy/config from the compose example): the master key,
+# databases, logs and Plex DB staging must never enter a build context.
+deploy/config
+deploy/.env
+**/bunkarr.key
+**/bunkarr.lock
+**/*.db
+**/*.db-*
+**/logs
+**/staging

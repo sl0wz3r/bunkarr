@@ -81,10 +81,23 @@ Run 2026-09-25. Decision: [ADR 0005](../adr/0005-plex-db-backup-method.md).
   created with
   `POST /library/sections?name=Movies&type=movie&agent=tv.plex.agents.none&scanner=Plex%20Movie&language=xn&location=/data/movies`
   (response: 201 with `Location: /library/sections/1`).
+
+  Follow-up from the Phase 1 acceptance suite: `allowedNetworks` only matters for clients PMS
+  classifies as WAN, like the Docker Desktop gateway here. For containers on the same Docker
+  network the Host header decides. An unclaimed PMS answers `401` when the request's Host is
+  its container name (it logs "unrecognized domain / IP ... treating as non-local"), even from
+  an allowed subnet, and serves requests addressed to its IP, even without `allowedNetworks`.
+  The Docker test therefore reaches PMS by IP (and still sets `allowedNetworks` to the test
+  network's subnet). A claimed server with a token works by name, because token authentication
+  does not depend on the Host header. PMS also answers `/identity` a few seconds before it
+  accepts `POST /library/sections` (`400` until then), so the test retries section creation.
 - Recorded API responses were saved to `internal/integrations/plex/testdata/`: `identity.json`,
   `sections.json` (the multi-location TV section is useful) and `unauthorized.txt`. A `401` has
   `Content-Type: text/html` even when `Accept: application/json` is sent, and a bogus
   `X-Plex-Token` gets the same response. The client must not try to decode a 401 body as JSON.
+  The Plex client work later added `prefs.json` (a real `GET /:/prefs`, 151 settings) and
+  `sections-empty.json` (PMS leaves out `Directory` when there are no libraries), both recorded
+  from a scratch PMS 1.43.4.10903 on loopback.
 - Write load ran for 19 minutes (`load.sh`), with three loops against PMS:
   - a refresh of both sections every 2 s (560 refreshes);
   - 20 new movie folders every 3 s, up to 1500;
@@ -141,7 +154,8 @@ Run 2026-09-25. Decision: [ADR 0005](../adr/0005-plex-db-backup-method.md).
 
 - Without the collation, both checks fail at once: `PRAGMA integrity_check` and `PRAGMA
   quick_check` → `SQL logic error: no such collation sequence: icu_root (257)`.
-- With any stub collation registered (`sqlite.RegisterCollationUtf8("icu_root", …)`),
+- With any stub collation registered (`sqlite.RegisterCollationUtf8("icu_root", …)` in the
+  spike harness; Bunkarr registers its stubs on a private driver instead, see ADR 0005),
   `quick_check` returns `ok`. It does not compare index order, so the stub's ordering does not
   matter.
 - `integrity_check` with a stub reports **false** `row N missing from index

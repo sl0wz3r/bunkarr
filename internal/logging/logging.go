@@ -3,11 +3,13 @@
 package logging
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -104,22 +106,179 @@ func redactAttr(_ []string, a slog.Attr) slog.Attr {
 // minSecretLen keeps short, common strings out of the registry (they would redact normal text).
 const minSecretLen = 8
 
+// maxReleased bounds how many released values (see SetSecrets) stay redacted. When more are
+// kept, the oldest are dropped down to maxReleased/2, so the cost of a drop is amortized.
+const maxReleased = 4096
+
+// secretRegistry is the set of secret values that are redacted. A value is redacted while it is
+// held (registered with RegisterSecret, or held by an owner through SetSecrets) and for a while
+// after its last holder released it.
+type secretRegistry struct {
+	// sorted is every redacted value (held or released), longest first, so a secret that contains
+	// another registered secret (a Plex token inside an Apprise URL) is replaced whole before its
+	// shorter part is.
+	sorted []string
+	// holders counts the holders of each held value: its owners, plus one when it is pinned.
+	holders map[string]int
+	// pinned is the set of values registered with RegisterSecret (held for good).
+	pinned map[string]bool
+	// owned is the values each owner holds.
+	owned map[string][]string
+	// released maps each released value that is still redacted to its release number (n).
+	released map[string]uint64
+	n        uint64
+}
+
 var (
 	secretsMu sync.RWMutex
-	secrets   = map[string]struct{}{}
+	secrets   secretRegistry
 )
+
+// hold adds a holder to v and reports whether v must be added to sorted (it was not redacted).
+func (r *secretRegistry) hold(v string) bool {
+	if r.holders == nil {
+		r.holders = make(map[string]int)
+	}
+	r.holders[v]++
+	if r.holders[v] > 1 {
+		return false
+	}
+	if _, ok := r.released[v]; ok {
+		delete(r.released, v)
+		return false
+	}
+	return true
+}
+
+// release removes a holder of v; a value without holders stays redacted as a released value.
+func (r *secretRegistry) release(v string) {
+	if r.holders[v] > 1 {
+		r.holders[v]--
+		return
+	}
+	delete(r.holders, v)
+	if r.released == nil {
+		r.released = make(map[string]uint64)
+	}
+	r.n++
+	r.released[v] = r.n
+}
+
+// add merges values (none of them in sorted yet) into sorted.
+func (r *secretRegistry) add(values []string) {
+	if len(values) == 0 {
+		return
+	}
+	slices.SortFunc(values, compareSecrets)
+	merged := make([]string, 0, len(r.sorted)+len(values))
+	i, j := 0, 0
+	for i < len(r.sorted) || j < len(values) {
+		if j == len(values) || (i < len(r.sorted) && compareSecrets(r.sorted[i], values[j]) <= 0) {
+			merged, i = append(merged, r.sorted[i]), i+1
+		} else {
+			merged, j = append(merged, values[j]), j+1
+		}
+	}
+	r.sorted = merged
+}
+
+// trim drops the oldest released values when more than maxReleased are kept. Held values are
+// never dropped.
+func (r *secretRegistry) trim() {
+	if len(r.released) <= maxReleased {
+		return
+	}
+	order := make([]string, 0, len(r.released))
+	for v := range r.released {
+		order = append(order, v)
+	}
+	slices.SortFunc(order, func(a, b string) int { return cmp.Compare(r.released[a], r.released[b]) })
+	drop := make(map[string]bool, len(order)-maxReleased/2)
+	for _, v := range order[:len(order)-maxReleased/2] {
+		drop[v] = true
+		delete(r.released, v)
+	}
+	r.sorted = slices.DeleteFunc(r.sorted, func(v string) bool { return drop[v] })
+}
 
 // RegisterSecret adds a secret VALUE (a Plex token, an Apprise URL, an API key) to the set that is
 // replaced by [REDACTED] wherever it appears in a log message or attribute, in addition to the
-// key-based redaction. Values shorter than 8 characters are ignored. Safe for concurrent use.
+// key-based redaction, for good. Values shorter than 8 characters are ignored. Safe for concurrent
+// use.
+//
+// Use it for a secret Bunkarr reads but does not store (a PlexOnlineToken in Plex's
+// Preferences.xml). A secret stored in a row goes through SetSecrets, so it is released when the
+// row changes. A value that is only held for one request (a token typed into a Test form) goes
+// through RedactValues: request input never enters the process-wide registry.
 func RegisterSecret(value string) {
 	if len(value) < minSecretLen {
 		return
 	}
 	secretsMu.Lock()
-	secrets[value] = struct{}{}
-	secretsMu.Unlock()
+	defer secretsMu.Unlock()
+	if secrets.pinned[value] {
+		return
+	}
+	if secrets.pinned == nil {
+		secrets.pinned = make(map[string]bool)
+	}
+	secrets.pinned[value] = true
+	if secrets.hold(value) {
+		secrets.add([]string{value})
+	}
 }
+
+// SetSecrets makes values the secret values owner holds, in place of the ones it held before.
+// owner names one stored row ("integration:3"); SetSecrets(owner) with no values releases what
+// it held (the row was deleted or its secret removed). Held values are redacted like registered
+// ones and are never dropped. A released value that nothing else holds stays redacted among the
+// most recently released values (maxReleased at most), so a request that still uses a replaced
+// token cannot log it, while the registry stays bounded by the secrets that are stored. Values
+// shorter than 8 characters are ignored. Safe for concurrent use.
+func SetSecrets(owner string, values ...string) {
+	next := make([]string, 0, len(values))
+	seen := make(map[string]bool, len(values))
+	for _, v := range values {
+		if len(v) >= minSecretLen && !seen[v] {
+			seen[v] = true
+			next = append(next, v)
+		}
+	}
+	secretsMu.Lock()
+	defer secretsMu.Unlock()
+	var added []string
+	for _, v := range next {
+		if secrets.hold(v) {
+			added = append(added, v)
+		}
+	}
+	for _, v := range secrets.owned[owner] {
+		secrets.release(v)
+	}
+	if len(next) == 0 {
+		delete(secrets.owned, owner)
+	} else {
+		if secrets.owned == nil {
+			secrets.owned = make(map[string][]string)
+		}
+		secrets.owned[owner] = next
+	}
+	secrets.add(added)
+	secrets.trim()
+}
+
+// compareSecrets orders longer values first, then lexically.
+func compareSecrets(a, b string) int {
+	if len(a) != len(b) {
+		return len(b) - len(a)
+	}
+	return strings.Compare(a, b)
+}
+
+// SensitiveKey reports whether an attribute, header, field or query parameter NAME holds a
+// secret (password, token, API key, cookie, ...). Other packages that persist logs use it so
+// they redact the same names as the process log.
+func SensitiveKey(name string) bool { return sensitiveKey(name) }
 
 // ContainsSecret reports whether s contains a registered secret value.
 func ContainsSecret(s string) bool {
@@ -128,7 +287,7 @@ func ContainsSecret(s string) bool {
 	}
 	secretsMu.RLock()
 	defer secretsMu.RUnlock()
-	for v := range secrets {
+	for _, v := range secrets.sorted {
 		if strings.Contains(s, v) {
 			return true
 		}
@@ -139,12 +298,34 @@ func ContainsSecret(s string) bool {
 // RedactSecrets returns s with every registered secret value replaced by [REDACTED]. Use it on
 // any text that leaves the process (job logs, API error messages, notifications).
 func RedactSecrets(s string) string {
+	return RedactValues(s)
+}
+
+// RedactValues is RedactSecrets that also replaces values (those of at least 8 bytes) without
+// registering them: use it for a secret that is only held for one request, such as a token typed
+// into a Test form, so request input never enters the process-wide registry.
+func RedactValues(s string, values ...string) string {
 	if len(s) < minSecretLen {
 		return s
 	}
+	local := make([]string, 0, len(values))
+	for _, v := range values {
+		if len(v) >= minSecretLen {
+			local = append(local, v)
+		}
+	}
+	slices.SortFunc(local, compareSecrets)
 	secretsMu.RLock()
 	defer secretsMu.RUnlock()
-	for v := range secrets {
+	// Merge both lists longest first, so a value that contains another is replaced whole.
+	i, j := 0, 0
+	for i < len(secrets.sorted) || j < len(local) {
+		var v string
+		if j == len(local) || (i < len(secrets.sorted) && compareSecrets(secrets.sorted[i], local[j]) <= 0) {
+			v, i = secrets.sorted[i], i+1
+		} else {
+			v, j = local[j], j+1
+		}
 		if strings.Contains(s, v) {
 			s = strings.ReplaceAll(s, v, Redacted)
 		}

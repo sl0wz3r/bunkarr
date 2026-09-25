@@ -3,7 +3,8 @@
 -- docs/design/phase1.md.
 
 CREATE TABLE integrations (
-    id         INTEGER PRIMARY KEY,
+    -- AUTOINCREMENT: ids appear in job params, schedules and snapshots; never reuse a deleted one
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
     type       TEXT    NOT NULL CHECK (type IN ('plex', 'sonarr', 'radarr', 'lidarr', 'tautulli', 'seerr', 'maintainerr')),
     name       TEXT    NOT NULL UNIQUE COLLATE NOCASE,
     url        TEXT    NOT NULL,
@@ -16,7 +17,8 @@ CREATE TABLE integrations (
 ) STRICT;
 
 CREATE TABLE sources (
-    id                  INTEGER PRIMARY KEY,
+    -- AUTOINCREMENT: a deleted source's id (in job params, hardlink group ids) is never reused
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     name                TEXT    NOT NULL UNIQUE COLLATE NOCASE,
     -- absolute path as Bunkarr sees it (inside the container)
     path                TEXT    NOT NULL,
@@ -30,23 +32,33 @@ CREATE TABLE sources (
     -- the library location as Plex sees it
     plex_path           TEXT,
     arr_integration_id  INTEGER REFERENCES integrations (id) ON DELETE SET NULL,
-    -- filesystem identity recorded at the first successful scan (safety rule S10a)
+    -- filesystem identity recorded at the first successful scan (safety rule S10a). Kept on edits;
+    -- cleared only by a plain re-save while the path exists (accepting a deliberate change) or by a
+    -- path change while no destination holds backups of the source
     fs_type             TEXT,
     root_dev            INTEGER,
+    -- inode of the root directory at the last successful scan: a backed-up source's path may
+    -- only change to a path with the same (root_dev, root_ino)
+    root_ino            INTEGER,
     last_scan_at        TEXT,
     -- ok | failed | warnings
     last_scan_status    TEXT,
+    -- catalog.Stats JSON computed by the last successful scan
+    stats               TEXT    NOT NULL DEFAULT '{}',
+    -- number of successful scans; part of the per-scan hardlink group ids ("<id>.<seq>:<n>")
+    scan_seq            INTEGER NOT NULL DEFAULT 0,
     created_at          TEXT    NOT NULL,
     updated_at          TEXT    NOT NULL
 ) STRICT;
 
 CREATE TABLE destinations (
-    id          INTEGER PRIMARY KEY,
+    -- AUTOINCREMENT: ids appear in job params, schedules and snapshots; never reuse a deleted one
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
     name        TEXT    NOT NULL UNIQUE COLLATE NOCASE,
     engine      TEXT    NOT NULL CHECK (engine IN ('filecopy', 'restic', 'rclone')),
     target      TEXT    NOT NULL,
-    -- uuid written to <target>/.bunkarr/destination.json (safety rule S3)
-    marker_id   TEXT    NOT NULL,
+    -- uuid written to <target>/.bunkarr/destination.json (safety rule S3); one row per marker
+    marker_id   TEXT    NOT NULL UNIQUE,
     -- sealed JSON (Phase 4 engines); '' = none
     credentials TEXT    NOT NULL DEFAULT '',
     -- see docs/design/phase1.md §7 Destination.settings; missing keys take the documented defaults
@@ -193,6 +205,10 @@ CREATE TABLE destination_files (
     -- retained: moved to retained_path until expires_at
     state          TEXT    NOT NULL CHECK (state IN ('present', 'linked', 'link_recorded', 'missing', 'retained')),
     retained_path  TEXT,
+    -- why a retained row was retained: deleted (gone from the source), replaced (old version of an
+    -- update), displaced (an unmanaged file that was in the way, design S2), damaged (a file verify
+    -- marked missing that was still there when it was replaced)
+    reason         TEXT CHECK (reason IS NULL OR reason IN ('deleted', 'replaced', 'displaced', 'damaged')),
     job_id         INTEGER,
     copied_at      TEXT,
     verified_at    TEXT,
@@ -226,9 +242,12 @@ CREATE TABLE snapshots (
 ) STRICT;
 
 CREATE INDEX snapshots_destination ON snapshots (destination_id, kind, created_at);
+-- a version directory is recorded at most once (a resumed job records an unrecorded one)
+CREATE UNIQUE INDEX snapshots_path ON snapshots (destination_id, engine_snapshot_id);
 
 CREATE TABLE notifications (
-    id         INTEGER PRIMARY KEY,
+    -- AUTOINCREMENT: ids appear in job params, schedules and snapshots; never reuse a deleted one
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT    NOT NULL UNIQUE COLLATE NOCASE,
     kind       TEXT    NOT NULL CHECK (kind IN ('apprise')),
     -- {"apiUrl":"http://apprise:8000","configKey":""}

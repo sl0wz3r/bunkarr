@@ -1,12 +1,17 @@
 # CI on every branch push and pull request: web UI (typecheck, tests, build), Go (gofmt, vet, race
-# tests, build, govulncheck), npm audit, shellcheck, and the Docker image (build + smoke test, no
-# push). Releases: release.yml, on tags. Actions are pinned to full commit SHAs (the comment names
-# the release; Renovate bumps both). The token is read-only and never persisted.
+# tests, build, the e2e acceptance suite, govulncheck), npm audit, shellcheck, and the Docker image
+# (build + smoke test + container kill test + SMB/NFS share test, no push). The slow Plex
+# backup/restore test runs only on manual runs (workflow_dispatch) and on tags. Releases:
+# release.yml, on tags (it builds the multi-arch image once, runs the e2e suite and the Docker suite
+# against that image on amd64 and arm64, and tags it as a release only when they pass). Actions are
+# pinned to full commit SHAs (the comment names the release; Renovate bumps both). The token is
+# read-only and never persisted.
 name: ci
 
 on:
   push:
     branches: ["**"]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -67,7 +72,7 @@ jobs:
           fi
 
       - name: Go - vet
-        run: go vet ./...
+        run: go vet ./... && go vet -tags e2e ./internal/e2e/...
 
       # -race needs cgo; release builds use CGO_ENABLED=0.
       - name: Go - test (race)
@@ -79,6 +84,12 @@ jobs:
         env:
           CGO_ENABLED: "0"
         run: go build -trimpath -o bin/bunkarr ./cmd/bunkarr && ./bin/bunkarr version
+
+      # Acceptance suite (docs/design/phase1.md §9): builds the real binary and drives it through
+      # its API over generated fixture trees in temp dirs: full and incremental syncs, hardlinks,
+      # kill -9 at fault points and resume, missing marker, empty source, dry run, change guard.
+      - name: Go - e2e
+        run: go test -tags e2e -count=1 -timeout 20m ./internal/e2e/...
 
       - name: Go - govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
@@ -93,11 +104,18 @@ jobs:
   docker:
     name: docker build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
+
+      # The container kill test's driver is a Go test (internal/e2e).
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27"
+          check-latest: true
+          cache-dependency-path: go.sum
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
@@ -116,3 +134,52 @@ jobs:
       # Healthcheck, first-run setup, API key auth, UI, PUID/PGID ownership, clean SIGTERM stop.
       - name: Test image
         run: sh docker/test-image.sh bunkarr:ci
+
+      # BUNKARR_FAULTPOINT=copy.afterWrite, docker kill -s KILL mid-copy, docker start: the job
+      # resumes (attempt 2) and the backup volume verifies with no temp file left.
+      - name: Container kill test
+        run: sh docker/test-kill.sh bunkarr:ci
+
+      # The sync lifecycle and kill tests with every destination on a real share: Samba over
+      # CIFS mounted like Unraid's Unassigned Devices (nounix, noserverino), kernel NFS server
+      # over NFSv4 (privileged containers; the runner's kernel needs cifs and nfsd).
+      - name: Network share test
+        run: sh docker/test-shares.sh bunkarr:ci
+
+  plex:
+    name: plex restore
+    # Slow (two Plex Media Server containers) and pulls plexinc/pms-docker (pinned by digest in
+    # docker/test-plex-restore.sh): manual runs and tags only.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27"
+          check-latest: true
+          cache-dependency-path: go.sum
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: bunkarr:ci
+          provenance: false
+          build-args: |
+            VERSION=0.0.0-ci
+            COMMIT=${{ github.sha }}
+
+      # Acceptance 4: Plex DB backup under write load from a read-only mount, Plex SQLite
+      # integrity_check "ok", restore into a second Plex container with the same sections,
+      # movie count and watched count.
+      - name: Plex backup/restore test
+        run: sh docker/test-plex-restore.sh bunkarr:ci

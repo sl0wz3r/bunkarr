@@ -43,9 +43,13 @@ func Open(ctx context.Context, path string, log *slog.Logger) (*DB, error) {
 		log = slog.New(slog.DiscardHandler)
 	}
 	base := "file:" + (&url.URL{Path: path}).EscapedPath()
-	common := "&_pragma=busy_timeout(10000)&_pragma=foreign_keys(1)&_pragma=synchronous(NORMAL)"
+	common := "&_pragma=busy_timeout(10000)&_pragma=foreign_keys(1)"
 
-	w, err := sql.Open("sqlite", base+"?_pragma=journal_mode(WAL)&_txlock=immediate"+common)
+	// synchronous(FULL) on the writer: every commit is durable before the call returns. Job runners
+	// record their intent (temp paths, retention paths) before touching the destination, and those
+	// destination steps are fsynced; with NORMAL a power loss could keep the filesystem step but
+	// lose the record that explains it. The cost is one WAL fsync per commit.
+	w, err := sql.Open("sqlite", base+"?_pragma=journal_mode(WAL)&_pragma=synchronous(FULL)&_txlock=immediate"+common)
 	if err != nil {
 		return nil, fmt.Errorf("open database %s: %w", path, err)
 	}

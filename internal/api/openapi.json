@@ -3,87 +3,1994 @@
   "info": {
     "title": "Bunkarr API",
     "version": "1",
-    "description": "Bunkarr REST API. Authenticate with the API key from Settings > General in the X-Api-Key header (or the apikey query parameter), or with a login session cookie. Errors are {\"message\": \"...\"}.",
-    "license": { "name": "GPL-3.0-or-later", "identifier": "GPL-3.0-or-later" }
+    "description": "Bunkarr REST API. Authenticate with the API key from Settings > General in the X-Api-Key header (or the apikey query parameter), or with a login session cookie. Errors are {\"message\": \"...\"}: 400 invalid input, 401 not authenticated, 403 refused (a cross-site browser request, an action that needs a login session, a directory Bunkarr cannot read), 404 unknown id, 409 conflict with the current state (including safety refusals that need a confirmation or a mounted share), 502 Plex failed, 503 unavailable (the backup routes of a server without backup services, or a request stopped as the server shuts down), 500 anything else. Secrets (Plex tokens, Apprise URLs) are write-only. Job-starting endpoints answer 202 with the queued Job. Sizes are bytes, times RFC 3339.",
+    "license": {
+      "name": "GPL-3.0-or-later",
+      "identifier": "GPL-3.0-or-later"
+    }
   },
-  "servers": [{ "url": "/api/v1" }],
-  "security": [{ "apiKeyHeader": [] }, { "apiKeyQuery": [] }, { "session": [] }],
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "apiKeyHeader": []
+    },
+    {
+      "apiKeyQuery": []
+    },
+    {
+      "session": []
+    }
+  ],
   "components": {
     "securitySchemes": {
-      "apiKeyHeader": { "type": "apiKey", "in": "header", "name": "X-Api-Key" },
-      "apiKeyQuery": { "type": "apiKey", "in": "query", "name": "apikey" },
-      "session": { "type": "apiKey", "in": "cookie", "name": "bunkarr_session" }
+      "apiKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key"
+      },
+      "apiKeyQuery": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "apikey"
+      },
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "bunkarr_session"
+      }
     },
     "schemas": {
       "Error": {
         "type": "object",
-        "required": ["message"],
-        "properties": { "message": { "type": "string" } }
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
       },
       "Credentials": {
         "type": "object",
-        "required": ["username", "password"],
+        "required": [
+          "username",
+          "password"
+        ],
         "properties": {
-          "username": { "type": "string", "maxLength": 64 },
-          "password": { "type": "string", "minLength": 8, "description": "At most 72 bytes." }
+          "username": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "description": "At most 72 bytes."
+          }
         }
       },
       "Username": {
         "type": "object",
-        "required": ["username"],
-        "properties": { "username": { "type": "string" } }
+        "required": [
+          "username"
+        ],
+        "properties": {
+          "username": {
+            "type": "string"
+          }
+        }
       },
       "AuthRequired": {
         "type": "string",
-        "enum": ["enabled", "disabled_for_local_addresses"]
+        "enum": [
+          "enabled",
+          "disabled_for_local_addresses"
+        ]
       },
       "AuthStatus": {
         "type": "object",
-        "required": ["setupRequired", "authenticated", "username", "authenticationRequired"],
+        "required": [
+          "setupRequired",
+          "authenticated",
+          "username",
+          "authenticationRequired"
+        ],
         "properties": {
-          "setupRequired": { "type": "boolean" },
-          "authenticated": { "type": "boolean" },
-          "via": { "type": "string", "enum": ["apikey", "session", "local"] },
-          "username": { "type": ["string", "null"] },
-          "authenticationRequired": { "$ref": "#/components/schemas/AuthRequired" }
+          "setupRequired": {
+            "type": "boolean"
+          },
+          "authenticated": {
+            "type": "boolean"
+          },
+          "via": {
+            "type": "string",
+            "enum": [
+              "apikey",
+              "session",
+              "local"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authenticationRequired": {
+            "$ref": "#/components/schemas/AuthRequired"
+          }
         }
       },
       "SystemStatus": {
         "type": "object",
-        "required": ["appName", "version", "commit", "startTime", "uptimeSeconds", "databasePath", "schemaVersion"],
+        "required": [
+          "appName",
+          "version",
+          "commit",
+          "startTime",
+          "uptimeSeconds",
+          "databasePath",
+          "schemaVersion"
+        ],
         "properties": {
-          "appName": { "type": "string" },
-          "version": { "type": "string" },
-          "commit": { "type": "string" },
-          "buildDate": { "type": "string" },
-          "startTime": { "type": "string", "format": "date-time" },
-          "uptimeSeconds": { "type": "integer" },
-          "databasePath": { "type": "string" },
-          "schemaVersion": { "type": "integer" },
-          "configDir": { "type": "string" },
-          "goVersion": { "type": "string" },
-          "os": { "type": "string" },
-          "arch": { "type": "string" },
-          "isDocker": { "type": "boolean" },
-          "authenticationMethod": { "type": "string", "enum": ["forms"] },
-          "authenticationRequired": { "$ref": "#/components/schemas/AuthRequired" }
+          "appName": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "buildDate": {
+            "type": "string"
+          },
+          "startTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "uptimeSeconds": {
+            "type": "integer"
+          },
+          "databasePath": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "configDir": {
+            "type": "string"
+          },
+          "goVersion": {
+            "type": "string"
+          },
+          "os": {
+            "type": "string"
+          },
+          "arch": {
+            "type": "string"
+          },
+          "isDocker": {
+            "type": "boolean"
+          },
+          "authenticationMethod": {
+            "type": "string",
+            "enum": [
+              "forms"
+            ]
+          },
+          "authenticationRequired": {
+            "$ref": "#/components/schemas/AuthRequired"
+          }
         }
       },
       "GeneralSettings": {
         "type": "object",
-        "required": ["apiKey", "authenticationRequired", "authenticationMethod", "bindAddress", "port"],
+        "required": [
+          "apiKey",
+          "authenticationRequired",
+          "authenticationMethod",
+          "bindAddress",
+          "port"
+        ],
         "properties": {
-          "apiKey": { "type": "string" },
-          "authenticationRequired": { "$ref": "#/components/schemas/AuthRequired" },
-          "authenticationMethod": { "type": "string", "enum": ["forms"] },
-          "bindAddress": { "type": "string" },
-          "port": { "type": "integer" }
+          "apiKey": {
+            "type": "string"
+          },
+          "authenticationRequired": {
+            "$ref": "#/components/schemas/AuthRequired"
+          },
+          "authenticationMethod": {
+            "type": "string",
+            "enum": [
+              "forms"
+            ]
+          },
+          "bindAddress": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          }
+        }
+      },
+      "JobType": {
+        "type": "string",
+        "enum": [
+          "scan",
+          "sync",
+          "plexdb_backup",
+          "retention",
+          "verify"
+        ]
+      },
+      "JobStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "completed",
+          "completed_with_warnings",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "JobTrigger": {
+        "type": "string",
+        "enum": [
+          "schedule",
+          "manual",
+          "webhook",
+          "resume",
+          "startup"
+        ]
+      },
+      "JobParams": {
+        "type": "object",
+        "description": "What a job works on; zero values are left out.",
+        "properties": {
+          "destinationId": {
+            "type": "integer"
+          },
+          "sourceIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "integrationId": {
+            "type": "integer"
+          },
+          "allowChanges": {
+            "type": "boolean",
+            "description": "Run the changes the mass-change guard would hold (S10b)."
+          }
+        }
+      },
+      "Progress": {
+        "type": "object",
+        "required": [
+          "filesTotal",
+          "filesDone",
+          "bytesTotal",
+          "bytesDone",
+          "bytesPerSec",
+          "etaSeconds"
+        ],
+        "properties": {
+          "phase": {
+            "type": "string",
+            "description": "scanning, planning, copying, verifying, backing-up, finishing"
+          },
+          "filesTotal": {
+            "type": "integer"
+          },
+          "filesDone": {
+            "type": "integer"
+          },
+          "bytesTotal": {
+            "type": "integer"
+          },
+          "bytesDone": {
+            "type": "integer"
+          },
+          "currentFile": {
+            "type": "string"
+          },
+          "bytesPerSec": {
+            "type": "number",
+            "description": "EWMA over 10 s"
+          },
+          "etaSeconds": {
+            "type": "integer"
+          }
+        }
+      },
+      "Job": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "status",
+          "trigger",
+          "dryRun",
+          "params",
+          "attempt",
+          "progress",
+          "stats",
+          "warnings",
+          "summary",
+          "queuedAt",
+          "startedAt",
+          "finishedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "type": {
+            "$ref": "#/components/schemas/JobType"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/JobTrigger"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "params": {
+            "$ref": "#/components/schemas/JobParams"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "progress": {
+            "$ref": "#/components/schemas/Progress"
+          },
+          "stats": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Runner-specific counters, e.g. sync: filesPlanned, filesCopied, filesUpdated, filesMoved, filesAdopted, filesLinked, filesRetained, filesDisplaced, filesHeld, filesFailed, filesSkipped, bytesPlanned, bytesCopied, durationMs."
+          },
+          "warnings": {
+            "type": "integer"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string",
+            "description": "Why the job failed (secrets redacted)."
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "JobPage": {
+        "type": "object",
+        "description": "One page of jobs.",
+        "required": [
+          "page",
+          "pageSize",
+          "totalRecords",
+          "records"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "totalRecords": {
+            "type": "integer"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Job"
+            }
+          }
+        }
+      },
+      "ItemAction": {
+        "type": "string",
+        "enum": [
+          "copy",
+          "update",
+          "move",
+          "adopt",
+          "link",
+          "promote",
+          "retain",
+          "expire",
+          "verify",
+          "backup",
+          "skip"
+        ]
+      },
+      "ItemStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "done",
+          "failed",
+          "skipped",
+          "held"
+        ]
+      },
+      "Item": {
+        "type": "object",
+        "description": "One planned unit of work of a job (a dry run's items are its preview).",
+        "required": [
+          "id",
+          "jobId",
+          "relPath",
+          "action",
+          "status",
+          "bytes"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "jobId": {
+            "type": "integer"
+          },
+          "fileId": {
+            "type": "integer"
+          },
+          "relPath": {
+            "type": "string"
+          },
+          "action": {
+            "$ref": "#/components/schemas/ItemAction"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ItemStatus"
+          },
+          "bytes": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "object",
+            "description": "Runner-specific: source path, temp path, link target, reason."
+          }
+        }
+      },
+      "ItemPage": {
+        "type": "object",
+        "description": "One page of a job's items, in plan order.",
+        "required": [
+          "page",
+          "pageSize",
+          "totalRecords",
+          "records"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "totalRecords": {
+            "type": "integer"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            }
+          }
+        }
+      },
+      "ItemCount": {
+        "type": "object",
+        "required": [
+          "action",
+          "status",
+          "files",
+          "bytes"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ItemAction"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ItemStatus"
+          },
+          "files": {
+            "type": "integer"
+          },
+          "bytes": {
+            "type": "integer"
+          }
+        }
+      },
+      "LogEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "level",
+          "message",
+          "fields"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "debug",
+              "info",
+              "warn",
+              "error"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object"
+          }
+        }
+      },
+      "CronSchedule": {
+        "type": "object",
+        "required": [
+          "cron",
+          "enabled"
+        ],
+        "properties": {
+          "cron": {
+            "type": "string",
+            "description": "5-field cron expression or @hourly/@daily/@weekly/@monthly, in the container's time zone; \"\" means none."
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Schedule": {
+        "type": "object",
+        "required": [
+          "id",
+          "jobType",
+          "params",
+          "description",
+          "cron",
+          "enabled",
+          "lastRunAt",
+          "nextRunAt",
+          "blockedReason"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "jobType": {
+            "$ref": "#/components/schemas/JobType"
+          },
+          "params": {
+            "$ref": "#/components/schemas/JobParams"
+          },
+          "description": {
+            "type": "string"
+          },
+          "cron": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "lastRunAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "nextRunAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "null when disabled or blocked"
+          },
+          "blockedReason": {
+            "type": "string",
+            "description": "Why the scheduler refuses this schedule's jobs, e.g. 'destination \"UNAS\" is disabled' (its destination or Plex server is disabled; Run now answers 409 too); empty when they can run"
+          }
+        }
+      },
+      "ScheduleUpdate": {
+        "type": "object",
+        "properties": {
+          "cron": {
+            "type": "string",
+            "description": "Empty keeps the current expression."
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Missing keeps the current flag."
+          }
+        }
+      },
+      "IntegrationType": {
+        "type": "string",
+        "enum": [
+          "plex",
+          "sonarr",
+          "radarr",
+          "lidarr",
+          "tautulli",
+          "seerr",
+          "maintainerr"
+        ]
+      },
+      "PathMapping": {
+        "type": "object",
+        "required": [
+          "plex",
+          "local"
+        ],
+        "properties": {
+          "plex": {
+            "type": "string",
+            "description": "Path prefix as Plex sees it"
+          },
+          "local": {
+            "type": "string",
+            "description": "The same folder as Bunkarr sees it"
+          }
+        }
+      },
+      "PlexBackup": {
+        "type": "object",
+        "description": "The scheduled Plex DB backup (managed as a plexdb_backup schedule).",
+        "required": [
+          "destinationId",
+          "cron",
+          "enabled"
+        ],
+        "properties": {
+          "destinationId": {
+            "type": "integer",
+            "description": "0: none chosen"
+          },
+          "cron": {
+            "type": "string",
+            "description": "Default 0 6 * * * when enabled without one"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PlexSettings": {
+        "type": "object",
+        "properties": {
+          "dataPath": {
+            "type": "string",
+            "description": "The Plex Media Server data directory mounted into Bunkarr (read-only)"
+          },
+          "pathMappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathMapping"
+            }
+          },
+          "backup": {
+            "$ref": "#/components/schemas/PlexBackup"
+          }
+        }
+      },
+      "Integration": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "name",
+          "url",
+          "enabled",
+          "hasApiKey",
+          "settings",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "type": {
+            "$ref": "#/components/schemas/IntegrationType"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "hasApiKey": {
+            "type": "boolean",
+            "description": "The API key (Plex token) itself is never returned."
+          },
+          "settings": {
+            "type": "object",
+            "description": "PlexSettings for Plex integrations."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IntegrationInput": {
+        "type": "object",
+        "description": "type is required on create and cannot change.",
+        "required": [
+          "name",
+          "url"
+        ],
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/IntegrationType"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "url": {
+            "type": "string",
+            "description": "http(s) base URL without credentials, query or fragment"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "apiKey": {
+            "type": "string",
+            "description": "Write-only. Empty or missing on update keeps the stored key."
+          },
+          "clearApiKey": {
+            "type": "boolean",
+            "description": "Update only: remove the stored key."
+          },
+          "settings": {
+            "type": "object",
+            "description": "PlexSettings for Plex integrations; missing on update keeps them."
+          }
+        }
+      },
+      "IntegrationTest": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "type"
+            ]
+          },
+          {
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "minimum": 1
+              }
+            }
+          }
+        ],
+        "properties": {
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/IntegrationType"
+              }
+            ],
+            "description": "Required unless id is given (then it defaults to the saved integration's type)"
+          },
+          "url": {
+            "type": "string"
+          },
+          "apiKey": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "description": "A saved integration whose stored key is used when apiKey is empty (0: none)",
+            "minimum": 0
+          }
+        }
+      },
+      "IntegrationTestResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "message"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "machineIdentifier": {
+            "type": "string"
+          },
+          "butlerStartHour": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 23
+          },
+          "butlerEndHour": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 23
+          }
+        }
+      },
+      "PlexLocation": {
+        "type": "object",
+        "required": [
+          "path",
+          "localPath",
+          "exists"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "As Plex sees it"
+          },
+          "localPath": {
+            "type": "string",
+            "description": "As Bunkarr sees it through the path mappings; \"\" when no mapping applies"
+          },
+          "exists": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PlexSection": {
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "type",
+          "locations"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlexLocation"
+            }
+          }
+        }
+      },
+      "PlexBackupRequest": {
+        "type": "object",
+        "properties": {
+          "destinationId": {
+            "type": "integer",
+            "description": "0 or missing: the integration's backup destination"
+          },
+          "dryRun": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SourceStats": {
+        "type": "object",
+        "required": [
+          "files",
+          "bytes",
+          "uniqueBytes",
+          "hardlinkGroups",
+          "hardlinkedFiles",
+          "skipped"
+        ],
+        "properties": {
+          "files": {
+            "type": "integer"
+          },
+          "bytes": {
+            "type": "integer"
+          },
+          "uniqueBytes": {
+            "type": "integer",
+            "description": "Hardlink groups counted once"
+          },
+          "hardlinkGroups": {
+            "type": "integer"
+          },
+          "hardlinkedFiles": {
+            "type": "integer"
+          },
+          "skipped": {
+            "type": "integer"
+          }
+        }
+      },
+      "Source": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "path",
+          "destFolder",
+          "exclude",
+          "enabled",
+          "stats"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute, symlinks resolved"
+          },
+          "destFolder": {
+            "type": "string"
+          },
+          "exclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "plexIntegrationId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "plexSectionId": {
+            "type": "string"
+          },
+          "plexPath": {
+            "type": "string"
+          },
+          "arrIntegrationId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "fsType": {
+            "type": "string",
+            "description": "Recorded by the first successful scan after the source was saved"
+          },
+          "lastScanAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastScanStatus": {
+            "type": "string",
+            "enum": [
+              "",
+              "ok",
+              "warnings",
+              "failed"
+            ]
+          },
+          "stats": {
+            "$ref": "#/components/schemas/SourceStats"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SourceInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "path"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "path": {
+            "type": "string"
+          },
+          "destFolder": {
+            "type": "string",
+            "description": "Empty: create derives it from the name, update keeps it. Immutable once backed up (409)."
+          },
+          "exclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "plexIntegrationId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "plexSectionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plexPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "arrIntegrationId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "SourceTestResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "path",
+          "exists",
+          "isDir",
+          "fsType",
+          "fuse",
+          "entries",
+          "message",
+          "warnings"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string",
+            "description": "The resolved path that would be stored"
+          },
+          "exists": {
+            "type": "boolean"
+          },
+          "isDir": {
+            "type": "boolean"
+          },
+          "fsType": {
+            "type": "string"
+          },
+          "fuse": {
+            "type": "boolean"
+          },
+          "entries": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CatalogFile": {
+        "type": "object",
+        "required": [
+          "id",
+          "relPath",
+          "size",
+          "mtime",
+          "hardlinkGroup",
+          "nlink",
+          "deleted"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "relPath": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "mtime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hardlinkGroup": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nlink": {
+            "type": "integer"
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CatalogFilePage": {
+        "type": "object",
+        "description": "One page of a source's catalog, by relative path.",
+        "required": [
+          "page",
+          "pageSize",
+          "totalRecords",
+          "records"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "totalRecords": {
+            "type": "integer"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogFile"
+            }
+          }
+        }
+      },
+      "CatalogStats": {
+        "type": "object",
+        "required": [
+          "sources",
+          "files",
+          "bytes",
+          "uniqueBytes",
+          "hardlinkGroups",
+          "hardlinkedFiles"
+        ],
+        "properties": {
+          "sources": {
+            "type": "integer"
+          },
+          "files": {
+            "type": "integer"
+          },
+          "bytes": {
+            "type": "integer"
+          },
+          "uniqueBytes": {
+            "type": "integer"
+          },
+          "hardlinkGroups": {
+            "type": "integer"
+          },
+          "hardlinkedFiles": {
+            "type": "integer"
+          }
+        }
+      },
+      "DirListing": {
+        "type": "object",
+        "required": [
+          "path",
+          "parent",
+          "directories",
+          "truncated"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "parent": {
+            "type": "string",
+            "description": "\"\" at /"
+          },
+          "directories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "path"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More than 10000 subdirectories; the first ones are listed"
+          }
+        }
+      },
+      "Capabilities": {
+        "type": "object",
+        "description": "What the destination probe found (design section 3).",
+        "properties": {
+          "hardlinks": {
+            "type": "boolean"
+          },
+          "unstableInodes": {
+            "type": "boolean",
+            "description": "Inode numbers do not tell whether two names at the destination are one file: a hardlinked name (or another spelling on a case-insensitive destination) stats with other numbers than the name it is one file with, as on a CIFS mount with noserverino. Bunkarr then compares such names by content. A sync, verify or retention job that is not a dry run checks this again before it first compares two names and stores a change."
+          },
+          "caseInsensitive": {
+            "type": "boolean"
+          },
+          "invalidChars": {
+            "type": "string"
+          },
+          "trailingDotSpace": {
+            "type": "boolean"
+          },
+          "mtimeGranularityNs": {
+            "type": "integer"
+          },
+          "fsType": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "probeVersion": {
+            "type": "integer",
+            "description": "Version of the probe that found these capabilities (currently 1). 0 or missing: an older probe that did not check unstableInodes; the next sync, verify or retention job that is not a dry run probes the destination again, and until then inode numbers are not trusted."
+          }
+        }
+      },
+      "DestinationSettings": {
+        "type": "object",
+        "description": "Missing or zero values take the defaults.",
+        "properties": {
+          "verify": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "sample",
+                  "full"
+                ]
+              },
+              "samplePercent": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            }
+          },
+          "hardlinks": {
+            "type": "string",
+            "enum": [
+              "recreate",
+              "copy"
+            ]
+          },
+          "adoptExisting": {
+            "type": "string",
+            "enum": [
+              "size+mtime",
+              "size+hash",
+              "off"
+            ]
+          },
+          "mtimeWindowSec": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600
+          },
+          "maxChangePercent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "maxChangeFiles": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Retention": {
+        "type": "object",
+        "description": "Missing or zero values take the defaults (30, 14, 8).",
+        "properties": {
+          "deletedDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3650
+          },
+          "plexDbDaily": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365
+          },
+          "plexDbWeekly": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 520
+          }
+        }
+      },
+      "Destination": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "engine",
+          "target",
+          "enabled",
+          "sourceIds",
+          "fsType",
+          "capabilities",
+          "settings",
+          "retention",
+          "schedule",
+          "verifySchedule",
+          "lastJob",
+          "lastSync",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "filecopy"
+            ]
+          },
+          "target": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "sourceIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "fsType": {
+            "type": "string"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/Capabilities"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/DestinationSettings"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/Retention"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/CronSchedule"
+          },
+          "verifySchedule": {
+            "$ref": "#/components/schemas/CronSchedule"
+          },
+          "lastJob": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Job"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest job of any type that worked on the destination (sync, verify, retention, Plex DB backup)"
+          },
+          "lastSync": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Job"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest sync of the destination (queued, running or finished; previews excluded): its last sync status. null before the first sync"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DestinationInput": {
+        "type": "object",
+        "description": "Create: name and target are required. Update: empty or missing fields keep the stored values.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "engine": {
+            "type": "string",
+            "enum": [
+              "filecopy"
+            ]
+          },
+          "target": {
+            "type": "string",
+            "description": "Absolute path of the mounted share; it must exist. Cannot change after creation."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "sourceIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "settings": {
+            "$ref": "#/components/schemas/DestinationSettings"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/Retention"
+          },
+          "schedule": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CronSchedule"
+              }
+            ],
+            "description": "Sync schedule. Create: missing means none. Update: missing keeps it. {cron: \"\", enabled: false} removes it."
+          },
+          "verifySchedule": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CronSchedule"
+              }
+            ],
+            "description": "Verify schedule. Create: missing means 0 5 * * 0 (weekly, Sunday 05:00). Update: missing keeps it."
+          },
+          "attach": {
+            "type": "boolean",
+            "description": "Create only: adopt the existing .bunkarr/destination.json marker (S3)."
+          },
+          "allowLocal": {
+            "type": "boolean",
+            "description": "Create only: accept a target on a local filesystem (S3)."
+          }
+        }
+      },
+      "DestinationTest": {
+        "type": "object",
+        "required": [
+          "target"
+        ],
+        "properties": {
+          "target": {
+            "type": "string"
+          }
+        }
+      },
+      "DestinationTestResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "marker",
+          "writable",
+          "fsType",
+          "local",
+          "capabilities",
+          "freeBytes",
+          "totalBytes",
+          "entries",
+          "message",
+          "warnings"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "marker": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "missing",
+              "mismatch",
+              "foreign"
+            ]
+          },
+          "writable": {
+            "type": "boolean"
+          },
+          "fsType": {
+            "type": "string"
+          },
+          "local": {
+            "type": "boolean"
+          },
+          "capabilities": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Capabilities"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "freeBytes": {
+            "type": "integer"
+          },
+          "totalBytes": {
+            "type": "integer"
+          },
+          "entries": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SyncRequest": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean",
+            "description": "Scan, plan and guard only; nothing is written (S9)"
+          },
+          "allowChanges": {
+            "type": "boolean",
+            "description": "Run changes the mass-change guard holds (S10b)"
+          }
+        }
+      },
+      "VerifyRequest": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ScheduleRunRequest": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean",
+            "description": "Queue a dry run (a preview): nothing is written or deleted (S9)"
+          }
+        }
+      },
+      "Snapshot": {
+        "type": "object",
+        "required": [
+          "id",
+          "integrationId",
+          "path",
+          "createdAt",
+          "size",
+          "method",
+          "integrity",
+          "manifest"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "destinationId": {
+            "type": "integer"
+          },
+          "integrationId": {
+            "type": "integer",
+            "description": "0 once the integration was deleted"
+          },
+          "jobId": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string",
+            "description": "Version directory relative to the target"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "online_backup",
+              "online_backup_immutable"
+            ]
+          },
+          "integrity": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "failed"
+            ]
+          },
+          "manifest": {
+            "type": "object"
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "enabled",
+          "apiUrl",
+          "configKey",
+          "hasUrls",
+          "onFailure",
+          "onWarning",
+          "onSuccess"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "apprise"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "apiUrl": {
+            "type": "string"
+          },
+          "configKey": {
+            "type": "string",
+            "description": "Apprise stateful mode; \"\" means stateless with the stored URLs"
+          },
+          "hasUrls": {
+            "type": "boolean",
+            "description": "The Apprise URLs themselves are never returned."
+          },
+          "onFailure": {
+            "type": "boolean"
+          },
+          "onWarning": {
+            "type": "boolean"
+          },
+          "onSuccess": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "NotificationInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "apiUrl"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "apprise"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "apiUrl": {
+            "type": "string"
+          },
+          "configKey": {
+            "type": "string"
+          },
+          "urls": {
+            "type": "string",
+            "description": "Write-only Apprise URLs (comma or space separated); empty on update keeps the stored ones."
+          },
+          "onFailure": {
+            "type": "boolean"
+          },
+          "onWarning": {
+            "type": "boolean"
+          },
+          "onSuccess": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NotificationTest": {
+        "type": "object",
+        "description": "A notification form (apiUrl and urls or configKey required) or just the id of a saved notification.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "A saved notification: empty urls use its stored URLs; an id without apiUrl tests it as saved."
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "apprise"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "apiUrl": {
+            "type": "string"
+          },
+          "configKey": {
+            "type": "string"
+          },
+          "urls": {
+            "type": "string"
+          },
+          "onFailure": {
+            "type": "boolean"
+          },
+          "onWarning": {
+            "type": "boolean"
+          },
+          "onSuccess": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TestResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "message"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
         }
       }
     },
     "responses": {
-      "BadRequest": { "description": "Invalid input", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
-      "Unauthorized": { "description": "Missing or invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+      "BadRequest": {
+        "description": "Invalid input",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid credentials",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No such object",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Conflicts with the current state (the message says why)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "Internal error (message redacted of secrets)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "BadGateway": {
+        "description": "Plex answered badly or not at all",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "No backup services are configured on this server, or the request was stopped (the server is shutting down)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "page": {
+        "name": "page",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      },
+      "pageSize": {
+        "name": "pageSize",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 50
+        }
+      }
     }
   },
   "paths": {
@@ -93,8 +2000,24 @@
         "summary": "Liveness and database check (no authentication)",
         "security": [],
         "responses": {
-          "200": { "description": "Healthy", "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "const": "ok" } } } } } },
-          "503": { "description": "Database unavailable" }
+          "200": {
+            "description": "Healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "const": "ok"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unavailable"
+          }
         }
       }
     },
@@ -103,7 +2026,11 @@
         "operationId": "getOpenApi",
         "summary": "This document (no authentication)",
         "security": [],
-        "responses": { "200": { "description": "OpenAPI 3.1 document" } }
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 document"
+          }
+        }
       }
     },
     "/auth/status": {
@@ -111,7 +2038,21 @@
         "operationId": "getAuthStatus",
         "summary": "Whether first-run setup is needed and whether the caller is signed in (no authentication)",
         "security": [],
-        "responses": { "200": { "description": "Status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthStatus" } } } } }
+        "responses": {
+          "200": {
+            "description": "Status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthStatus"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
       }
     },
     "/auth/setup": {
@@ -119,11 +2060,36 @@
         "operationId": "setup",
         "summary": "First run: create the user and sign in. Only allowed while no user exists.",
         "security": [],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Credentials" } } } },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credentials"
+              }
+            }
+          }
+        },
         "responses": {
-          "201": { "description": "Created; session cookie set", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Username" } } } },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "409": { "description": "Setup already completed" }
+          "201": {
+            "description": "Created; session cookie set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Username"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "description": "Setup already completed"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -132,11 +2098,39 @@
         "operationId": "login",
         "summary": "Sign in; sets the session cookie",
         "security": [],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Credentials" } } } },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credentials"
+              }
+            }
+          }
+        },
         "responses": {
-          "200": { "description": "Signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Username" } } } },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "429": { "description": "Too many failed logins from this address (see Retry-After)" }
+          "200": {
+            "description": "Signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Username"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "description": "Too many failed logins from this address (see Retry-After)"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -145,35 +2139,74 @@
         "operationId": "logout",
         "summary": "End the current session",
         "security": [],
-        "responses": { "204": { "description": "Signed out" } }
+        "responses": {
+          "204": {
+            "description": "Signed out"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
       }
     },
     "/auth/credentials": {
       "put": {
         "operationId": "changeCredentials",
         "summary": "Change the username and/or password (session login only); ends other sessions",
-        "security": [{ "session": [] }],
+        "security": [
+          {
+            "session": []
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["currentPassword"],
+                "required": [
+                  "currentPassword"
+                ],
                 "properties": {
-                  "currentPassword": { "type": "string" },
-                  "username": { "type": "string", "description": "Empty keeps the current username" },
-                  "newPassword": { "type": "string", "description": "Empty keeps the current password" }
+                  "currentPassword": {
+                    "type": "string"
+                  },
+                  "username": {
+                    "type": "string",
+                    "description": "Empty keeps the current username"
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "description": "Empty keeps the current password"
+                  }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Changed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Username" } } } },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": { "description": "Not a session login" }
+          "200": {
+            "description": "Changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Username"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not a session login"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -182,8 +2215,22 @@
         "operationId": "getSystemStatus",
         "summary": "Version, uptime and paths",
         "responses": {
-          "200": { "description": "Status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SystemStatus" } } } },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "200": {
+            "description": "Status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -192,8 +2239,22 @@
         "operationId": "getGeneralSettings",
         "summary": "Settings > General, including the API key",
         "responses": {
-          "200": { "description": "Settings", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GeneralSettings" } } } },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "200": {
+            "description": "Settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       },
       "put": {
@@ -201,12 +2262,42 @@
         "summary": "Change when a login is required",
         "requestBody": {
           "required": true,
-          "content": { "application/json": { "schema": { "type": "object", "required": ["authenticationRequired"], "properties": { "authenticationRequired": { "$ref": "#/components/schemas/AuthRequired" } } } } }
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "authenticationRequired"
+                ],
+                "properties": {
+                  "authenticationRequired": {
+                    "$ref": "#/components/schemas/AuthRequired"
+                  }
+                }
+              }
+            }
+          }
         },
         "responses": {
-          "200": { "description": "Saved", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GeneralSettings" } } } },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
       }
     },
@@ -215,9 +2306,1947 @@
         "operationId": "regenerateApiKey",
         "summary": "Replace the API key; the old one stops working immediately",
         "responses": {
-          "200": { "description": "New settings with the new key", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GeneralSettings" } } } },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "200": {
+            "description": "New settings with the new key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
         }
+      }
+    },
+    "/integrations": {
+      "get": {
+        "operationId": "listIntegrations",
+        "summary": "List integrations",
+        "responses": {
+          "200": {
+            "description": "Integrations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Integration"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      },
+      "post": {
+        "operationId": "createIntegration",
+        "summary": "Add an integration (a Plex backup schedule is created from settings.backup)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/test": {
+      "post": {
+        "operationId": "testIntegration",
+        "summary": "Test a URL and API key (Plex: identity, then the token)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationTest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result (a failed connection is ok: false)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationTestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/{id}": {
+      "get": {
+        "operationId": "getIntegration",
+        "summary": "Get an integration",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Integration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      },
+      "put": {
+        "operationId": "updateIntegration",
+        "summary": "Update an integration; an empty apiKey keeps the stored one",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "description": "Changing the URL requires the token again (apiKey) or clearApiKey: a stored token is only sent to the URL it was saved with; otherwise 400."
+      },
+      "delete": {
+        "operationId": "deleteIntegration",
+        "summary": "Delete an integration and its schedules (backups are kept)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "A job of the integration (a Plex DB backup) is queued or running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/{id}/plex/sections": {
+      "get": {
+        "operationId": "listPlexSections",
+        "summary": "Plex library sections with their folders mapped to Bunkarr's paths",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlexSection"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/{id}/plex/backup": {
+      "post": {
+        "operationId": "startPlexBackup",
+        "summary": "Back up the Plex database now",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlexBackupRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The queued job (an identical queued job is returned instead of a new one)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/sources": {
+      "get": {
+        "operationId": "listSources",
+        "summary": "List sources",
+        "responses": {
+          "200": {
+            "description": "Sources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Source"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      },
+      "post": {
+        "operationId": "createSource",
+        "summary": "Add a source (the path is resolved and checked against destinations and the config directory, S4)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Source"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
+    "/sources/test": {
+      "post": {
+        "operationId": "testSource",
+        "summary": "Check whether a path can be a source (reads only its top-level listing)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "path"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceTestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
+    "/sources/{id}": {
+      "get": {
+        "operationId": "getSource",
+        "summary": "Get a source",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Source"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      },
+      "put": {
+        "operationId": "updateSource",
+        "summary": "Update a source",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SourceInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Source"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteSource",
+        "summary": "Delete a source and its catalog (backups are kept)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
+    "/sources/{id}/scan": {
+      "post": {
+        "operationId": "scanSource",
+        "summary": "Scan a source now",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "The queued job (an identical queued job is returned instead of a new one)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
+    "/sources/{id}/files": {
+      "get": {
+        "operationId": "listSourceFiles",
+        "summary": "Browse a source's catalog",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/pageSize"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive substring of the relative path"
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "hardlinked",
+                "deleted"
+              ],
+              "default": "all"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogFilePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
+    "/catalog/stats": {
+      "get": {
+        "operationId": "getCatalogStats",
+        "summary": "Catalog totals over all sources",
+        "responses": {
+          "200": {
+            "description": "Totals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogStats"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
+    "/filesystem": {
+      "get": {
+        "operationId": "browseFilesystem",
+        "summary": "List the subdirectories of a path for the path picker (read-only, directories only)",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Absolute path; empty means /"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirListing"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "The directory is not readable by Bunkarr's user (check PUID/PGID and the permissions)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
+    "/destinations": {
+      "get": {
+        "operationId": "listDestinations",
+        "summary": "List destinations",
+        "responses": {
+          "200": {
+            "description": "Destinations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Destination"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      },
+      "post": {
+        "operationId": "createDestination",
+        "summary": "Add a destination: checks and probes the target and writes its marker (S3); creates its schedules",
+        "description": "A target that already holds a marker needs attach (409 otherwise); a target on a local filesystem needs allowLocal (400 otherwise).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DestinationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Destination"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/destinations/test": {
+      "post": {
+        "operationId": "testDestinationTarget",
+        "summary": "Check a target before creating a destination (writes nothing)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DestinationTest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DestinationTestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/destinations/{id}": {
+      "get": {
+        "operationId": "getDestination",
+        "summary": "Get a destination",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Destination"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      },
+      "put": {
+        "operationId": "updateDestination",
+        "summary": "Update a destination and its schedules (the target cannot change)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DestinationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Destination"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteDestination",
+        "summary": "Forget a destination and its schedules; the backup data at the target is never touched",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/destinations/{id}/test": {
+      "post": {
+        "operationId": "testDestination",
+        "summary": "Check a destination: marker, filesystem, free space; re-runs the capability probe",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DestinationTestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/destinations/{id}/sync": {
+      "post": {
+        "operationId": "syncDestination",
+        "summary": "Sync the destination's sources now (dryRun: preview only)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The queued job (an identical queued job is returned instead of a new one)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/destinations/{id}/verify": {
+      "post": {
+        "operationId": "verifyDestination",
+        "summary": "Verify the destination's files now",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The queued job (an identical queued job is returned instead of a new one)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/destinations/{id}/snapshots": {
+      "get": {
+        "operationId": "listSnapshots",
+        "summary": "Plex database versions stored at the destination, newest first",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Snapshots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Snapshot"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/jobs": {
+      "get": {
+        "operationId": "listJobs",
+        "summary": "List jobs (active: queue order; finished: most recent first)",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "finished"
+              ]
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/JobType"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/JobStatus"
+            }
+          },
+          {
+            "name": "destinationId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/pageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "operationId": "getJob",
+        "summary": "Get a job (running jobs with live progress)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
+    "/jobs/{id}/cancel": {
+      "post": {
+        "operationId": "cancelJob",
+        "summary": "Cancel a queued or running job",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The job as it is now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
+    "/jobs/{id}/items": {
+      "get": {
+        "operationId": "listJobItems",
+        "summary": "A job's items (a dry run's preview)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ItemAction"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ItemStatus"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/pageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
+    "/jobs/{id}/items/summary": {
+      "get": {
+        "operationId": "summarizeJobItems",
+        "summary": "Item counts and bytes by action and status",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ItemCount"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
+    "/jobs/{id}/logs": {
+      "get": {
+        "operationId": "listJobLogs",
+        "summary": "A job's log lines, oldest first",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "afterId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Log lines",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LogEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
+    "/schedules": {
+      "get": {
+        "operationId": "listSchedules",
+        "summary": "List schedules with their next run",
+        "responses": {
+          "200": {
+            "description": "Schedules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Schedule"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
+    "/schedules/{id}": {
+      "put": {
+        "operationId": "updateSchedule",
+        "summary": "Change a schedule's cron expression or enabled flag",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Schedule"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
+    "/schedules/{id}/run": {
+      "post": {
+        "operationId": "runSchedule",
+        "summary": "Run a schedule's job now",
+        "description": "Queues the schedule's job with trigger manual, also when the schedule is disabled. With dryRun it queues a dry run instead (the Preview of System → Tasks): nothing is written or deleted, the job's items show what a run would do (a retention preview queues one dry-run retention job per enabled destination, whose expire items are the retained files a run would delete), and it is not recorded as a run of the schedule (lastRunAt).",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The queued job (an identical queued job is returned instead of a new one)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The schedule is blocked (blockedReason): its destination or Plex server is disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Jobs"
+        ]
+      }
+    },
+    "/notifications": {
+      "get": {
+        "operationId": "listNotifications",
+        "summary": "List notifications",
+        "responses": {
+          "200": {
+            "description": "Notifications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Notification"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Notifications"
+        ]
+      },
+      "post": {
+        "operationId": "createNotification",
+        "summary": "Add an Apprise notification",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Notification"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/notifications/test": {
+      "post": {
+        "operationId": "testNotification",
+        "summary": "Send a test message",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationTest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result (a failed delivery is ok: false)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/notifications/{id}": {
+      "put": {
+        "operationId": "updateNotification",
+        "summary": "Update a notification; empty urls keep the stored ones",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Notification"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Notifications"
+        ],
+        "description": "In stateless mode, changing apiUrl requires the Apprise URLs again (urls): stored URLs are only sent to the API they were saved with; otherwise 400."
+      },
+      "delete": {
+        "operationId": "deleteNotification",
+        "summary": "Delete a notification",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Notifications"
+        ]
       }
     }
   }

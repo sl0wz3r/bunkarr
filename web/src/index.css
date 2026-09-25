@@ -13,12 +13,18 @@
   --color-accent-strong: #a6d46f;
   --color-danger: #f05050;
   --color-warn: #ffa500;
+  --color-info: #5d9cec;
 }
 
 html,
 body,
 #root {
   height: 100%;
+}
+
+/* Native controls (scrollbars, selects, checkboxes) follow the dark theme. */
+:root {
+  color-scheme: dark;
 }
 
 body {

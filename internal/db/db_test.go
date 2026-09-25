@@ -99,3 +99,14 @@ func TestLoadMigrationsRejectsBadNames(t *testing.T) {
 		}
 	}
 }
+
+func TestWriterIsSynchronousFull(t *testing.T) {
+	d := openTest(t)
+	var level int
+	if err := d.w.QueryRowContext(context.Background(), `PRAGMA synchronous`).Scan(&level); err != nil {
+		t.Fatal(err)
+	}
+	if level != 2 { // 2 = FULL
+		t.Fatalf("writer synchronous = %d, want 2 (FULL)", level)
+	}
+}

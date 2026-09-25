@@ -37,6 +37,7 @@ test: ## Go tests (race) and web tests
 lint: ## gofmt, go vet, TypeScript typecheck, shellcheck
 	@out="$$(gofmt -l $$(git ls-files '*.go'))"; if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 	go vet ./...
+	go vet -tags e2e ./internal/e2e/...
 	cd web && npm run typecheck
 	@if command -v shellcheck >/dev/null; then shellcheck docker/*.sh; else echo "shellcheck not installed, skipped"; fi
 
@@ -52,6 +53,27 @@ docker: ## Build the container image for this machine ($(IMAGE))
 .PHONY: docker-test
 docker-test: docker ## Build the image and run docker/test-image.sh against it
 	sh docker/test-image.sh $(IMAGE)
+
+# Acceptance suite (docs/design/phase1.md §9). test-e2e builds the real binary itself and needs
+# no Docker; the Docker targets drive $(IMAGE) with Go tests from internal/e2e (tag e2e).
+.PHONY: test-e2e
+test-e2e: ## End-to-end tests of the real binary (syncs, hardlinks, kill -9 + resume, guards)
+	go test -tags e2e -count=1 -timeout 20m ./internal/e2e/...
+
+.PHONY: test-docker
+test-docker: docker ## Docker suite: image smoke test, container kill test, Plex restore test, SMB/NFS shares
+	sh docker/test-image.sh $(IMAGE)
+	sh docker/test-kill.sh $(IMAGE)
+	sh docker/test-plex-restore.sh $(IMAGE)
+	sh docker/test-shares.sh $(IMAGE)
+
+.PHONY: test-plex
+test-plex: docker ## Plex DB backup + restore test only (slow; pulls plexinc/pms-docker once)
+	sh docker/test-plex-restore.sh $(IMAGE)
+
+.PHONY: test-shares
+test-shares: docker ## Sync and kill tests on SMB and NFS shares only (privileged containers)
+	sh docker/test-shares.sh $(IMAGE)
 
 # Maintainer only: mirror the private repository to the public one through the sanitizing
 # export (scripts/public/ is not part of the public tree).

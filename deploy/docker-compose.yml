@@ -1,13 +1,30 @@
 # Bunkarr with Docker Compose (Unraid Compose Manager works the same way).
 #
-#   docker compose -f deploy/docker-compose.yml up -d --build
+# 1. Put your paths and user in deploy/.env (next to this file; git ignores it). Compose refuses to
+#    start while a required value is missing, so nothing is mounted from a guessed path. The
+#    values below are Unraid's; use your own:
 #
-# Then open http://<host>:8787 and create your login.
+#      PUID=99
+#      PGID=100
+#      TZ=America/New_York
+#      BUNKARR_CONFIG=/mnt/user/appdata/bunkarr
+#      MEDIA_DIR=/mnt/user/data
+#      PLEX_DIR="/mnt/user/appdata/plex/Library/Application Support/Plex Media Server"
+#      BACKUP_DIR=/mnt/remotes/UNAS_backup
+#
+# 2. Check what Compose will run, then start it:
+#
+#      docker compose -f deploy/docker-compose.yml config
+#      docker compose -f deploy/docker-compose.yml up -d --build
+#
+# 3. Open http://<host>:8787 and create your login.
 #
 # Mounts:
-#   /config   Bunkarr's own data (database, bunkarr.key, logs). Back up bunkarr.key WITH the
-#             database: without it the stored credentials cannot be decrypted.
+#   /config   Bunkarr's own data (database, bunkarr.key, logs, Plex DB staging), on an absolute
+#             path outside this checkout. Back up bunkarr.key WITH the database: without it the
+#             stored credentials cannot be decrypted.
 #   /media    your library, READ-ONLY. Bunkarr never modifies or deletes source media.
+#   /plex     Plex's "Plex Media Server" data directory, READ-ONLY, for the Plex DB backup.
 #   /backup   a backup destination (e.g. the UNAS share mounted on the host), read-write.
 #
 # Hardlinks: mount the directory that contains both your downloads and library folders (e.g.
@@ -20,14 +37,27 @@ services:
       context: ..
     container_name: bunkarr
     environment:
-      - PUID=99
-      - PGID=100
-      - UMASK=022
-      - TZ=America/New_York
+      # Run as the user Plex runs as (Unraid: 99/100), so Bunkarr can read Plex's
+      # Preferences.xml, which Plex keeps at mode 0600.
+      - "PUID=${PUID:?set PUID in deploy/.env (the user Plex runs as; Unraid 99)}"
+      - "PGID=${PGID:?set PGID in deploy/.env (the group Plex runs as; Unraid 100)}"
+      - "UMASK=${UMASK:-022}"
+      # Same time zone as Plex: the Plex backup checks Plex's maintenance hours in this zone.
+      - "TZ=${TZ:?set TZ in deploy/.env (e.g. America/New_York, the time zone Plex uses)}"
     volumes:
-      - ./config:/config
-      - /mnt/user/data:/media:ro
-      - /mnt/remotes/UNAS_backup:/backup
+      - "${BUNKARR_CONFIG:-/mnt/user/appdata/bunkarr}:/config"
+      - "${MEDIA_DIR:?set MEDIA_DIR in deploy/.env (the folder holding downloads and library)}:/media:ro"
+      # Plex's data directory (the folder holding Preferences.xml and "Plug-in Support"). Read-only
+      # is enough: Bunkarr takes an SQLite online backup and never writes Plex's files. Not using
+      # the Plex DB backup? Delete this line.
+      - "${PLEX_DIR:?set PLEX_DIR in deploy/.env (Plex's Plex Media Server data directory)}:/plex:ro"
+      # rw,slave: Unassigned Devices mounts remote shares after Docker has started. With slave
+      # propagation the container sees the share when it appears; without it Bunkarr sees the
+      # empty mount point (it then refuses to sync: the destination marker is missing).
+      - "${BACKUP_DIR:?set BACKUP_DIR in deploy/.env (the backup share as mounted on the host)}:/backup:rw,slave"
     ports:
       - "8787:8787"
+    # Time for a clean stop: running jobs get 20 s to stop and are queued to resume. A killed
+    # container resumes its jobs too, but a job killed three times in a row fails.
+    stop_grace_period: 1m
     restart: unless-stopped

@@ -1,5 +1,13 @@
 // Package api is Bunkarr's HTTP layer: the REST API under /api/v1 (JSON, *arr-style API key or
-// login session) and the embedded web UI.
+// login session) and the embedded web UI, plus the wiring of the Phase 1 services it serves (App).
+//
+// Every Phase 1 route (docs/design/phase1.md §7) requires authentication. Request bodies are
+// single JSON objects with unknown fields rejected. Errors are {"message": "..."}: 400 for invalid
+// input, 404 for an unknown id, 409 for a conflict with the current state (including the safety
+// refusals of S3 that need a confirmation or a mounted share), 502 when Plex fails, and 500 for
+// everything else, with registered secret values redacted from every message. Secrets (Plex
+// tokens, Apprise URLs) are write-only: responses say hasApiKey / hasUrls (S8). Job-starting
+// endpoints answer 202 with the queued Job. Every route is documented in openapi.json.
 package api
 
 import (
@@ -31,6 +39,9 @@ type Options struct {
 	Log     *slog.Logger
 	Web     fs.FS
 	Started time.Time
+	// App holds the Phase 1 services (sources, destinations, jobs, ...). Without it those
+	// routes answer 503.
+	App *App
 }
 
 // Server serves the API and the UI.
@@ -41,6 +52,7 @@ type Server struct {
 	log     *slog.Logger
 	web     fs.FS
 	started time.Time
+	app     *App
 }
 
 // New returns a Server.
@@ -51,7 +63,7 @@ func New(o Options) *Server {
 	if o.Started.IsZero() {
 		o.Started = time.Now()
 	}
-	return &Server{auth: o.Auth, db: o.DB, env: o.Env, log: o.Log, web: o.Web, started: o.Started}
+	return &Server{auth: o.Auth, db: o.DB, env: o.Env, log: o.Log, web: o.Web, started: o.Started, app: o.App}
 }
 
 // Handler returns the root handler.
@@ -94,6 +106,26 @@ func (s *Server) apiRoutes(r chi.Router) {
 		r.Put("/settings/general", s.putGeneralSettings)
 		r.Post("/settings/general/apikey", s.regenerateAPIKey)
 		r.Put("/auth/credentials", s.changeCredentials)
+
+		r.Group(func(r chi.Router) {
+			r.Use(s.requireApp)
+			s.integrationRoutes(r)
+			s.sourceRoutes(r)
+			s.destinationRoutes(r)
+			s.jobRoutes(r)
+			s.notificationRoutes(r)
+		})
+	})
+}
+
+// requireApp answers 503 when the server was built without the Phase 1 services.
+func (s *Server) requireApp(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.app == nil {
+			writeError(w, http.StatusServiceUnavailable, "this server has no backup services configured")
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 

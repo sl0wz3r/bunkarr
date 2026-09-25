@@ -1,5 +1,5 @@
-import { Activity, Database, HardDrive, LogOut, Server, Settings } from 'lucide-react';
-import type { ComponentType } from 'react';
+import { Activity, Database, HardDrive, LogOut, Menu, Server, Settings } from 'lucide-react';
+import { useState, type ComponentType } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { useAuth } from '@/auth';
 import { Logo } from './Logo';
@@ -24,17 +24,47 @@ export const NAV: NavItem[] = [
   },
   { label: 'Library', to: '/library', icon: Database },
   { label: 'Destinations', to: '/destinations', icon: HardDrive },
-  { label: 'Settings', to: '/settings', icon: Settings, children: [{ label: 'General', to: '/settings/general' }] },
-  { label: 'System', to: '/system', icon: Server, children: [{ label: 'Status', to: '/system/status' }] },
+  {
+    label: 'Settings',
+    to: '/settings',
+    icon: Settings,
+    children: [
+      { label: 'General', to: '/settings/general' },
+      { label: 'Plex', to: '/settings/plex' },
+      { label: 'Connect', to: '/settings/connect' },
+    ],
+  },
+  {
+    label: 'System',
+    to: '/system',
+    icon: Server,
+    children: [
+      { label: 'Status', to: '/system/status' },
+      { label: 'Tasks', to: '/system/tasks' },
+    ],
+  },
 ];
 
 export function Layout() {
   const { status, logout } = useAuth();
   const { pathname } = useLocation();
+  // On narrow screens the navigation is a drawer opened from the header; it closes on navigation.
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const menuOpen = menuFor === pathname;
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-14 shrink-0 items-center justify-between bg-[#1f2a1f] px-4">
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="-ml-2 rounded p-2 text-ink-muted hover:bg-white/10 hover:text-ink md:hidden"
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+            aria-controls="main-nav"
+            onClick={() => setMenuFor(menuOpen ? null : pathname)}
+          >
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          </button>
           <Logo className="h-8 w-8" />
           <span className="text-lg font-semibold tracking-wide">Bunkarr</span>
         </div>
@@ -49,7 +79,14 @@ export function Layout() {
         )}
       </header>
       <div className="flex min-h-0 flex-1">
-        <nav aria-label="Main" className="w-52 shrink-0 overflow-y-auto bg-sidebar py-2">
+        <nav
+          id="main-nav"
+          aria-label="Main"
+          onClick={(e) => {
+            if (e.target instanceof Element && e.target.closest('a')) setMenuFor(null);
+          }}
+          className={`${menuOpen ? 'absolute bottom-0 left-0 top-14 z-40 block shadow-2xl' : 'hidden'} w-52 shrink-0 overflow-y-auto bg-sidebar py-2 md:static md:block md:shadow-none`}
+        >
           {NAV.map((item) => {
             const open = pathname.startsWith(item.to);
             const Icon = item.icon;

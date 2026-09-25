@@ -1,0 +1,410 @@
+{
+  "_comment": "Cron expressions and whether the server accepts them (jobqueue.ValidateCron). Both internal/api (TestCronCasesMatchServer) and web/src/lib/cron.test.ts check their validator against this list, so the UI accepts exactly what the server accepts.",
+  "cases": [
+    {
+      "expr": "0 2 * * *",
+      "valid": true,
+      "why": "nightly"
+    },
+    {
+      "expr": "0 */6 * * *",
+      "valid": true,
+      "why": "step over a star"
+    },
+    {
+      "expr": "30 4 * * *",
+      "valid": true,
+      "why": "seeded retention"
+    },
+    {
+      "expr": "0 5 * * 0",
+      "valid": true,
+      "why": "default verify"
+    },
+    {
+      "expr": "0 6,18 * * *",
+      "valid": true,
+      "why": "list"
+    },
+    {
+      "expr": "*/15 * * * *",
+      "valid": true,
+      "why": "minute step"
+    },
+    {
+      "expr": "*/60 * * * *",
+      "valid": true,
+      "why": "step larger than the range"
+    },
+    {
+      "expr": "*/1 * * * *",
+      "valid": true,
+      "why": "step of one"
+    },
+    {
+      "expr": "0 0 1 JAN *",
+      "valid": true,
+      "why": "month name"
+    },
+    {
+      "expr": "0 0 1 jan-mar *",
+      "valid": true,
+      "why": "month names are case-insensitive"
+    },
+    {
+      "expr": "0 0 1 JAN/2 *",
+      "valid": true,
+      "why": "a name with a step"
+    },
+    {
+      "expr": "0 2 * * MON-FRI",
+      "valid": true,
+      "why": "weekday range"
+    },
+    {
+      "expr": "0 2 * * sun",
+      "valid": true,
+      "why": "weekday name"
+    },
+    {
+      "expr": "5/10 * ? * *",
+      "valid": true,
+      "why": "N/step and ? for day of month"
+    },
+    {
+      "expr": "? * * * *",
+      "valid": true,
+      "why": "? is a star in every field"
+    },
+    {
+      "expr": "1-5/2 * * * *",
+      "valid": true,
+      "why": "range with a step"
+    },
+    {
+      "expr": "0 0 1-31 * *",
+      "valid": true,
+      "why": "full day range"
+    },
+    {
+      "expr": "0 0 * * 0-6",
+      "valid": true,
+      "why": "full weekday range"
+    },
+    {
+      "expr": "05 02 * * *",
+      "valid": true,
+      "why": "leading zeros"
+    },
+    {
+      "expr": "+5 * * * *",
+      "valid": true,
+      "why": "a plus sign (strconv.Atoi)"
+    },
+    {
+      "expr": ",5 * * * *",
+      "valid": true,
+      "why": "empty list items are skipped"
+    },
+    {
+      "expr": "*-5 * * * *",
+      "valid": true,
+      "why": "robfig ignores what follows a star's hyphen"
+    },
+    {
+      "expr": "0/9223372036854775807 * * * *",
+      "valid": true,
+      "why": "largest step"
+    },
+    {
+      "expr": "0 0 29 2 *",
+      "valid": true,
+      "why": "29 February fires in leap years"
+    },
+    {
+      "expr": "0 0 31 2 1",
+      "valid": true,
+      "why": "day of month and weekday both set: either matches"
+    },
+    {
+      "expr": "@hourly",
+      "valid": true,
+      "why": "descriptor"
+    },
+    {
+      "expr": "@daily",
+      "valid": true,
+      "why": "descriptor"
+    },
+    {
+      "expr": "@weekly",
+      "valid": true,
+      "why": "descriptor"
+    },
+    {
+      "expr": "@monthly",
+      "valid": true,
+      "why": "descriptor"
+    },
+    {
+      "expr": "  0 2 * * *  ",
+      "valid": true,
+      "why": "surrounding spaces"
+    },
+    {
+      "expr": " @daily ",
+      "valid": true,
+      "why": "descriptor with spaces"
+    },
+    {
+      "expr": "0\t2  *\n* *",
+      "valid": true,
+      "why": "tabs, newlines and repeated spaces separate fields"
+    },
+    {
+      "expr": "0 2 * * *",
+      "valid": true,
+      "why": "no-break space separates fields"
+    },
+    {
+      "expr": "02 * * *",
+      "valid": true,
+      "why": "U+0085 separates fields (unicode.IsSpace)"
+    },
+    {
+      "expr": "0 0 * * FRİ",
+      "valid": true,
+      "why": "strings.ToLower maps U+0130 to i"
+    },
+    {
+      "expr": "",
+      "valid": false,
+      "why": "empty"
+    },
+    {
+      "expr": "   ",
+      "valid": false,
+      "why": "blank"
+    },
+    {
+      "expr": "0 2 * *",
+      "valid": false,
+      "why": "4 fields"
+    },
+    {
+      "expr": "0 0 2 * * *",
+      "valid": false,
+      "why": "6 fields (seconds)"
+    },
+    {
+      "expr": "60 2 * * *",
+      "valid": false,
+      "why": "minute out of range"
+    },
+    {
+      "expr": "0 24 * * *",
+      "valid": false,
+      "why": "hour out of range"
+    },
+    {
+      "expr": "0 2 0 * *",
+      "valid": false,
+      "why": "day of month out of range"
+    },
+    {
+      "expr": "0 2 * 13 *",
+      "valid": false,
+      "why": "month out of range"
+    },
+    {
+      "expr": "0 2 * * 7",
+      "valid": false,
+      "why": "weekday out of range"
+    },
+    {
+      "expr": "0 5-2 * * *",
+      "valid": false,
+      "why": "reversed range"
+    },
+    {
+      "expr": "0 */0 * * *",
+      "valid": false,
+      "why": "step of zero"
+    },
+    {
+      "expr": "x 2 * * *",
+      "valid": false,
+      "why": "not a number"
+    },
+    {
+      "expr": "0 0 * * SUNDAY",
+      "valid": false,
+      "why": "long weekday name"
+    },
+    {
+      "expr": "0 0 * * 1-2-3",
+      "valid": false,
+      "why": "too many hyphens"
+    },
+    {
+      "expr": "0 0 * * 1/2/3",
+      "valid": false,
+      "why": "too many slashes"
+    },
+    {
+      "expr": "-5 * * * *",
+      "valid": false,
+      "why": "negative number"
+    },
+    {
+      "expr": "5- * * * *",
+      "valid": false,
+      "why": "open range"
+    },
+    {
+      "expr": "5/ * * * *",
+      "valid": false,
+      "why": "empty step"
+    },
+    {
+      "expr": "0 0 * * 5/MON",
+      "valid": false,
+      "why": "a name is not a step"
+    },
+    {
+      "expr": "0 0 L * *",
+      "valid": false,
+      "why": "L is not supported"
+    },
+    {
+      "expr": "0 0 * * 1#2",
+      "valid": false,
+      "why": "# is not supported"
+    },
+    {
+      "expr": "99999999999999999999 * * * *",
+      "valid": false,
+      "why": "number too large"
+    },
+    {
+      "expr": "0/9223372036854775808 * * * *",
+      "valid": false,
+      "why": "step too large for strconv.Atoi"
+    },
+    {
+      "expr": ", * * * *",
+      "valid": false,
+      "why": "a field without values never fires"
+    },
+    {
+      "expr": "0 0 30 2 *",
+      "valid": false,
+      "why": "30 February never fires"
+    },
+    {
+      "expr": "0 0 31 4,6,9,11 *",
+      "valid": false,
+      "why": "31 April, June, September and November never fire"
+    },
+    {
+      "expr": "@often",
+      "valid": false,
+      "why": "unknown descriptor"
+    },
+    {
+      "expr": "@every 1h30m",
+      "valid": false,
+      "why": "@every is not supported"
+    },
+    {
+      "expr": "@every 6h",
+      "valid": false,
+      "why": "@every is not supported"
+    },
+    {
+      "expr": "@every",
+      "valid": false,
+      "why": "@every without a duration"
+    },
+    {
+      "expr": "@yearly",
+      "valid": false,
+      "why": "only @hourly, @daily, @weekly and @monthly"
+    },
+    {
+      "expr": "@annually",
+      "valid": false,
+      "why": "only @hourly, @daily, @weekly and @monthly"
+    },
+    {
+      "expr": "@midnight",
+      "valid": false,
+      "why": "only @hourly, @daily, @weekly and @monthly"
+    },
+    {
+      "expr": "@DAILY",
+      "valid": false,
+      "why": "descriptors are case-sensitive"
+    },
+    {
+      "expr": "@daily 0",
+      "valid": false,
+      "why": "a descriptor stands alone"
+    },
+    {
+      "expr": "TZ=UTC 0 2 * * *",
+      "valid": false,
+      "why": "time-zone prefix"
+    },
+    {
+      "expr": "CRON_TZ=Europe/Berlin 0 2 * * *",
+      "valid": false,
+      "why": "time-zone prefix"
+    },
+    {
+      "expr": "﻿0 2 * * *",
+      "valid": false,
+      "why": "U+FEFF is not white space for the server"
+    },
+    {
+      "expr": "0 0 * * ſun",
+      "valid": false,
+      "why": "U+017F does not lower-case to s"
+    },
+    {
+      "expr": "0 0 5 * ,",
+      "valid": true,
+      "why": "an empty weekday with a restricted day of month: either day field matches (the 5th)"
+    },
+    {
+      "expr": "0 0 , * 1",
+      "valid": true,
+      "why": "an empty day of month with a restricted weekday: either day field matches (Mondays)"
+    },
+    {
+      "expr": "0 0 31 2 ,",
+      "valid": false,
+      "why": "an empty weekday and a day of month February does not have"
+    },
+    {
+      "expr": "0 0 , * *",
+      "valid": false,
+      "why": "an empty day of month with a star weekday: both must match"
+    },
+    {
+      "expr": "0 0 * * ,",
+      "valid": false,
+      "why": "an empty weekday with a star day of month: both must match"
+    },
+    {
+      "expr": "0 0 , * ,",
+      "valid": false,
+      "why": "both day fields empty"
+    },
+    {
+      "expr": "0 0 ,,5 * ,",
+      "valid": true,
+      "why": "empty items of a list are skipped"
+    }
+  ]
+}

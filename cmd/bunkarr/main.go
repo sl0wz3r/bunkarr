@@ -28,6 +28,7 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/auth"
 	"github.com/sl0wz3r/bunkarr/internal/config"
 	"github.com/sl0wz3r/bunkarr/internal/db"
+	"github.com/sl0wz3r/bunkarr/internal/faultinject"
 	"github.com/sl0wz3r/bunkarr/internal/lock"
 	"github.com/sl0wz3r/bunkarr/internal/logging"
 	"github.com/sl0wz3r/bunkarr/internal/version"
@@ -83,7 +84,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "reset-auth":
 		return resetAuth(env, stdout, stderr)
 	default:
-		if err := serve(env, stdout); err != nil {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := serve(ctx, env, stdout, nil); err != nil {
 			fmt.Fprintln(stderr, "bunkarr:", err)
 			return 1
 		}
@@ -91,8 +94,24 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-func serve(env config.Env, stdout io.Writer) error {
+// Shutdown budgets: HTTP requests in flight get httpShutdownTimeout; then the scheduler stops,
+// running jobs get the job manager's grace period (20 s) to stop and be re-queued, and queued
+// notifications are sent, all within servicesShutdownTimeout.
+const (
+	httpShutdownTimeout     = 15 * time.Second
+	servicesShutdownTimeout = 30 * time.Second
+)
+
+// serve runs the server until ctx ends (SIGINT/SIGTERM) or the listener fails. Start-up: config
+// dir, lock, logging, fault injection (BUNKARR_FAULTPOINT, tests only), master key, database,
+// auth, the Phase 1 services (api.App: stores, runners, scheduler, notifications; stored secrets
+// registered for redaction), the HTTP listener, and only then the job manager (which resumes
+// interrupted jobs) and the scheduler. Shutdown: stop accepting HTTP requests, stop the
+// scheduler, stop the job manager (running jobs are re-queued to resume), flush notifications,
+// close the database. ready, when set, receives the listening address.
+func serve(ctx context.Context, env config.Env, stdout io.Writer, ready func(net.Addr)) error {
 	started := time.Now()
+	faultinject.InitFromEnv()
 	if err := os.MkdirAll(env.ConfigDir, 0o750); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
@@ -109,9 +128,6 @@ func serve(env config.Env, stdout io.Writer) error {
 	defer logCloser.Close()
 	slog.SetDefault(log)
 	log.Info("Starting Bunkarr", "version", version.Version, "commit", version.Commit, "configDir", env.ConfigDir)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	master, created, err := config.LoadOrCreateMasterKey(env.KeyPath())
 	if err != nil {
@@ -133,7 +149,8 @@ func serve(env config.Env, stdout io.Writer) error {
 	}
 	defer database.Close()
 
-	authSvc := auth.New(database, config.NewSettings(database, kr), log)
+	settings := config.NewSettings(database, kr)
+	authSvc := auth.New(database, settings, log)
 	if err := authSvc.Init(ctx); err != nil {
 		return err
 	}
@@ -141,9 +158,14 @@ func serve(env config.Env, stdout io.Writer) error {
 		log.Warn("No user exists yet: open the web UI to create one. Until then only the API key can use the API.")
 	}
 
+	app, err := api.NewApp(ctx, api.AppOptions{DB: database, Keyring: kr, Settings: settings, ConfigDir: env.ConfigDir, Log: log})
+	if err != nil {
+		return err
+	}
+
 	srv := &http.Server{
 		Addr:              env.Addr(),
-		Handler:           api.New(api.Options{Auth: authSvc, DB: database, Env: env, Log: log, Web: web.FS(), Started: started}).Handler(),
+		Handler:           api.New(api.Options{Auth: authSvc, DB: database, Env: env, Log: log, Web: web.FS(), Started: started, App: app}).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      120 * time.Second,
@@ -153,25 +175,49 @@ func serve(env config.Env, stdout io.Writer) error {
 	}
 	ln, err := net.Listen("tcp", srv.Addr)
 	if err != nil {
+		if serr := app.Stop(context.Background()); serr != nil { // nothing started; releases the notification workers
+			log.Warn("Services did not stop cleanly", "error", serr)
+		}
 		return fmt.Errorf("listen on %s: %w", srv.Addr, err)
 	}
 	log.Info("Listening", "address", ln.Addr().String())
 
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
-	select {
-	case err := <-errc:
-		return err
-	case <-ctx.Done():
+	if ready != nil {
+		ready(ln.Addr())
+	}
+
+	var serveErr error
+	if err := app.Start(ctx); err != nil {
+		if ctx.Err() == nil { // a signal during start-up is a normal shutdown
+			serveErr = err
+		}
+	} else {
+		select {
+		case serveErr = <-errc:
+			errc = nil
+		case <-ctx.Done():
+		}
 	}
 	log.Info("Shutting down")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Warn("Graceful shutdown timed out", "error", err)
+	if errc != nil {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Warn("Graceful HTTP shutdown timed out", "error", err)
+		}
+		cancel()
+		if err := <-errc; err != nil && !errors.Is(err, http.ErrServerClosed) && serveErr == nil {
+			serveErr = err
+		}
 	}
-	if err := <-errc; err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
+	stopCtx, cancel := context.WithTimeout(context.Background(), servicesShutdownTimeout)
+	defer cancel()
+	if err := app.Stop(stopCtx); err != nil {
+		log.Warn("Services did not stop cleanly", "error", err)
+	}
+	if serveErr != nil {
+		return serveErr
 	}
 	log.Info("Stopped")
 	return nil
