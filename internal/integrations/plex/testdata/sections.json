@@ -1,0 +1,65 @@
+{
+  "MediaContainer": {
+    "size": 2,
+    "allowSync": false,
+    "title1": "Plex Library",
+    "Directory": [
+      {
+        "allowSync": false,
+        "filters": true,
+        "refreshing": false,
+        "key": "2",
+        "type": "show",
+        "title": "TV Shows",
+        "agent": "tv.plex.agents.none",
+        "scanner": "Plex TV Series",
+        "language": "en-US",
+        "metadataAgentProviderGroupId": 4,
+        "uuid": "1ec32bcb-d30c-4805-9710-8dbe0cbfc310",
+        "updatedAt": 1790299551,
+        "createdAt": 1790299551,
+        "scannedAt": 1790299565,
+        "content": true,
+        "directory": true,
+        "contentChangedAt": 2222,
+        "hidden": 0,
+        "Location": [
+          {
+            "id": 2,
+            "path": "/data/tv"
+          },
+          {
+            "id": 3,
+            "path": "/data/tv-kids"
+          }
+        ]
+      },
+      {
+        "allowSync": false,
+        "filters": true,
+        "refreshing": false,
+        "key": "1",
+        "type": "movie",
+        "title": "Movies",
+        "agent": "tv.plex.agents.none",
+        "scanner": "Plex Movie",
+        "language": "en-US",
+        "metadataAgentProviderGroupId": 4,
+        "uuid": "4b2a7319-45f1-4081-ade6-7c0de437efb3",
+        "updatedAt": 1790299542,
+        "createdAt": 1790299542,
+        "scannedAt": 1790299563,
+        "content": true,
+        "directory": true,
+        "contentChangedAt": 2088,
+        "hidden": 0,
+        "Location": [
+          {
+            "id": 1,
+            "path": "/data/movies"
+          }
+        ]
+      }
+    ]
+  }
+}

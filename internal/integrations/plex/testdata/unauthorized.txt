@@ -1,0 +1,23 @@
+# GET /library/sections (Accept: application/json), no X-Plex-Token, unclaimed PMS 1.43.4.10903 before allowedNetworks
+HTTP/1.1 401 Unauthorized
+X-Plex-Protocol: 1.0
+Content-Length: 91
+Content-Type: text/html
+Connection: Keep-Alive
+Keep-Alive: timeout=20
+Cache-Control: no-cache
+Date: Fri, 25 Sep 2026 01:23:44 GMT
+
+<html><head><title>Unauthorized</title></head><body><h1>401 Unauthorized</h1></body></html>
+
+# GET /library/sections (Accept: application/json), X-Plex-Token: bogus-token-for-test
+HTTP/1.1 401 Unauthorized
+X-Plex-Protocol: 1.0
+Content-Length: 91
+Content-Type: text/html
+Connection: Keep-Alive
+Keep-Alive: timeout=20
+Cache-Control: no-cache
+Date: Fri, 25 Sep 2026 01:23:44 GMT
+
+<html><head><title>Unauthorized</title></head><body><h1>401 Unauthorized</h1></body></html>

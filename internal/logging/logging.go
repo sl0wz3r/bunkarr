@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 )
 
 // Options configures New.
@@ -72,10 +73,83 @@ func sensitiveKey(k string) bool {
 }
 
 func redactAttr(_ []string, a slog.Attr) slog.Attr {
-	if a.Value.Kind() != slog.KindGroup && sensitiveKey(a.Key) {
+	if a.Value.Kind() == slog.KindGroup {
+		return a
+	}
+	if sensitiveKey(a.Key) {
 		return slog.String(a.Key, Redacted)
 	}
+	switch a.Value.Kind() {
+	case slog.KindString:
+		if s := a.Value.String(); ContainsSecret(s) {
+			return slog.String(a.Key, RedactSecrets(s))
+		}
+	case slog.KindAny:
+		// Errors and Stringers are rendered to text, so a secret inside (e.g. a token in a URL
+		// of a *url.Error) cannot slip through.
+		switch v := a.Value.Any().(type) {
+		case error:
+			if s := v.Error(); ContainsSecret(s) {
+				return slog.String(a.Key, RedactSecrets(s))
+			}
+		case fmt.Stringer:
+			if s := v.String(); ContainsSecret(s) {
+				return slog.String(a.Key, RedactSecrets(s))
+			}
+		}
+	}
 	return a
+}
+
+// minSecretLen keeps short, common strings out of the registry (they would redact normal text).
+const minSecretLen = 8
+
+var (
+	secretsMu sync.RWMutex
+	secrets   = map[string]struct{}{}
+)
+
+// RegisterSecret adds a secret VALUE (a Plex token, an Apprise URL, an API key) to the set that is
+// replaced by [REDACTED] wherever it appears in a log message or attribute, in addition to the
+// key-based redaction. Values shorter than 8 characters are ignored. Safe for concurrent use.
+func RegisterSecret(value string) {
+	if len(value) < minSecretLen {
+		return
+	}
+	secretsMu.Lock()
+	secrets[value] = struct{}{}
+	secretsMu.Unlock()
+}
+
+// ContainsSecret reports whether s contains a registered secret value.
+func ContainsSecret(s string) bool {
+	if len(s) < minSecretLen {
+		return false
+	}
+	secretsMu.RLock()
+	defer secretsMu.RUnlock()
+	for v := range secrets {
+		if strings.Contains(s, v) {
+			return true
+		}
+	}
+	return false
+}
+
+// RedactSecrets returns s with every registered secret value replaced by [REDACTED]. Use it on
+// any text that leaves the process (job logs, API error messages, notifications).
+func RedactSecrets(s string) string {
+	if len(s) < minSecretLen {
+		return s
+	}
+	secretsMu.RLock()
+	defer secretsMu.RUnlock()
+	for v := range secrets {
+		if strings.Contains(s, v) {
+			s = strings.ReplaceAll(s, v, Redacted)
+		}
+	}
+	return s
 }
 
 // RedactURL renders u with the values of secret-looking query parameters and any userinfo

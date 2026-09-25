@@ -20,8 +20,8 @@ CREATE TABLE sources (
     name                TEXT    NOT NULL UNIQUE COLLATE NOCASE,
     -- absolute path as Bunkarr sees it (inside the container)
     path                TEXT    NOT NULL,
-    -- folder under each destination target that mirrors this source
-    dest_folder         TEXT    NOT NULL,
+    -- folder under each destination target that mirrors this source; immutable once backed up
+    dest_folder         TEXT    NOT NULL UNIQUE,
     -- JSON array of glob patterns matched against the relative path and the base name
     exclude             TEXT    NOT NULL DEFAULT '[]',
     enabled             INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
@@ -30,7 +30,12 @@ CREATE TABLE sources (
     -- the library location as Plex sees it
     plex_path           TEXT,
     arr_integration_id  INTEGER REFERENCES integrations (id) ON DELETE SET NULL,
+    -- filesystem identity recorded at the first successful scan (safety rule S10a)
+    fs_type             TEXT,
+    root_dev            INTEGER,
     last_scan_at        TEXT,
+    -- ok | failed | warnings
+    last_scan_status    TEXT,
     created_at          TEXT    NOT NULL,
     updated_at          TEXT    NOT NULL
 ) STRICT;
@@ -44,14 +49,17 @@ CREATE TABLE destinations (
     marker_id   TEXT    NOT NULL,
     -- sealed JSON (Phase 4 engines); '' = none
     credentials TEXT    NOT NULL DEFAULT '',
-    -- {"verify":{"mode":"off|sample|full","samplePercent":5},"hardlinks":"recreate|copy","adoptExisting":true}
-    settings    TEXT    NOT NULL DEFAULT '{}',
-    -- {"deletedDays":30,"plexDbVersions":14}
-    retention   TEXT    NOT NULL DEFAULT '{}',
+    -- see docs/design/phase1.md §7 Destination.settings; missing keys take the documented defaults
+    settings    TEXT    NOT NULL DEFAULT '{"verify":{"mode":"sample","samplePercent":5},"hardlinks":"recreate","adoptExisting":"size+mtime","mtimeWindowSec":0,"maxChangePercent":10,"maxChangeFiles":1000}',
+    -- missing or zero values take the defaults; deletedDays is at least 1
+    retention   TEXT    NOT NULL DEFAULT '{"deletedDays":30,"plexDbDaily":14,"plexDbWeekly":8}',
     -- Phase 4: bandwidth limits and windows
     bandwidth   TEXT    NOT NULL DEFAULT '{}',
-    -- probed hardlink support: NULL unknown, 0 no, 1 yes
-    hardlinks_supported INTEGER CHECK (hardlinks_supported IN (0, 1)),
+    -- statfs f_type name and st_dev of the target recorded at creation (safety rule S3)
+    fs_type     TEXT    NOT NULL,
+    root_dev    INTEGER NOT NULL,
+    -- probe results (§3): {"hardlinks":true,"caseInsensitive":false,"invalidChars":"","trailingDotSpace":true,"mtimeGranularityNs":1,"fsType":"nfs","checkedAt":"..."}
+    capabilities TEXT   NOT NULL DEFAULT '{}',
     enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
     created_at  TEXT    NOT NULL,
     updated_at  TEXT    NOT NULL
@@ -83,10 +91,12 @@ CREATE TABLE catalog_files (
     rel_path       TEXT    NOT NULL,
     size           INTEGER NOT NULL,
     mtime_ns       INTEGER NOT NULL,
+    ctime_ns       INTEGER NOT NULL DEFAULT 0,
     dev            INTEGER NOT NULL,
     inode          INTEGER NOT NULL,
     nlink          INTEGER NOT NULL,
-    -- "<dev>:<inode>" when the inode has more than one name; NULL otherwise
+    -- per-scan surrogate "<scanId>:<n>" shared by the names of one hardlinked inode (design §4.3);
+    -- never compared across scans. NULL for single files.
     hardlink_group TEXT,
     -- "sha256:<hex>" of the content at (size, mtime_ns) = (hash_size, hash_mtime_ns)
     hash           TEXT,
@@ -116,6 +126,8 @@ CREATE TABLE jobs (
     -- denormalized from params for per-destination serialization and filtering
     destination_id INTEGER,
     attempt        INTEGER NOT NULL DEFAULT 1,
+    -- set in the same transaction as the last plan batch; items without it are an interrupted plan
+    planned_at     TEXT,
     progress       TEXT    NOT NULL DEFAULT '{}',
     stats          TEXT    NOT NULL DEFAULT '{}',
     warnings       INTEGER NOT NULL DEFAULT 0,
@@ -137,8 +149,8 @@ CREATE TABLE job_items (
     -- catalog_files.id or destination_files.id, depending on the action; informational
     file_id  INTEGER,
     rel_path TEXT    NOT NULL,
-    action   TEXT    NOT NULL CHECK (action IN ('copy', 'update', 'adopt', 'link', 'retain', 'expire', 'verify', 'backup', 'skip')),
-    status   TEXT    NOT NULL CHECK (status IN ('pending', 'done', 'failed', 'skipped')),
+    action   TEXT    NOT NULL CHECK (action IN ('copy', 'update', 'move', 'adopt', 'link', 'promote', 'retain', 'expire', 'verify', 'backup', 'skip')),
+    status   TEXT    NOT NULL CHECK (status IN ('pending', 'done', 'failed', 'skipped', 'held')),
     bytes    INTEGER NOT NULL DEFAULT 0,
     error    TEXT,
     -- runner-specific JSON (source path, temp path, link target, reason)
@@ -166,29 +178,35 @@ CREATE TABLE destination_files (
     source_id      INTEGER REFERENCES sources (id) ON DELETE SET NULL,
     -- relative to the destination target: "<destFolder>/<relPath>"
     rel_path       TEXT    NOT NULL,
+    -- the path inside the source (catalog_files.rel_path)
+    source_rel_path TEXT   NOT NULL,
+    -- the SOURCE file's size and mtime when copied (the planner compares the catalog to these)
     size           INTEGER NOT NULL,
     mtime_ns       INTEGER NOT NULL,
     hash           TEXT,
-    src_dev        INTEGER,
-    src_inode      INTEGER,
-    -- the destination_files row this path is a hardlink of (recreated or only recorded)
-    link_of        INTEGER REFERENCES destination_files (id) ON DELETE SET NULL,
-    -- present: a file at rel_path; linked: a hardlink at rel_path to link_of; link_recorded: no
-    -- file at rel_path (destination has no hardlinks), content is link_of's; retained: moved to
-    -- retained_path until expires_at
-    state          TEXT    NOT NULL CHECK (state IN ('present', 'linked', 'link_recorded', 'retained')),
+    -- the row this path is a hardlink of (recreated or only recorded); RESTRICT: a primary with
+    -- dependents cannot disappear without promotion (design §4.2)
+    link_of        INTEGER REFERENCES destination_files (id) ON DELETE RESTRICT,
+    -- present: a file at rel_path; linked: a hardlink at rel_path to link_of's file;
+    -- link_recorded: no file at rel_path (no hardlinks at the destination), content is link_of's;
+    -- missing: verify found the file gone or damaged (the next sync copies it again);
+    -- retained: moved to retained_path until expires_at
+    state          TEXT    NOT NULL CHECK (state IN ('present', 'linked', 'link_recorded', 'missing', 'retained')),
     retained_path  TEXT,
     job_id         INTEGER,
     copied_at      TEXT,
     verified_at    TEXT,
     retained_at    TEXT,
-    expires_at     TEXT
+    expires_at     TEXT,
+    CHECK (state NOT IN ('linked', 'link_recorded') OR link_of IS NOT NULL),
+    CHECK (state <> 'retained' OR (retained_path IS NOT NULL AND expires_at IS NOT NULL))
 ) STRICT;
 
 CREATE UNIQUE INDEX destination_files_live ON destination_files (destination_id, rel_path)
-    WHERE state IN ('present', 'linked', 'link_recorded');
+    WHERE state IN ('present', 'linked', 'link_recorded', 'missing');
+CREATE INDEX destination_files_source ON destination_files (destination_id, source_id, source_rel_path);
+CREATE INDEX destination_files_link_of ON destination_files (link_of) WHERE link_of IS NOT NULL;
 CREATE INDEX destination_files_expiry ON destination_files (destination_id, expires_at) WHERE state = 'retained';
-CREATE INDEX destination_files_src_inode ON destination_files (destination_id, src_dev, src_inode);
 
 -- Plex DB versions (owned by internal/plexdb).
 CREATE TABLE snapshots (
@@ -201,8 +219,9 @@ CREATE TABLE snapshots (
     engine_snapshot_id TEXT    NOT NULL,
     created_at         TEXT    NOT NULL,
     size               INTEGER NOT NULL,
+    -- online_backup | online_backup_immutable
     method             TEXT    NOT NULL,
-    integrity          TEXT    NOT NULL,
+    integrity          TEXT    NOT NULL CHECK (integrity IN ('ok', 'failed')),
     manifest           TEXT    NOT NULL DEFAULT '{}'
 ) STRICT;
 

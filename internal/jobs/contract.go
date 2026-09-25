@@ -58,6 +58,8 @@ type Params struct {
 	DestinationID int64   `json:"destinationId,omitempty"`
 	SourceIDs     []int64 `json:"sourceIds,omitempty"`
 	IntegrationID int64   `json:"integrationId,omitempty"`
+	// AllowChanges runs changes the mass-change guard would hold (design S10b).
+	AllowChanges bool `json:"allowChanges,omitempty"`
 }
 
 // Spec is a request to run a job.
@@ -115,15 +117,17 @@ type ItemAction string
 
 // Item actions.
 const (
-	ActionCopy   ItemAction = "copy"   // new file at the destination
-	ActionUpdate ItemAction = "update" // changed file: copy new, retain old (safety rule S6)
-	ActionAdopt  ItemAction = "adopt"  // already at the destination with matching size+mtime
-	ActionLink   ItemAction = "link"   // another name of an inode already copied (hardlink)
-	ActionRetain ItemAction = "retain" // gone from the source: move into retention (S5)
-	ActionExpire ItemAction = "expire" // retention period over: delete the retained copy
-	ActionVerify ItemAction = "verify" // re-read and compare a destination file
-	ActionBackup ItemAction = "backup" // a Plex DB backup file
-	ActionSkip   ItemAction = "skip"   // recorded for the preview, nothing to do
+	ActionCopy    ItemAction = "copy"    // new file at the destination
+	ActionUpdate  ItemAction = "update"  // changed file: copy new, retain old (safety rule S6)
+	ActionMove    ItemAction = "move"    // renamed at the source, same content: rename at the destination
+	ActionAdopt   ItemAction = "adopt"   // already at the destination with matching size+mtime
+	ActionLink    ItemAction = "link"    // another name of an inode already copied (hardlink)
+	ActionPromote ItemAction = "promote" // make a surviving name hold content before its primary is retained
+	ActionRetain  ItemAction = "retain"  // gone from the source: move into retention (S5)
+	ActionExpire  ItemAction = "expire"  // retention period over: delete the retained copy
+	ActionVerify  ItemAction = "verify"  // re-read and compare a destination file
+	ActionBackup  ItemAction = "backup"  // a Plex DB backup file
+	ActionSkip    ItemAction = "skip"    // recorded for the preview, nothing to do
 )
 
 // ItemStatus is an item's state.
@@ -135,6 +139,9 @@ const (
 	ItemDone    ItemStatus = "done"
 	ItemFailed  ItemStatus = "failed"
 	ItemSkipped ItemStatus = "skipped"
+	// ItemHeld is a change the mass-change guard did not run (design S10b); a later sync with
+	// Params.AllowChanges plans and runs it again.
+	ItemHeld ItemStatus = "held"
 )
 
 // Item is one unit of planned work, persisted so a dry run can be previewed and a resumed job can
@@ -153,10 +160,15 @@ type Item struct {
 
 // ItemStore persists a job's items. Implemented by the manager's store.
 type ItemStore interface {
-	// HasItems reports whether the job already has a persisted plan (a resumed job).
-	HasItems(ctx context.Context, jobID int64) (bool, error)
-	// AddItems appends items (Status is normally ItemPending). Batches of any size.
-	AddItems(ctx context.Context, jobID int64, items []Item) error
+	// Planned reports whether the job's plan is complete (jobs.planned_at is set). A resumed job
+	// with a complete plan executes its pending items; one with items but no complete plan was
+	// killed while planning and must DeleteItems and plan again.
+	Planned(ctx context.Context, jobID int64) (bool, error)
+	// AddItems appends items (Status is normally ItemPending). final=true marks the plan complete
+	// in the same transaction as this batch (use an empty batch if the last one was already added).
+	AddItems(ctx context.Context, jobID int64, items []Item, final bool) error
+	// DeleteItems removes all of the job's items and clears planned_at.
+	DeleteItems(ctx context.Context, jobID int64) error
 	// Pending returns up to limit items with status pending and id > afterID, in id order.
 	Pending(ctx context.Context, jobID int64, afterID int64, limit int) ([]Item, error)
 	// SetDetail replaces an item's detail (e.g. to record a temp path before creating it).
