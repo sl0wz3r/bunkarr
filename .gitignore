@@ -1,0 +1,35 @@
+# Build output
+/bin/
+/dist/
+/bunkarr
+/cmd/bunkarr/bunkarr
+
+# Web UI (web/dist is embedded by web/embed.go; keep the placeholder so go:embed compiles)
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep
+
+# Runtime data: never commit a config dir (database, master key, logs)
+/config/
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+bunkarr.key
+bunkarr.lock
+logs/
+.env
+.env.*
+!.env.example
+
+# Tests / coverage
+coverage.out
+*.coverprofile
+*.test
+
+# OS / editors / local tooling
+.DS_Store
+.idea/
+.vscode/
+*.swp
+/.claude/

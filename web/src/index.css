@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+/* Bunkarr palette: *arr-style dark UI with an olive "bunker" accent. */
+@theme {
+  --color-page: #202020;
+  --color-panel: #2a2a2a;
+  --color-panel-2: #333333;
+  --color-sidebar: #262626;
+  --color-line: #3c3c3c;
+  --color-ink: #e1e2e3;
+  --color-ink-muted: #9a9ca0;
+  --color-accent: #8fbf5a;
+  --color-accent-strong: #a6d46f;
+  --color-danger: #f05050;
+  --color-warn: #ffa500;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: 'Roboto', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}

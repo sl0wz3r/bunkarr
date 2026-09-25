@@ -1,0 +1,224 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Bunkarr API",
+    "version": "1",
+    "description": "Bunkarr REST API. Authenticate with the API key from Settings > General in the X-Api-Key header (or the apikey query parameter), or with a login session cookie. Errors are {\"message\": \"...\"}.",
+    "license": { "name": "GPL-3.0-or-later", "identifier": "GPL-3.0-or-later" }
+  },
+  "servers": [{ "url": "/api/v1" }],
+  "security": [{ "apiKeyHeader": [] }, { "apiKeyQuery": [] }, { "session": [] }],
+  "components": {
+    "securitySchemes": {
+      "apiKeyHeader": { "type": "apiKey", "in": "header", "name": "X-Api-Key" },
+      "apiKeyQuery": { "type": "apiKey", "in": "query", "name": "apikey" },
+      "session": { "type": "apiKey", "in": "cookie", "name": "bunkarr_session" }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": ["message"],
+        "properties": { "message": { "type": "string" } }
+      },
+      "Credentials": {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+          "username": { "type": "string", "maxLength": 64 },
+          "password": { "type": "string", "minLength": 8, "description": "At most 72 bytes." }
+        }
+      },
+      "Username": {
+        "type": "object",
+        "required": ["username"],
+        "properties": { "username": { "type": "string" } }
+      },
+      "AuthRequired": {
+        "type": "string",
+        "enum": ["enabled", "disabled_for_local_addresses"]
+      },
+      "AuthStatus": {
+        "type": "object",
+        "required": ["setupRequired", "authenticated", "username", "authenticationRequired"],
+        "properties": {
+          "setupRequired": { "type": "boolean" },
+          "authenticated": { "type": "boolean" },
+          "via": { "type": "string", "enum": ["apikey", "session", "local"] },
+          "username": { "type": ["string", "null"] },
+          "authenticationRequired": { "$ref": "#/components/schemas/AuthRequired" }
+        }
+      },
+      "SystemStatus": {
+        "type": "object",
+        "required": ["appName", "version", "commit", "startTime", "uptimeSeconds", "databasePath", "schemaVersion"],
+        "properties": {
+          "appName": { "type": "string" },
+          "version": { "type": "string" },
+          "commit": { "type": "string" },
+          "buildDate": { "type": "string" },
+          "startTime": { "type": "string", "format": "date-time" },
+          "uptimeSeconds": { "type": "integer" },
+          "databasePath": { "type": "string" },
+          "schemaVersion": { "type": "integer" },
+          "configDir": { "type": "string" },
+          "goVersion": { "type": "string" },
+          "os": { "type": "string" },
+          "arch": { "type": "string" },
+          "isDocker": { "type": "boolean" },
+          "authenticationMethod": { "type": "string", "enum": ["forms"] },
+          "authenticationRequired": { "$ref": "#/components/schemas/AuthRequired" }
+        }
+      },
+      "GeneralSettings": {
+        "type": "object",
+        "required": ["apiKey", "authenticationRequired", "authenticationMethod", "bindAddress", "port"],
+        "properties": {
+          "apiKey": { "type": "string" },
+          "authenticationRequired": { "$ref": "#/components/schemas/AuthRequired" },
+          "authenticationMethod": { "type": "string", "enum": ["forms"] },
+          "bindAddress": { "type": "string" },
+          "port": { "type": "integer" }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid input", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unauthorized": { "description": "Missing or invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Liveness and database check (no authentication)",
+        "security": [],
+        "responses": {
+          "200": { "description": "Healthy", "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "const": "ok" } } } } } },
+          "503": { "description": "Database unavailable" }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenApi",
+        "summary": "This document (no authentication)",
+        "security": [],
+        "responses": { "200": { "description": "OpenAPI 3.1 document" } }
+      }
+    },
+    "/auth/status": {
+      "get": {
+        "operationId": "getAuthStatus",
+        "summary": "Whether first-run setup is needed and whether the caller is signed in (no authentication)",
+        "security": [],
+        "responses": { "200": { "description": "Status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthStatus" } } } } }
+      }
+    },
+    "/auth/setup": {
+      "post": {
+        "operationId": "setup",
+        "summary": "First run: create the user and sign in. Only allowed while no user exists.",
+        "security": [],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Credentials" } } } },
+        "responses": {
+          "201": { "description": "Created; session cookie set", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Username" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "description": "Setup already completed" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "login",
+        "summary": "Sign in; sets the session cookie",
+        "security": [],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Credentials" } } } },
+        "responses": {
+          "200": { "description": "Signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Username" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "description": "Too many failed logins from this address (see Retry-After)" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "summary": "End the current session",
+        "security": [],
+        "responses": { "204": { "description": "Signed out" } }
+      }
+    },
+    "/auth/credentials": {
+      "put": {
+        "operationId": "changeCredentials",
+        "summary": "Change the username and/or password (session login only); ends other sessions",
+        "security": [{ "session": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["currentPassword"],
+                "properties": {
+                  "currentPassword": { "type": "string" },
+                  "username": { "type": "string", "description": "Empty keeps the current username" },
+                  "newPassword": { "type": "string", "description": "Empty keeps the current password" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Changed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Username" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "description": "Not a session login" }
+        }
+      }
+    },
+    "/system/status": {
+      "get": {
+        "operationId": "getSystemStatus",
+        "summary": "Version, uptime and paths",
+        "responses": {
+          "200": { "description": "Status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SystemStatus" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/settings/general": {
+      "get": {
+        "operationId": "getGeneralSettings",
+        "summary": "Settings > General, including the API key",
+        "responses": {
+          "200": { "description": "Settings", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GeneralSettings" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "put": {
+        "operationId": "updateGeneralSettings",
+        "summary": "Change when a login is required",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["authenticationRequired"], "properties": { "authenticationRequired": { "$ref": "#/components/schemas/AuthRequired" } } } } }
+        },
+        "responses": {
+          "200": { "description": "Saved", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GeneralSettings" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/settings/general/apikey": {
+      "post": {
+        "operationId": "regenerateApiKey",
+        "summary": "Replace the API key; the old one stops working immediately",
+        "responses": {
+          "200": { "description": "New settings with the new key", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GeneralSettings" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    }
+  }
+}

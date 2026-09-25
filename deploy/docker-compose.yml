@@ -1,0 +1,33 @@
+# Bunkarr with Docker Compose (Unraid Compose Manager works the same way).
+#
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#
+# Then open http://<host>:8787 and create your login.
+#
+# Mounts:
+#   /config   Bunkarr's own data (database, bunkarr.key, logs). Back up bunkarr.key WITH the
+#             database: without it the stored credentials cannot be decrypted.
+#   /media    your library, READ-ONLY. Bunkarr never modifies or deletes source media.
+#   /backup   a backup destination (e.g. the UNAS share mounted on the host), read-write.
+#
+# Hardlinks: mount the directory that contains both your downloads and library folders (e.g.
+# /mnt/user/data on Unraid) as ONE volume, so Bunkarr can see that two paths are the same file.
+services:
+  bunkarr:
+    image: ghcr.io/sl0wz3r/bunkarr:latest
+    # Builds from this checkout when the image cannot be pulled (before the first release).
+    build:
+      context: ..
+    container_name: bunkarr
+    environment:
+      - PUID=99
+      - PGID=100
+      - UMASK=022
+      - TZ=America/New_York
+    volumes:
+      - ./config:/config
+      - /mnt/user/data:/media:ro
+      - /mnt/remotes/UNAS_backup:/backup
+    ports:
+      - "8787:8787"
+    restart: unless-stopped

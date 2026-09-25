@@ -1,0 +1,26 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Keeps the digest-pinned base images (Dockerfile) and the SHA-pinned actions current. Go modules and npm packages are updated by hand and gated in CI by govulncheck and npm audit.",
+  "extends": ["config:recommended", "docker:pinDigests", "helpers:pinGitHubActionDigestsToSemver"],
+  "enabledManagers": ["dockerfile", "github-actions"],
+  "packageRules": [
+    {
+      "description": "Go and Node: stay on the lines the project targets; only patches and digests.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["golang", "node"],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false
+    },
+    {
+      "description": "Group base image digest updates.",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["digest", "patch", "pinDigest"],
+      "groupName": "base image digests"
+    },
+    {
+      "description": "Wait 3 days before pinning a new action release.",
+      "matchManagers": ["github-actions"],
+      "minimumReleaseAge": "3 days"
+    }
+  ]
+}

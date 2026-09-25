@@ -1,0 +1,14 @@
+.git
+.gitea
+.github
+.claude
+bin
+dist
+web/node_modules
+web/dist
+config
+*.db
+*.db-*
+docs
+testdata
+scripts
