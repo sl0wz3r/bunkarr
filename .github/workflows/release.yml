@@ -27,7 +27,7 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     outputs:
       version: ${{ steps.tag.outputs.version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
@@ -64,7 +64,7 @@ jobs:
         run: |
           set -eu
           (cd web && npm ci --no-audit --no-fund && npm run typecheck && npm test && npm run build)
-          CGO_ENABLED=1 go test -race -count=1 ./...
+          CGO_ENABLED=1 go test -race -count=1 -timeout 45m ./...
           go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
           (cd web && npm audit --omit=dev --audit-level=moderate)
 

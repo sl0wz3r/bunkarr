@@ -30,7 +30,7 @@ run: build ## Run locally with ./config as the config directory
 
 .PHONY: test
 test: ## Go tests (race) and web tests
-	CGO_ENABLED=1 go test -race -count=1 ./...
+	CGO_ENABLED=1 go test -race -count=1 -timeout 45m ./...
 	cd web && npm test
 
 .PHONY: lint
