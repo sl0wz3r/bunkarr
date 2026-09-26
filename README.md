@@ -5,25 +5,29 @@ and the *arr stack. It knows which media can be re-downloaded:
 
 - **Irreplaceable data** (the Plex database, Sonarr/Radarr configuration and databases, personal
   media, rare content) gets **full, versioned backups**.
-- **Common, easily re-acquired content** gets a **manifest-only backup** (TMDB/TVDB/IMDb IDs,
+- **Common, easily re-acquired content** can get a **manifest-only backup** (TMDB/TVDB/IMDb IDs,
   quality profile, root folder, path), restorable by having Sonarr/Radarr download it again.
+  Your [tier rules](#tiers) decide which content that is; until you add rules, everything is
+  copied in full.
 
 Bunkarr never modifies or deletes your source media.
 
-> **Status: early development. Phase 2 (*arr awareness) is complete; Phase 3 (tiering) is
-> next.** Bunkarr mirrors your libraries to a mounted share (such as a UniFi UNAS over NFS or
-> SMB), backs up the Plex database and the Sonarr, Radarr and Lidarr configuration, backs up an
-> *arr import within a minute through its webhook, and writes manifests of every *arr item.
-> Every file is still backed up in full: tiering (manifest-only files) comes in Phase 3, the
-> restore wizard in Phase 5. See [the roadmap](#roadmap).
+> **Status: early development. Phase 3 (tiering) is complete; Phase 4 (restic, rclone and
+> remote destinations) is next.** Bunkarr mirrors your libraries to a mounted share (such as a
+> UniFi UNAS over NFS or SMB), backs up the Plex database and the Sonarr, Radarr and Lidarr
+> configuration, backs up an *arr import within a minute through its webhook, and writes
+> manifests of every *arr item. Tier rules decide, per destination, which files are copied in
+> full and which are only listed in the manifests; with no rules (the default) every file is
+> still copied in full. The restore wizard comes in Phase 5. See [the roadmap](#roadmap).
 
 ## Screenshots
 
 The screenshots show a demo setup, not a real library: public-domain films and TV series as files
 of random bytes, a scratch Plex Media Server and real Sonarr, Radarr and Lidarr in Docker (the
 imports are tiny generated videos), and an NFS share ("UNAS") and an SMB share ("Offsite NAS")
-served by containers. "Sign in with Plex" ran against a fake plex.tv from the test suite. No real
-media and no Plex account were involved.
+served by containers. Tautulli, Seerr and Maintainerr are the fakes from the test suite, serving
+their recorded answers with demo plays, requests and users; "Sign in with Plex" ran against a fake
+plex.tv. No real media and no real account were involved.
 
 <table>
   <tr>
@@ -48,60 +52,76 @@ media and no Plex account were involved.
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <a href="docs/images/connect.png"><img src="docs/images/connect.png" alt="Settings, Connect: Lidarr, Radarr and Sonarr connections with their path mappings, refresh schedule, index status and backup settings, and an Apprise notification"></a>
-      <p align="center"><b>Settings → Connect</b>: Sonarr, Radarr and Lidarr with path mappings, index status and backups</p>
+      <a href="docs/images/tiers.png"><img src="docs/images/tiers.png" alt="Settings, Tiers: the built-in Irreplaceable rule with its two flags (a Radarr movie and a folder, each with a note), then four rules in order: media tagged bunkarr-full in the *arrs is full, media requested in Seerr by two of the four users is full, films pending deletion in Maintainerr are manifest only, and at the Offsite NAS only everything else is manifest only; the built-in Everything else is full"></a>
+      <p align="center"><b>Settings → Tiers</b>: ordered rules per destination; irreplaceable flags always win, and a file no rule matches is copied in full</p>
     </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/preview.png"><img src="docs/images/preview.png" alt="Tier preview: for the Offsite NAS and the UNAS, the files and bytes stored, full, manifest only, skipped, unknown, to copy and kept, the files and size each rule decides and the config backups, then the Offsite NAS's files with their tier, the rule that decided and the facts behind it, such as a Seerr request or a Maintainerr deletion date"></a>
+      <p align="center"><b>Preview</b>: what each destination would copy, list or skip, in files and bytes, and why for every file</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/images/library-item.png"><img src="docs/images/library-item.png" alt="A film in the library: its facts from Radarr, Plex, Tautulli (five plays), Seerr and Maintainerr, its irreplaceable flag, its full tier at both shares because of the flag, and its copies at each share"></a>
+      <p align="center"><b>Library → a file</b>: the facts, flags and tier at each destination, and why</p>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/connect.png"><img src="docs/images/connect.png" alt="Settings, Connect: Lidarr, Radarr and Sonarr connections with their path mappings, refresh schedule, index status and backup settings; the Plex library index, Maintainerr, Seerr and Tautulli linked to the Plex server with their refresh schedules and fresh data; and an Apprise notification"></a>
+      <p align="center"><b>Settings → Connect</b>: the *arrs with path mappings, index status and backups; Tautulli, Seerr and Maintainerr for the tier rules</p>
+    </td>
+  </tr>
+  <tr>
     <td width="50%" valign="top">
       <a href="docs/images/webhook.png"><img src="docs/images/webhook.png" alt="The webhook panel of the Radarr connection: the webhook URL, Basic authentication with the webhook key as the password (hidden behind Show key), the triggers to tick and the recent events with the jobs they queued"></a>
       <p align="center"><b>Webhook</b>: the URL and key to paste into Radarr, and the events it sent</p>
     </td>
-  </tr>
-  <tr>
     <td width="50%" valign="top">
       <a href="docs/images/arr-backups.png"><img src="docs/images/arr-backups.png" alt="Radarr backup versions on the UNAS share: two verified zips taken from Radarr's Backups folder"></a>
       <p align="center"><b>*arr backups</b>: verified copies of Radarr's own backup zip, never offered for download</p>
     </td>
+  </tr>
+  <tr>
     <td width="50%" valign="top">
       <a href="docs/images/manifests.png"><img src="docs/images/manifests.png" alt="Manifests of the UNAS share: the day's newest version with item and file counts, listed size, integrity and JSON and CSV downloads, next to Export now, Preview and the current view as JSON or CSV"></a>
       <p align="center"><b>Manifests</b>: every *arr item and library file, versioned on each destination</p>
     </td>
-  </tr>
-  <tr>
     <td width="50%" valign="top">
       <a href="docs/images/plex-signin.png"><img src="docs/images/plex-signin.png" alt="Sign in with Plex: signed in, the account's owned and shared servers, and the chosen server's connections tested from Bunkarr: a recommended local HTTPS connection, its derived unencrypted LAN address, and a remote and a relay connection that did not answer"></a>
       <p align="center"><b>Sign in with Plex</b>: pick a server and one of its tested connections</p>
     </td>
+  </tr>
+  <tr>
     <td width="50%" valign="top">
       <a href="docs/images/plex.png"><img src="docs/images/plex.png" alt="Plex server form with a successful connection test, Sign in with Plex, and the manual URL, token and data path fields"></a>
       <p align="center"><b>Settings → Plex</b>: connection test, sign-in or URL and token, data path</p>
     </td>
-  </tr>
-  <tr>
     <td width="50%" valign="top">
       <a href="docs/images/destinations.png"><img src="docs/images/destinations.png" alt="Destinations list: an NFS and an SMB share with their capability badges, schedules, last sync, and buttons for snapshots and manifests"></a>
       <p align="center"><b>Destinations</b>: each share with the capabilities Bunkarr probed, its schedules and last sync</p>
     </td>
+  </tr>
+  <tr>
     <td width="50%" valign="top">
       <a href="docs/images/destination-test.png"><img src="docs/images/destination-test.png" alt="Destination form with a test result for an SMB share: marker, filesystem, free space, capabilities and warnings about names it cannot store"></a>
       <p align="center"><b>Destination test</b>: what an SMB share can store, and what that means for your backup</p>
     </td>
-  </tr>
-  <tr>
     <td width="50%" valign="top">
       <a href="docs/images/plex-snapshots.png"><img src="docs/images/plex-snapshots.png" alt="Snapshots on a destination: Radarr and Sonarr backup zips and a Plex database backup, each with its size, integrity result and path"></a>
       <p align="center"><b>Snapshots</b>: verified Plex DB and *arr backup versions on the share</p>
     </td>
+  </tr>
+  <tr>
     <td width="50%" valign="top">
       <a href="docs/images/tasks.png"><img src="docs/images/tasks.png" alt="System tasks: sync, verify, Plex backup, retention, *arr refresh and *arr backup schedules with next and last run, Preview and Run now"></a>
       <p align="center"><b>System → Tasks</b>: every schedule, with Preview and Run now</p>
     </td>
-  </tr>
-  <tr>
     <td width="50%" valign="top">
       <a href="docs/images/status.png"><img src="docs/images/status.png" alt="System status with version, build, uptime, config directory and database"></a>
       <p align="center"><b>System → Status</b>: version, build and where Bunkarr keeps its data</p>
     </td>
-    <td width="50%" valign="top" align="center">
+  </tr>
+  <tr>
+    <td colspan="2" valign="top" align="center">
       <a href="docs/images/mobile.png"><img src="docs/images/mobile.png" alt="Bunkarr on a phone-sized screen: a sync whose deletions the mass-change guard held, with the Apply held changes button" width="220"></a>
       <p align="center"><b>Mobile</b>: a sync held by the mass-change guard, on a phone</p>
     </td>
@@ -148,6 +168,16 @@ media and no Plex account were involved.
   after a disaster. See [Manifests](#manifests).
 - **Sign in with Plex**: pick your server after a plex.tv sign-in instead of pasting a token.
   Tokens stay on Bunkarr's server.
+- **Tiers** (Settings → Tiers): ordered rules decide, per destination, whether a file is copied
+  in full, only listed in the manifests, or left out, from its *arr tags, quality profile, root
+  folder, genre, Plex library, size, age, Tautulli plays, Seerr requests or Maintainerr's pending
+  deletions. Presets, a preview of what each destination would hold, **irreplaceable** flags that
+  no rule can override, and demoted files that stay backed up until you release them. See
+  [Tiers](#tiers).
+- **Tautulli, Seerr and Maintainerr** (Settings → Connect): read-only connections whose play
+  history, requests and pending deletions become facts for the tier rules, matched to your
+  files through the Plex server they are linked to. See
+  [Tautulli, Seerr and Maintainerr](#tautulli-seerr-and-maintainerr).
 
 ## Quick start (Docker Compose)
 
@@ -429,9 +459,11 @@ Authentication Required: "Disabled for Local Addresses"); otherwise the job fail
 A manifest is the disaster record of your *arr library: every Sonarr, Radarr and Lidarr item
 (movies; series with their seasons and episodes; artists with their albums) with its IDs (TMDB,
 TVDB, IMDb, MusicBrainz), title, year, quality profile, root folder, monitored state and tags,
-and every file with its path, size and quality, plus whether this destination holds it
-(`backedUp`, `sha256`). Library files that belong to no item are listed too. With it, a library
-can be acquired again after a disaster, including anything that was never copied.
+and every file with its path, size and quality, plus its [tier](#tiers) at this destination and
+whether this destination holds it (`backedUp`, `sha256`, or `kept` for a demoted file). Library
+files that belong to no item are listed too (except `skip`-tier extras the destination does not
+hold). With it, a library can be acquired again after a disaster, including anything that was
+never copied.
 
 - **Where:** `<target>/.bunkarr/manifests/<time>/`:
   - `manifest.json`, the canonical form;
@@ -464,6 +496,114 @@ can be acquired again after a disaster, including anything that was never copied
   A tool that adds the items back to a fresh *arr is part of the Phase 5 restore wizard; until
   then the manifest gives each item's IDs, root folder, quality profile and monitored state to
   add it by hand.
+
+## Tiers
+
+Settings → Tiers decides, for each file and each destination, one of three **tiers**:
+
+- **Full**: copied, versioned and kept in retention, as in every earlier phase.
+- **Manifest only**: not copied, but listed in that destination's [manifests](#manifests) so it
+  can be acquired again.
+- **Skip**: not copied. A file of an *arr item is still listed under its item; other skipped
+  files (extras, files outside any item) are only counted.
+
+**The default is full.** With no rules, every file is copied in full to every destination, exactly
+as before Phase 3. Plex DB and *arr config backups are always full: they are not tiered.
+
+**Rules.** A rule has a name, conditions, a match mode (*all* or *any*), an action (a tier) and
+*Applies at*: all destinations or the ones you pick. At a destination, the enabled rules that
+apply there are taken in order and **the first one that matches decides**; a file no rule matches
+is full (the built-in *Everything else*). A rule not applied at a destination is simply not
+evaluated there, which is not the same as *skip*: "full at the UNAS only" is one rule *full* at
+the UNAS plus a second rule with the same conditions, *skip* at the other shares. Up to 100 rules
+of up to 32 conditions each.
+
+| Condition | From |
+|---|---|
+| *arr tag, quality profile, root folder, monitored; managed by an *arr | Sonarr, Radarr, Lidarr |
+| Genre | the *arr item |
+| Plex library | the source's Plex library, or the Plex library index |
+| Source, file size, added (days) | Bunkarr's catalog (the *arr's or Plex's date added first) |
+| Play count, last watched | Tautulli |
+| Requested, requested by | Seerr (users by id only) |
+| Pending deletion | Maintainerr |
+| Flagged irreplaceable | your flags (below) |
+
+- **Unknown never lowers protection.** A condition whose facts are unknown (a stale cache, two
+  *arrs claiming the file, a file Plex has not indexed yet) is neither true nor false. When an
+  earlier, more protective rule might have matched, it decides instead (*full* > *manifest
+  only* > *skip*), and the file is shown as *unknown*. Copies that are full only because of an
+  unknown fact count toward the [mass-change guard](#the-mass-change-guard), so a stale Radarr
+  cannot flood a destination, and they never fail a sync for lack of free space: they are held
+  instead.
+- A file outside every *arr root folder (home videos, a Plex-only source), while the *arr
+  caches are fresh, is **not managed**: its *arr conditions are false, not unknown.
+- **Sidecars** (`.srt`, `.nfo`) follow their media file; the names of a **hardlink** group all
+  take the most protective tier among them.
+
+**Presets** (the *Preset* menu, then **Load into editor**) only fill the editor; nothing changes
+until you Preview and Save:
+
+- **Back up everything**: no rules (the default).
+- **Manifest by default** (opt-in; the original spec's default): media tagged `bunkarr-full` in
+  Sonarr, Radarr or Lidarr is full, everything else manifest only. This **stops copying new
+  untagged media**, and a file outside every *arr root folder becomes manifest only too; a file
+  whose *arr facts are unknown stays full. Tag what you want copied before you save it.
+- **Keep Maintainerr deletions as manifest only**: what Maintainerr is about to delete is not
+  copied but stays listed. Maintainerr has no authentication, so this preset never skips.
+
+**Preview** evaluates the rules in the editor, saved or not, over every file of every enabled
+destination, and shows per destination what is *stored* now, what would be full, manifest only
+and skip, what is full only because a fact is unknown, what the next sync would *copy*, and what
+would be *kept*, with counts per rule, the caches that are not fresh and any rule value (a tag, a
+profile) that no index knows. Each file lists the reasons for its tier. Nothing is written.
+**Save** takes effect at each destination's next sync; a save based on rules someone else changed
+meanwhile is refused. Library → a file shows its tier at each destination and why.
+
+**When a file stops being full** (a rule changed, a tag was removed), nothing is deleted: the
+copy the destination holds is **kept**, and syncs leave it alone. Settings → Tiers then offers
+**Release N files at <destination>…**. A release first runs a preview (a dry run) listing the kept
+files it would free; on that job's page, **Apply release** moves exactly those files into the
+destination's retention folder, where they expire after the retention period (30 days by
+default). Files that are full again, or a preview made before the rules changed again, are not
+released. A kept file that is deleted at the source, or replaced by a file of another name (an
+upgrade), goes into retention as usual; the new file is copied only when its tier is full.
+
+**Irreplaceable.** Library → a file → **Mark irreplaceable** flags the file's *arr item (by
+default, when it has one: the flag follows the item across *arrs by its TMDB, TVDB or
+MusicBrainz ID, and falls back to its last folder when the item is removed), the file, or its
+folder (flags follow renames). A flagged file is full at every destination whatever the rules
+say, and its retained copies never expire while the flag exists. Settings → Tiers →
+*Irreplaceable* → *Flags* lists every flag and whether it still resolves.
+
+## Tautulli, Seerr and Maintainerr
+
+Settings → Connect → **Tautulli, Seerr and Maintainerr**. Bunkarr only **reads** from them, with
+a fixed list of requests, and turns what it reads into facts for the [tier rules](#tiers):
+
+| App | Version | Reads | Linked Plex server | Refresh (stale after) |
+|---|---|---|---|---|
+| Tautulli | ≥ 2.18 | play history per library: play count, last watched | required: the server it watches (the Test checks it) | daily 02:00 (72 h) |
+| Seerr | ≥ 3 (Overseerr, Jellyseerr best effort) | requests (movie, series, seasons) and requesting user ids; no names or e-mail addresses | optional: used when a file has no TMDB or TVDB ID | daily 02:30 (72 h) |
+| Maintainerr | ≥ 3.4 | the collections' items that are pending deletion | required: the server it manages | every 6 h (24 h) |
+
+- **API keys** are write-only: Tautulli (Settings → Web Interface → API key) and Seerr (Settings →
+  General → API Key). Maintainerr has **no API authentication**: anyone who can reach it can add
+  items to a deleting collection, so rely on its facts with care and keep it off untrusted
+  networks.
+- **Plex server scoping.** Tautulli's plays and Maintainerr's collections name Plex items, and a
+  Plex rating key only means something on its own server. Each connection is therefore linked to
+  one Plex server, and its facts are matched to your files only through **that server's library
+  index**, never another's. Linking a server offers to turn its index on (daily at 01:00, stale
+  after 72 h; Settings → Connect shows it next to the connections). The index also serves the *Plex
+  library* condition and Plex's added dates.
+- **Freshness.** A connection whose last complete refresh is older than its *stale after* hours
+  (or whose linked Plex index is stale) makes its conditions unknown, which never lowers
+  protection. **Refresh now** on each card refreshes it at once.
+- **Tautulli history turned off** for a user or a library (Tautulli's *Keep history*) makes play
+  counts there a lower bound: "played more than N" can still be true, but "played fewer than N"
+  and "never watched" become unknown. The Connect card says how many users and libraries this
+  affects.
 
 ## Sign in with Plex
 
@@ -529,6 +669,9 @@ everything". Two guards stop that from reaching the backup:
   *Max changed files*), those items are **held**: nothing is moved or replaced, new files still
   sync, the job ends *completed with warnings* and a warning notification is sent. A change that
   would leave a file empty or less than half its backed-up size is always held.
+- **Tiers count too.** Released files (see [Tiers](#tiers)) count as changes, like deletions, and
+  so do new copies that are full only because a tier fact is unknown (for example Radarr's cache
+  is stale). Above the limits those copies are held ("tier unknown because … is not fresh").
 
 To apply held changes that you expected, open the job (Activity) and click **Apply held changes**.
 It starts a sync with `allowChanges`, which runs them; the API equivalent is
@@ -604,7 +747,12 @@ curl -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' -d '{"dryRun":true
 - `GET /api/v1/health` — unauthenticated liveness check.
 - `GET /api/v1/openapi.json` — the OpenAPI 3.1 description of every endpoint (a test keeps it in
   step with the router). The Phase 1 contract is [`docs/design/phase1.md`](docs/design/phase1.md) §7;
-  Phase 2's additions are in [`docs/design/phase2-3.md`](docs/design/phase2-3.md) §13.
+  Phase 2's and Phase 3's additions are in [`docs/design/phase2-3.md`](docs/design/phase2-3.md)
+  §13.
+- `/api/v1/tiers/…` — the tier rules (`GET`/`PUT /tiers/rules`, with the revision a save is
+  based on), `GET /tiers/fields`, `GET /tiers/presets`, `POST /tiers/preview` (and
+  `GET /tiers/preview/{id}/items`) and the irreplaceable flags (`/tiers/flags`). A release is a
+  sync with `releaseDemoted` (see the OpenAPI description).
 - `POST /api/v1/webhook/{app}/{integrationId}` — the *arr webhooks. They take only that
   connection's webhook key (Basic auth password, `X-Api-Key` or `apikey`), never the API key
   above; see [Webhook](#webhook).
@@ -616,7 +764,7 @@ curl -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' -d '{"dryRun":true
 | 0 | Foundation: server, auth, settings, UI shell, image, CI ✅ |
 | 1 | MVP: Plex integration, scanner with hardlink detection, file-copy engine, scheduled syncs, Plex DB backup, activity/history, Apprise notifications ✅ |
 | 2 | *arr awareness: Sonarr/Radarr/Lidarr APIs and webhooks, *arr config backups, manifest export, Sign in with Plex ✅ |
-| 3 | Tiering: rule engine (tags, quality, Tautulli, Seerr, Maintainerr), plan preview |
+| 3 | Tiering: rule engine (tags, quality, Plex libraries, Tautulli, Seerr, Maintainerr), presets, preview, release of demoted files, irreplaceable flags ✅ |
 | 4 | Destinations & versioning: restic and rclone engines, B2/S3/SFTP, bandwidth windows |
 | 5 | Restore & disaster recovery: restore wizard, manifest re-acquisition, restore tests |
 | 6 | Release polish: Unraid CA template, metrics, notifications, docs site, hardening |
@@ -637,7 +785,7 @@ make docker-test      # build the image and smoke-test it
 make test-docker      # image smoke, container kill, Plex backup/restore and SMB/NFS share tests (Docker and Go)
 make test-plex        # the Plex backup/restore test only (slow; pulls plexinc/pms-docker once)
 make test-shares      # syncs and kill + resume on Samba (CIFS) and NFS shares (privileged containers)
-make test-arr         # real Sonarr, Radarr and Lidarr: imports, upgrades, webhooks, backups, manifests (needs internet)
+make test-arr         # real Sonarr, Radarr and Lidarr: imports, upgrades, webhooks, backups, manifests, tiers (needs internet)
 cd web && npm run dev # UI dev server on :5173, proxying /api to :8787
 ```
 

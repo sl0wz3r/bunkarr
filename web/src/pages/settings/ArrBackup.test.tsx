@@ -5,7 +5,10 @@ import type { Integration, Snapshot } from '@/api/types';
 import { callsTo, type Handler } from '@/test/fetch';
 import { destination } from '@/test/fixtures';
 import { renderApp } from '@/test/render';
+import { slowPage } from '@/test/slow';
 import { arrBackupSettings, arrBackupValue, validateArrBackup } from './ArrBackup';
+
+slowPage();
 
 function radarr(backup: Record<string, unknown> = {}, over: Partial<Integration> = {}): Integration {
   return {

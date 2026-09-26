@@ -1,0 +1,16 @@
+[
+  {
+    "id": 37,
+    "collectionId": 5,
+    "mediaServerId": "1",
+    "tmdbId": 3085,
+    "tvdbId": 8213,
+    "addDate": "2026-09-26T00:00:00.000Z",
+    "image_path": "https://image.tmdb.org/t/p/w500/lu86Y9zTPH3neCiUzLzHCEFHf7f.jpg",
+    "isManual": true,
+    "includedByRule": false,
+    "manualMembershipSource": "local",
+    "sizeBytes": 4096,
+    "ruleEvaluationFailed": false
+  }
+]

@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -102,12 +104,23 @@ func (s *Server) listItems(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, "list job items", err)
 		return
 	}
-	res, err := s.app.Jobs.Store().ListItems(r.Context(), id, jobqueue.ItemQuery{
+	iq := jobqueue.ItemQuery{
 		Action:   jobs.ItemAction(q.Get("action")),
 		Status:   jobs.ItemStatus(q.Get("status")),
+		Tier:     q.Get("tier"),
 		Page:     page,
 		PageSize: size,
-	})
+	}
+	// ruleId: the deciding tier rule (0: the built-ins; phase2-3.md §13).
+	if v := strings.TrimSpace(q.Get("ruleId")); v != "" {
+		rule, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			s.fail(w, r, "list job items", errorf(http.StatusBadRequest, "invalid ruleId %q", v))
+			return
+		}
+		iq.RuleID = &rule
+	}
+	res, err := s.app.Jobs.Store().ListItems(r.Context(), id, iq)
 	if err != nil {
 		s.fail(w, r, "list job items", err)
 		return
@@ -119,6 +132,22 @@ func (s *Server) itemSummary(w http.ResponseWriter, r *http.Request) {
 	j, err := s.job(r)
 	if err != nil {
 		s.fail(w, r, "summarize job items", err)
+		return
+	}
+	// by=tier adds the tier dimension (phase2-3.md §13); without it the rows stay one per action
+	// and status.
+	switch r.URL.Query().Get("by") {
+	case "":
+	case "tier":
+		counts, err := s.app.Jobs.Store().TierCounts(r.Context(), j.ID)
+		if err != nil {
+			s.fail(w, r, "summarize job items", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, counts)
+		return
+	default:
+		s.fail(w, r, "summarize job items", errorf(http.StatusBadRequest, "by must be tier (or missing)"))
 		return
 	}
 	counts, err := s.app.Jobs.Store().Counts(r.Context(), j.ID)

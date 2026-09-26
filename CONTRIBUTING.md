@@ -28,7 +28,7 @@ make docker-test # image smoke test (needs Docker)
 make test-docker # image smoke, container kill, Plex backup/restore and share tests (Docker and Go)
 make test-plex   # the Plex backup/restore test only (slow; pulls plexinc/pms-docker once)
 make test-shares # sync and kill tests on Samba (CIFS) and NFS shares (privileged containers)
-make test-arr    # real Sonarr, Radarr and Lidarr containers (Docker, Go and internet; slow)
+make test-arr    # real Sonarr, Radarr and Lidarr containers, incl. tiers (Docker, Go and internet; slow)
 make help        # every target
 ```
 
@@ -36,16 +36,24 @@ make help        # every target
 against real Sonarr, Radarr and Lidarr containers of pinned versions (`SONARR_IMAGE`,
 `RADARR_IMAGE`, `LIDARR_IMAGE` override them): imports and upgrades posted as webhooks with the
 integration's webhook key must reach the destination by a targeted sync within 60 s, a manifest
-must round-trip against the *arr's own API state, and `internal/arrbackup`'s backup tests run
-with the Backups folder mounted read-only and a login required. It needs internet (the *arrs'
+must round-trip against the *arr's own API state, tier rules must decide from the real Radarr's
+tags and quality profiles (`TestDockerArrTiers`, with fake Plex, Tautulli, Seerr and Maintainerr),
+and `internal/arrbackup`'s backup tests run with the Backups folder mounted read-only and a login
+required. It needs internet (the *arrs'
 metadata lookups); without it the tests skip. It removes its containers, volumes and network. It
 is not in CI yet ([DEFERRED.md](DEFERRED.md)): run it before merging a change to webhooks,
-*arr backups, manifests, the metadata index, targeted syncs or the *arr client.
+*arr backups, manifests, the metadata index, targeted syncs, tiers or the *arr client.
 
 The *arr client's tests use `internal/integrations/arr/arrtest`, a fake that serves responses
 recorded from the real apps under `testdata/arr/<app>/` (`testdata/arr/record_slice2.py`
 records more). Add a recording rather than a hand-written response when the client learns a new
-request.
+request. Tautulli, Seerr and Maintainerr work the same way: `tautullitest`, `seerrtest` and
+`maintainerrtest` serve `testdata/tautulli/`, `testdata/seerr/` and `testdata/maintainerr/`.
+
+Tier facts and decisions are table-tested in `internal/tiers` (the evaluator is pure: facts in,
+decision out); the end-to-end tier cases, including stale caches and releases, are
+`TestTiersE2E` in `internal/e2e`. The syncer's package tests are slow: run a subset with
+`go test -short -run <Name> ./internal/syncer/` while you work.
 
 The Go binary embeds `web/dist`; a Go-only build works (the UI then answers with a notice). Build
 the UI with `make web`: `npm run build` empties `web/dist`, including the tracked `.gitkeep`,
@@ -77,10 +85,16 @@ internal/integrations/plex/ Plex client, plex.tv sign-in (PINs, resources), conn
                            plextest/ fake server; testdata/ recorded responses
 internal/integrations/arr/ read-only Sonarr/Radarr/Lidarr client (fixed request allow-list);
                            arrtest/ fake *arr serving testdata/arr/ recordings
+internal/integrations/tautulli/, seerr/, maintainerr/
+                           read-only clients (fixed request allow-lists, paging integrity);
+                           *test/ fakes serving testdata/<app>/ recordings
 internal/netguard/         dialer for every outbound client: refuses link-local and cloud metadata
                            addresses
-internal/mediaindex/       metadata index of the *arrs' items and files; refresh runner, reconcile,
+internal/mediaindex/       metadata index of the *arrs' items and files, the Plex library index and
+                           the Tautulli, Seerr and Maintainerr caches; refresh runner, reconcile,
                            follow-up syncs
+internal/tiers/            tier rules store (revisions), facts, the pure evaluator, presets,
+                           preview, irreplaceable flags
 internal/webhooks/         *arr webhook intake (webhook_events), parsing, the coalescing processor
 internal/arrbackup/        *arr config backup runner: fetch (folder or HTTP), zip verification,
                            versions (snapshots kind arr)
@@ -95,12 +109,13 @@ internal/catalog/          sources, read-only scanner, hardlink groups, catalog 
 internal/destinations/     destinations store, marker, capability probe, Open (safety rule S3)
 internal/engines/filecopy/ filesystem primitives over os.Root: atomic copy, link, retain, expire, hashes
 internal/syncer/           planner and the sync, verify and retention runners (destination_files);
-                           targeted syncs (Params.Paths)
+                           targeted syncs (Params.Paths); tiers in a sync (kept files, releases)
 internal/plexdb/           Plex DB backup runner, verification, version pruning (snapshots)
 internal/notify/           Apprise targets and the notification dispatcher
 internal/e2e/              acceptance suite (build tag e2e): binary and Docker tests, including the
                            *arr suite (TestDockerArr*)
 testdata/arr/, testdata/webhooks/  recorded *arr API responses and webhook payloads
+testdata/tautulli/, seerr/, maintainerr/  recorded Tautulli, Seerr and Maintainerr responses
 web/                       React + TypeScript + Vite + Tailwind UI
 deploy/                    docker-compose example
 docker/                    entrypoint; image smoke, container kill, Plex restore and share test wrappers
@@ -138,9 +153,15 @@ manifest queries.
   `logging.RegisterSecret`; a value held for one request (a Test form) is redacted with
   `logging.RedactValues` and never registered.
 - **Outbound HTTP:** every client that calls another service (Plex, plex.tv, the *arrs,
-  Apprise) uses `netguard.NewTransport()`. The *arr client has no general request method: a new
-  request is a new method on the allow-list in `internal/integrations/arr`, read-only unless the
-  design says otherwise (the Backup command is the only write).
+  Tautulli, Seerr, Maintainerr, Apprise) uses `netguard.NewTransport()`. The *arr, Tautulli, Seerr
+  and Maintainerr clients have no general request method: a new request is a new method on the
+  allow-list in its package, read-only unless the design says otherwise (the *arr Backup command
+  is the only write). Decode only the fields the design lists (no Seerr names or e-mail
+  addresses).
+- **Tiers never lower protection:** an unknown fact must never make a file less than `full`
+  when a more protective rule might match, and demoting a file never removes it from a
+  destination; only a confirmed release does (design §8, S14, S15). A change to the evaluator
+  or to tiers in a sync needs a test of both.
 - **Webhooks are hints:** a webhook payload only chooses which *arr items to refresh; paths and
   files always come from the *arr's API and a scan (design S12).
 - **Test hooks:** values an end-to-end test must change in a real binary (timings, plex.tv URLs)

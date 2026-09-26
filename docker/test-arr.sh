@@ -11,7 +11,9 @@
 # and the ffmpeg image it builds; keeps the pulled images.
 #   sh docker/test-arr.sh bunkarr:dev
 #
-# The same run covers Lidarr (TestDockerArrLidarr), the manifest round trip, and the *arr backup
+# The same run covers Lidarr (TestDockerArrLidarr), the manifest round trip, the tier rules on a
+# real Radarr's tag and quality profiles with fake Plex, Tautulli, Seerr and Maintainerr
+# (TestDockerArrTiers, Phase 3 acceptances 6 and 7), and the *arr backup
 # tests of internal/arrbackup (acceptance 5: Radarr and Lidarr with their Backups folder mounted
 # read-only, login required, a reused scheduled backup).
 #

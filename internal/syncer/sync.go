@@ -18,6 +18,7 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/engines/filecopy"
 	"github.com/sl0wz3r/bunkarr/internal/faultinject"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
+	"github.com/sl0wz3r/bunkarr/internal/tiers"
 )
 
 // SyncRunner runs sync jobs (jobs.TypeSync, design §4.1): Params.DestinationID is the destination,
@@ -35,10 +36,21 @@ type SyncRunner struct {
 	sleep         func(ctx context.Context, d time.Duration) error
 }
 
-// NewSyncRunner returns the sync job runner.
+// NewSyncRunner returns the sync job runner. With Options.Tiers, when Options.Enqueuer is the job
+// manager (it has OnFinish), the runner registers its OnJobFinish hook there: the folder flags
+// follow the moves of a sync that ended without an attempt that could follow them.
 func NewSyncRunner(o Options) *SyncRunner {
-	return &SyncRunner{base: newBase(o), planBatch: planBatch, recheckEvery: recheckEvery, freeSpace: filecopy.FreeSpace,
+	r := &SyncRunner{base: newBase(o), planBatch: planBatch, recheckEvery: recheckEvery, freeSpace: filecopy.FreeSpace,
 		expectedWaits: defaultExpectedWaits, sleep: sleepCtx}
+	if n, ok := o.Enqueuer.(finishNotifier); ok && o.Tiers != nil {
+		n.OnFinish(r.OnJobFinish)
+	}
+	return r
+}
+
+// finishNotifier is the job manager's hook registration (jobqueue.Manager.OnFinish).
+type finishNotifier interface {
+	OnFinish(fn func(jobs.Job))
 }
 
 var _ jobs.Runner = (*SyncRunner)(nil)
@@ -79,6 +91,20 @@ type SyncStats struct {
 	ManifestExportJob int64 `json:"manifestExportJob,omitempty"`
 	// Skipped is set when a follow-up sync found its destination not mounted and did nothing.
 	Skipped string `json:"skipped,omitempty"`
+
+	// Tier stats (phase2-3.md §8.5; with a tier engine only, and only for the attempt that
+	// planned): the live files of the scope by tier; the files kept although not full (S15);
+	// the files released (a release's retains; filesRetained does not count them); backed-up
+	// content that reappeared in another source under a non-full tier; the stale references
+	// warned about; the rule revision evaluated (a release's preview records it).
+	Tiers           *TierStats `json:"tiers,omitempty"`
+	FilesKept       int64      `json:"filesKept"`
+	BytesKept       int64      `json:"bytesKept"`
+	FilesReleased   int64      `json:"filesReleased"`
+	BytesReleased   int64      `json:"bytesReleased"`
+	MovedToNonFull  int64      `json:"movedToNonFull"`
+	StaleReferences int64      `json:"staleReferences"`
+	TierRevision    int64      `json:"tierRevision"`
 }
 
 // SourceSummary is one source's part of a sync.
@@ -140,6 +166,9 @@ type syncRun struct {
 
 	progress     jobs.Progress
 	sinceRecheck int
+
+	// tier is the tier bookkeeping of this attempt (tiers.go).
+	tier tierState
 }
 
 // Run implements jobs.Runner. A sync that is neither a dry run nor targeted and was not cancelled
@@ -159,8 +188,20 @@ func (r *SyncRunner) Run(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.
 	return res, err
 }
 
-func (r *SyncRunner) run(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.Result, error) {
+func (r *SyncRunner) run(ctx context.Context, job jobs.Job, env jobs.Env) (res jobs.Result, err error) {
 	started := r.now()
+	// An attempt that stops before it executes (after a restart the destination or a source is not
+	// mounted yet, the destination was disabled, reconcile failed) still lets the folder flags
+	// follow the moves earlier attempts executed: the job may never run again, and no later sync
+	// replays them (their records have moved).
+	followed := false
+	defer func() {
+		if !followed && !job.DryRun {
+			if n := r.followMoves(ctx, job.ID, reporterOf(env)); n > 0 && err == nil {
+				res.Warnings += n
+			}
+		}
+	}()
 	if env.Items == nil {
 		return jobs.Result{}, errors.New("sync: the job has no item store")
 	}
@@ -220,9 +261,15 @@ func (r *SyncRunner) run(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.
 	}
 	if planned {
 		s.rep.Log(slog.LevelInfo, "the plan is complete: continuing with its pending items")
+		if err := s.recheckUnknownHold(ctx); err != nil {
+			return jobs.Result{}, err
+		}
 	} else {
 		// A job with items but no complete plan was stopped while planning: plan again.
 		if err := env.Items.DeleteItems(ctx, job.ID); err != nil {
+			return jobs.Result{}, err
+		}
+		if err := s.prepareRelease(ctx); err != nil {
 			return jobs.Result{}, err
 		}
 		if err := s.scanAndPlan(ctx); err != nil {
@@ -232,7 +279,9 @@ func (r *SyncRunner) run(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.
 			return jobs.Result{}, err
 		}
 		s.planned = true
-		if err := s.checkFreeSpace(); err != nil {
+		s.movedToNonFull()
+		s.staleReleases()
+		if err := s.checkFreeSpace(ctx); err != nil {
 			if !job.DryRun {
 				return jobs.Result{}, err
 			}
@@ -246,7 +295,12 @@ func (r *SyncRunner) run(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.
 	if err := s.openSources(); err != nil {
 		return jobs.Result{}, err
 	}
-	if err := s.execute(ctx); err != nil {
+	err = s.execute(ctx)
+	// The folder flags follow the executed moves also when the attempt failed or was cancelled
+	// (the moves happened; a crash is caught up by the resumed attempt, or by OnJobFinish).
+	s.flagsAfterSync(ctx)
+	followed = true
+	if err != nil {
 		if ctx.Err() != nil {
 			return jobs.Result{}, ctx.Err()
 		}
@@ -498,13 +552,38 @@ func (s *syncRun) planSource(ctx context.Context, src catalog.Source, names *nam
 		return nil, fmt.Errorf("source %q: open %s: %w", src.Name, src.Path, err)
 	}
 	defer root.Close()
+	dec, err := s.decisions(ctx, src)
+	if err != nil {
+		return nil, err
+	}
 	p := &sourcePlanner{sourceID: src.ID, destFolder: src.DestFolder, caps: s.h.Capabilities, settings: s.h.Settings,
-		names: names, fs: livePlanFS{src: root, dst: s.h.Root}, files: files, targeted: s.targeted()}
+		names: names, fs: livePlanFS{src: root, dst: s.h.Root}, files: files, targeted: s.targeted(),
+		dryRun: s.job.DryRun, release: s.tier.release}
+	if dec != nil {
+		p.arrAdded = dec.ArrDateAdded
+		nonFull := map[string]bool{}
+		for _, f := range files {
+			d := dec.Decide(f.id)
+			f.dec = &d
+			if d.Tier != tiers.Full {
+				nonFull[f.rel] = true
+			}
+		}
+		if s.tier.nonFull == nil {
+			s.tier.nonFull = map[int64]map[string]bool{}
+		}
+		s.tier.nonFull[src.ID] = nonFull
+	}
 	for i := range recs {
 		p.recs = append(p.recs, &recs[i])
 	}
 	if err := p.plan(ctx); err != nil {
 		return nil, fmt.Errorf("plan source %q: %w", src.Name, err)
+	}
+	if !s.job.DryRun {
+		if err := s.r.store.markReplaceChecked(ctx, p.replaceChecked); err != nil {
+			return nil, err
+		}
 	}
 	items := p.items()
 	g := applyGuard(items, liveFiles, s.h.Settings, s.job.Params.AllowChanges)
@@ -530,8 +609,15 @@ func (s *syncRun) planSource(ctx context.Context, src catalog.Source, names *nam
 	for _, it := range items {
 		if it.status == "" && (it.action == jobs.ActionCopy || it.action == jobs.ActionUpdate) {
 			bytes += it.bytes
+			if it.unknownWhy != "" {
+				s.tier.unknownBytes += it.bytes
+			}
+		}
+		if it.action == jobs.ActionRetain && it.d.Reason == "vanished" && it.status == "" {
+			s.tier.vanished = append(s.tier.vanished, [3]int64{it.d.Size, it.d.MtimeNs, src.ID})
 		}
 	}
+	s.addTierCounts(p, src.ID)
 	s.bytesPlanned += bytes
 	s.rep.Log(slog.LevelInfo, "planned", "source", src.Name, "items", len(items), "changes", g.changes, "held", g.held,
 		"bytesToCopy", bytes)
@@ -539,8 +625,9 @@ func (s *syncRun) planSource(ctx context.Context, src catalog.Source, names *nam
 }
 
 // checkFreeSpace is the free-space guard (design §4.1): the bytes to copy must fit in the free
-// space less 1 GiB.
-func (s *syncRun) checkFreeSpace() error {
+// space less 1 GiB. When only the copies that are full because a fact is unknown do not fit, they
+// are held and the rest runs (phase2-3.md §8.5).
+func (s *syncRun) checkFreeSpace(ctx context.Context) error {
 	if s.bytesPlanned == 0 {
 		return nil
 	}
@@ -548,15 +635,29 @@ func (s *syncRun) checkFreeSpace() error {
 	if err != nil {
 		return fmt.Errorf("check free space: %w", err)
 	}
-	var avail int64
-	if free > freeSpaceReserve {
-		avail = int64(min(free-freeSpaceReserve, uint64(1<<62)))
+	avail := availableSpace(free)
+	if s.bytesPlanned > avail && s.tier.unknownBytes > 0 && s.bytesPlanned-s.tier.unknownBytes <= avail {
+		if s.job.DryRun {
+			s.warnings++
+			s.rep.Log(slog.LevelWarn, fmt.Sprintf("the copies that are full only because a fact is unknown (%s) would be held: with them the copies do not fit in the free space",
+				formatBytes(s.tier.unknownBytes)))
+			return nil
+		}
+		return s.holdUnknownCopies(ctx, avail)
 	}
 	if s.bytesPlanned > avail {
 		return fmt.Errorf("not enough free space at the destination: %s to copy, %s free (1 GiB is kept free); nothing was copied",
 			formatBytes(s.bytesPlanned), formatBytes(int64(min(free, uint64(1<<62)))))
 	}
 	return nil
+}
+
+// availableSpace is the free space the copies may use: all but freeSpaceReserve.
+func availableSpace(free uint64) int64 {
+	if free > freeSpaceReserve {
+		return int64(min(free-freeSpaceReserve, uint64(1<<62)))
+	}
+	return 0
 }
 
 // inCatalog reports whether a source path is live in the source's catalog. The catalog is read
@@ -620,7 +721,7 @@ func (s *syncRun) notBackedUp(ctx context.Context, sourceID int64, rel string) (
 		}
 		dirs = map[string]string{}
 		err = s.r.cat.Live(ctx, sourceID, func(f catalog.File) error {
-			if dir := path.Dir(f.RelPath); !s.backedUp(bySource[f.RelPath], f) && dirs[dir] == "" {
+			if dir := path.Dir(f.RelPath); !s.backedUp(bySource[f.RelPath], f) && dirs[dir] == "" && s.blocksRetain(sourceID, f.RelPath) {
 				dirs[dir] = f.RelPath
 			}
 			return nil
@@ -659,7 +760,7 @@ func (s *syncRun) notBackedUpIn(ctx context.Context, sourceID int64, dir string)
 	}
 	name := ""
 	for _, f := range files { // by path, as notBackedUp reads them
-		if path.Dir(f.RelPath) == dir && !s.backedUp(bySource[f.RelPath], f) {
+		if path.Dir(f.RelPath) == dir && !s.backedUp(bySource[f.RelPath], f) && s.blocksRetain(sourceID, f.RelPath) {
 			name = f.RelPath
 			break
 		}
@@ -753,7 +854,9 @@ func (s *syncRun) result(ctx context.Context, started time.Time) (jobs.Result, e
 	}
 	var plannedBytes int64
 	for _, c := range counts {
-		st.FilesPlanned += c.Files
+		if c.Action != jobs.ActionSkip {
+			st.FilesPlanned += c.Files
+		}
 		counted := c.Status == jobs.ItemDone || (s.job.DryRun && c.Status == jobs.ItemPending)
 		switch c.Status {
 		case jobs.ItemHeld:
@@ -818,6 +921,9 @@ func (s *syncRun) result(ctx context.Context, started time.Time) (jobs.Result, e
 	} else {
 		st.BytesPlanned = plannedBytes
 	}
+	if err := s.tierResult(ctx, &st); err != nil {
+		return jobs.Result{}, err
+	}
 	st.DurationMs = s.r.now().Sub(started).Milliseconds()
 	warnings := s.warnings + int(st.FilesFailed)
 	if st.FilesHeld > 0 {
@@ -842,6 +948,7 @@ func syncSummary(st SyncStats) string {
 		add(st.FilesLinked, "link")
 		add(st.FilesPromoted, "promote")
 		add(st.FilesRetained, "retain")
+		add(st.FilesReleased, "release")
 	} else {
 		add(st.FilesCopied, "copied")
 		add(st.FilesUpdated, "updated")
@@ -850,6 +957,7 @@ func syncSummary(st SyncStats) string {
 		add(st.FilesLinked, "linked")
 		add(st.FilesPromoted, "promoted")
 		add(st.FilesRetained, "retained")
+		add(st.FilesReleased, "released")
 		add(st.FilesDisplaced, "displaced")
 	}
 	var b strings.Builder

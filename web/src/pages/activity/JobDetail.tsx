@@ -2,9 +2,9 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { ArrowLeft, Play, ShieldAlert, Square } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { syncDestination } from '@/api/destinations';
-import { cancelJob, getJob, itemSummary, listItems } from '@/api/jobs';
-import type { ItemAction, ItemCount, ItemStatus, Job, JobItem } from '@/api/types';
+import { cancelJob, getJob, itemSummary, itemSummaryByTier, listItems } from '@/api/jobs';
+import { isReleasePreview, releaseParamsOf, startSync as requestSync, TIERS, type ReleaseParams, type Tier } from '@/api/tiers';
+import type { ItemAction, ItemCount, ItemStatus, Job, JobItem, TierItemCount } from '@/api/types';
 import { Button } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DataTable, type Column } from '@/components/DataTable';
@@ -13,6 +13,10 @@ import { ErrorNotice, Notice } from '@/components/Notice';
 import { Page } from '@/components/Page';
 import { Pagination } from '@/components/Pagination';
 import { ActionBadge, ItemStatusBadge, JobStatusBadge } from '@/components/StatusBadge';
+import { DeletedIntegrationsHint } from '@/components/tiers/DeletedIntegrations';
+import { ReleaseJobNotice } from '@/components/tiers/Release';
+import { TierJobStats } from '@/components/tiers/TierJobStats';
+import { TIER_LABELS } from '@/components/tiers/tierText';
 import { formatBytes, formatDateTime, formatDuration, formatEta, formatNumber, formatRate, secondsBetween } from '@/lib/format';
 import { ACTION_HELP, ACTION_LABELS, ACTION_ORDER, ITEM_STATUS_LABELS, ITEM_STATUS_ORDER, JOB_TYPE_LABELS, TRIGGER_LABELS } from '@/lib/labels';
 import { isActive, jobTarget, keys, useDestinations, useNames } from '@/lib/lookups';
@@ -30,7 +34,7 @@ export function JobDetail() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [confirm, setConfirm] = useState<'cancel' | 'apply' | 'run' | null>(null);
-  const [filter, setFilter] = useState<{ action: ItemAction | ''; status: ItemStatus | ''; page: number }>({ action: '', status: '', page: 1 });
+  const [filter, setFilter] = useState<ItemFilter>({ action: '', status: '', tier: '', page: 1 });
 
   const job = useQuery({
     queryKey: ['job', jobId],
@@ -45,9 +49,18 @@ export function JobDetail() {
     enabled: !!job.data,
     refetchInterval: active ? POLL_MS * 2 : false,
   });
+  // A sync that evaluated tier rules records each item's tier: its items can be grouped and
+  // filtered by tier (phase2-3.md §16).
+  const tiered = !!job.data && job.data.type === 'sync' && typeof job.data.stats?.tiers === 'object' && job.data.stats?.tiers !== null;
+  const tierSummary = useQuery({
+    queryKey: ['job', jobId, 'summary', 'tier'],
+    queryFn: () => itemSummaryByTier(jobId),
+    enabled: tiered,
+    refetchInterval: active ? POLL_MS * 2 : false,
+  });
   const items = useQuery({
-    queryKey: ['job', jobId, 'items', filter.action, filter.status, filter.page],
-    queryFn: () => listItems(jobId, { action: filter.action, status: filter.status, page: filter.page, pageSize: ITEMS_PAGE_SIZE }),
+    queryKey: ['job', jobId, 'items', filter.action, filter.status, filter.tier, filter.page],
+    queryFn: () => listItems(jobId, { action: filter.action, status: filter.status, tier: filter.tier, page: filter.page, pageSize: ITEMS_PAGE_SIZE }),
     enabled: !!job.data,
     placeholderData: keepPreviousData,
     refetchInterval: active ? POLL_MS * 2 : false,
@@ -68,6 +81,10 @@ export function JobDetail() {
   const heldFiles = held.reduce((n, c) => n + c.files, 0);
   const destinationId = j?.params?.destinationId;
   const canSync = !!j && j.type === 'sync' && !!destinationId;
+  // A release preview's held changes are applied only by its "Apply release" (whose confirmation
+  // says what a release frees); a real release's held changes keep that release (§16).
+  const releasePreview = !!j && isReleasePreview(j);
+  const release: ReleaseParams = j ? releaseParamsOf(j) : {};
   const guard = useDestinations().data?.find((d) => d.id === destinationId)?.settings;
   const limits = guard
     ? `more than ${formatNumber(guard.maxChangePercent)}% of a source's files (and at least 20 files), or more than ${formatNumber(guard.maxChangeFiles)} files`
@@ -75,7 +92,8 @@ export function JobDetail() {
 
   async function startSync(allowChanges: boolean) {
     if (!destinationId) return;
-    const next = await syncDestination(destinationId, { dryRun: false, allowChanges });
+    // Applying what a release held keeps its release (phase2-3.md §16): the params are copied.
+    const next = await requestSync(destinationId, { dryRun: false, allowChanges, ...(allowChanges ? release : {}) });
     await qc.invalidateQueries({ queryKey: keys.jobs });
     navigate(`/activity/jobs/${next.id}`);
   }
@@ -89,7 +107,7 @@ export function JobDetail() {
           <Link to={active ? '/activity/queue' : '/activity/history'} className="inline-flex items-center gap-2 rounded px-3 py-1.5 text-sm hover:bg-panel-2">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" /> {active ? 'Queue' : 'History'}
           </Link>
-          {j && canSync && j.dryRun && !active && (
+          {j && canSync && j.dryRun && !active && !isReleasePreview(j) && (
             <Button variant="ghost" icon={Play} onClick={() => setConfirm('run')}>
               Run this sync
             </Button>
@@ -114,6 +132,7 @@ export function JobDetail() {
               {previewText(j)}
             </Notice>
           )}
+          <ReleaseJobNotice job={j} />
           {heldFiles > 0 && (
             <Notice
               tone="warning"
@@ -124,17 +143,22 @@ export function JobDetail() {
                 they are {limits}, and always holds an update that would empty a file or shrink it to less than half its size (truncation or ransomware).
                 {j.dryRun ? ' A real sync would move nothing for these files.' : ' Nothing was moved for these files.'}
               </p>
-              <p className="mt-1">Check them below. If they are expected (for example you reorganised or upgraded the library), apply them.</p>
+              <p className="mt-1">
+                {releasePreview
+                  ? 'Check them below. "Apply release" above also applies them; nothing else on this page does.'
+                  : 'Check them below. If they are expected (for example you reorganised or upgraded the library), apply them.'}
+              </p>
               <div className="mt-2 flex flex-wrap gap-2">
-                <Button small onClick={() => setFilter({ action: '', status: 'held', page: 1 })}>
+                <Button small onClick={() => setFilter({ action: '', status: 'held', tier: '', page: 1 })}>
                   Show held items
                 </Button>
-                {canSync && (
+                {canSync && !releasePreview && (
                   <Button small variant="primary" icon={ShieldAlert} disabled={active} title={active ? 'Available when this job has finished' : undefined} onClick={() => setConfirm('apply')}>
                     Apply held changes
                   </Button>
                 )}
               </div>
+              {j.type === 'sync' && <DeletedIntegrationsHint />}
             </Notice>
           )}
           {active && (
@@ -156,15 +180,17 @@ export function JobDetail() {
             </section>
           )}
           <JobStats stats={j.stats} dryRun={j.dryRun} />
+          <TierJobStats stats={j.stats} />
 
           <h2 className="mb-2 text-lg">Items</h2>
           <ErrorNotice error={summary.error} />
-          {summary.isSuccess && counts.length === 0 && !filter.action && !filter.status ? (
+          {summary.isSuccess && counts.length === 0 && !filter.action && !filter.status && !filter.tier ? (
             <p className="mb-6 text-sm text-ink-muted">{noItemsText(j)}</p>
           ) : (
             <>
-              <ItemSummary counts={counts} dryRun={j.dryRun} onPick={(action, status) => setFilter({ action, status, page: 1 })} />
-              <ItemFilters filter={filter} counts={counts} dryRun={j.dryRun} onChange={setFilter} />
+              <ItemSummary counts={counts} dryRun={j.dryRun} onPick={(action, status) => setFilter({ action, status, tier: '', page: 1 })} />
+              {tiered && <TierItemSummary counts={tierSummary.data ?? []} onPick={(tier) => setFilter({ action: '', status: '', tier, page: 1 })} />}
+              <ItemFilters filter={filter} counts={counts} dryRun={j.dryRun} tiers={tiered} onChange={setFilter} />
               <ErrorNotice error={items.error} />
               <ItemTable items={items.data?.records} loading={items.isPending} dryRun={j.dryRun} />
               {items.data && items.data.totalRecords > 0 && (
@@ -210,6 +236,12 @@ export function JobDetail() {
             Start a sync of <strong>{jobTarget(j, names)}</strong> that also runs the changes the mass-change guard would hold (retained files move into
             retention, updated files keep their old version in retention).
           </p>
+          {release.releaseDemoted && (
+            <p>
+              It also continues the release of preview #{release.releaseOf} (rule revision {release.releaseRevision}): the kept files that preview listed
+              move into the destination&apos;s retention folder and are deleted after the retention period, while the rules are still at that revision.
+            </p>
+          )}
           <p className="text-ink-muted">The sync plans again from the current state of the sources, so it applies what is held now.</p>
         </ConfirmDialog>
       )}
@@ -365,9 +397,56 @@ function ItemSummary({ counts, dryRun, onPick }: { counts: ItemCount[]; dryRun: 
   );
 }
 
-type ItemFilter = { action: ItemAction | ''; status: ItemStatus | ''; page: number };
+type ItemFilter = { action: ItemAction | ''; status: ItemStatus | ''; tier: Tier | ''; page: number };
 
-function ItemFilters({ filter, counts, dryRun, onChange }: { filter: ItemFilter; counts: ItemCount[]; dryRun: boolean; onChange: (f: ItemFilter) => void }) {
+/**
+ * tierGroups sums a job's items by the tier each records (GET /jobs/{id}/items/summary?by=tier),
+ * in tier order; rows without a tier are left out.
+ */
+export function tierGroups(counts: TierItemCount[]): { tier: Tier; files: number; bytes: number }[] {
+  return TIERS.map((tier) => {
+    const rows = counts.filter((c) => c.tier === tier);
+    return { tier, files: rows.reduce((n, c) => n + c.files, 0), bytes: rows.reduce((n, c) => n + c.bytes, 0) };
+  }).filter((g) => g.files > 0);
+}
+
+/** TierItemSummary groups a tiered sync's items by tier; picking a tier filters the items. */
+function TierItemSummary({ counts, onPick }: { counts: TierItemCount[]; onPick: (tier: Tier) => void }) {
+  const groups = tierGroups(counts);
+  if (groups.length === 0) {
+    return null;
+  }
+  return (
+    <div role="group" aria-label="Items by tier" className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+      <span className="text-ink-muted">By tier:</span>
+      {groups.map((g) => (
+        <button
+          key={g.tier}
+          type="button"
+          className="rounded border border-line px-2 py-1 hover:bg-panel-2 hover:text-accent"
+          aria-label={`Show ${TIER_LABELS[g.tier].toLowerCase()} items`}
+          onClick={() => onPick(g.tier)}
+        >
+          {TIER_LABELS[g.tier]}: {formatNumber(g.files)} <span className="text-xs text-ink-muted">({formatBytes(g.bytes)})</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ItemFilters({
+  filter,
+  counts,
+  dryRun,
+  tiers,
+  onChange,
+}: {
+  filter: ItemFilter;
+  counts: ItemCount[];
+  dryRun: boolean;
+  tiers: boolean;
+  onChange: (f: ItemFilter) => void;
+}) {
   const actions = ACTION_ORDER.filter((a) => counts.length === 0 || counts.some((c) => c.action === a) || a === filter.action);
   const statuses = ITEM_STATUS_ORDER.filter((s) => counts.length === 0 || counts.some((c) => c.status === s) || s === filter.status);
   return (
@@ -394,8 +473,21 @@ function ItemFilters({ filter, counts, dryRun, onChange }: { filter: ItemFilter;
           ))}
         </select>
       </label>
-      {(filter.action || filter.status) && (
-        <Button variant="ghost" onClick={() => onChange({ action: '', status: '', page: 1 })}>
+      {(tiers || filter.tier) && (
+        <label className="text-sm">
+          <span className="mb-1 block text-ink-muted">Tier</span>
+          <select className={`${inputClass} w-40`} value={filter.tier} onChange={(e) => onChange({ ...filter, tier: e.target.value as Tier | '', page: 1 })}>
+            <option value="">All tiers</option>
+            {TIERS.map((t) => (
+              <option key={t} value={t}>
+                {TIER_LABELS[t]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {(filter.action || filter.status || filter.tier) && (
+        <Button variant="ghost" onClick={() => onChange({ action: '', status: '', tier: '', page: 1 })}>
           Clear filters
         </Button>
       )}
@@ -415,6 +507,7 @@ const NOTE_LABELS: [key: string, label: string][] = [
   ['displaced', 'unmanaged file moved to'],
   ['retained', 'old version kept at'],
   ['check', 'check'],
+  ['note', 'tier'],
 ];
 
 /** itemNotes lists an item's notable detail fields as "label: value". */

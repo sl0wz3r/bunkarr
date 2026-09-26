@@ -1,7 +1,7 @@
 // Jobs, items, logs and schedules (design §7 "Jobs and schedules").
 
 import { api, query, toPaged } from './client';
-import type { ItemCount, ItemListQuery, Job, JobItem, JobListQuery, JobLog, Paged, Schedule } from './types';
+import type { ItemCount, ItemListQuery, Job, JobItem, JobListQuery, JobLog, Paged, Schedule, TierItemCount } from './types';
 
 export async function listJobs(q: JobListQuery): Promise<Paged<Job>> {
   return toPaged<Job>(await api<unknown>(`/jobs${query({ ...q })}`), q.page, q.pageSize);
@@ -21,6 +21,11 @@ export async function listItems(jobId: number, q: ItemListQuery): Promise<Paged<
 
 export async function itemSummary(jobId: number): Promise<ItemCount[]> {
   return (await api<ItemCount[] | null>(`/jobs/${jobId}/items/summary`)) ?? [];
+}
+
+/** itemSummaryByTier counts a job's items by action, status and tier (the tier each item records). */
+export async function itemSummaryByTier(jobId: number): Promise<TierItemCount[]> {
+  return (await api<TierItemCount[] | null>(`/jobs/${jobId}/items/summary?by=tier`)) ?? [];
 }
 
 export async function jobLogs(jobId: number, afterId: number, limit: number): Promise<JobLog[]> {

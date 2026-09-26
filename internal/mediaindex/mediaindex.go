@@ -94,7 +94,7 @@ type Freshness struct {
 // zero State when it has none), it the integration as stored now, staleAfter its staleAfterHours
 // and now the current time. The status and error of the last attempt never matter.
 func FreshnessOf(st State, it integrations.Integration, staleAfter time.Duration, now time.Time) Freshness {
-	f := Freshness{StaleAfterHours: int(staleAfter / time.Hour), InstanceMatches: st.InstanceID != "" && st.InstanceID == it.URL}
+	f := Freshness{StaleAfterHours: int(staleAfter / time.Hour), InstanceMatches: InstanceMatches(st.InstanceID, it)}
 	app := it.Type.AppName()
 	switch {
 	case st.RefreshedAt == nil:
@@ -119,7 +119,8 @@ func ageText(d time.Duration) string {
 }
 
 // StaleAfter returns an integration's staleAfterHours setting as a duration, and false for a type
-// whose settings have none (or that cannot be read).
+// whose settings have none (or that cannot be read), and for a Plex integration whose library
+// index is turned off.
 func StaleAfter(it integrations.Integration) (time.Duration, bool) {
 	var hours int
 	switch {
@@ -147,6 +148,13 @@ func StaleAfter(it integrations.Integration) (time.Duration, bool) {
 			return 0, false
 		}
 		hours = s.Refresh.StaleAfterHours
+	case it.Type == integrations.TypePlex:
+		// The library index (providers.go); a turned-off index has no cache that counts.
+		s, err := it.PlexSettings()
+		if err != nil || !s.IndexSettings().Enabled {
+			return 0, false
+		}
+		hours = s.IndexSettings().StaleAfterHours
 	default:
 		return 0, false
 	}
@@ -224,7 +232,7 @@ func (s *Store) Freshness(ctx context.Context, q Queryer, it integrations.Integr
 	}
 	stale, ok := StaleAfter(it)
 	if !ok {
-		return Freshness{Reason: fmt.Sprintf("%s has no metadata cache", it.Type.AppName())}, nil
+		return Freshness{Reason: noCacheReason(it)}, nil
 	}
 	return FreshnessOf(st, it, stale, testhooks.FreshnessNow(s.now())), nil
 }
@@ -301,7 +309,7 @@ func (s *Store) IndexStatus(ctx context.Context, it integrations.Integration) (I
 	if stale, ok := StaleAfter(it); ok {
 		out.Freshness = FreshnessOf(st, it, stale, testhooks.FreshnessNow(s.now()))
 	} else {
-		out.Freshness = Freshness{Reason: fmt.Sprintf("%s has no metadata cache", it.Type.AppName())}
+		out.Freshness = Freshness{Reason: noCacheReason(it)}
 	}
 	return out, nil
 }

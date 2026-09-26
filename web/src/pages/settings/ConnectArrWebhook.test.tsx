@@ -4,6 +4,9 @@ import type { IndexView } from '@/api/arr';
 import type { Integration } from '@/api/types';
 import { callsTo } from '@/test/fetch';
 import { renderApp } from '@/test/render';
+import { slowPage } from '@/test/slow';
+
+slowPage();
 
 // Poll quickly in tests (the panel polls every 5 s).
 vi.mock('@/api/arr', async (importOriginal) => ({
@@ -66,7 +69,7 @@ describe('Settings → Connect → *arr webhook panel', () => {
 
     // The user presses Test in Radarr; the server records it.
     lastTestAt = new Date(Date.now() - 2_000).toISOString();
-    await waitFor(() => expect(form.queryByText(/Last Test received: never/)).not.toBeInTheDocument(), { timeout: 2_000 });
+    await waitFor(() => expect(form.queryByText(/Last Test received: never/)).not.toBeInTheDocument());
     expect(form.queryByText('No Test received yet.')).not.toBeInTheDocument();
     expect(callsTo(calls, 'GET /api/v1/integrations/7/webhook').length).toBeGreaterThanOrEqual(2);
   });

@@ -1,0 +1,223 @@
+{
+  "recorder": "testdata/tautulli/record_slice9.py",
+  "recordedAt": "2026-09-26T08:29:57Z",
+  "plex": "plexinc/pms-docker@sha256:e0ab27395614a8e1a4fdf84c6bc60ac664915cfdde70c52d030c7728a1c48e14",
+  "app": "Seerr",
+  "image": "seerr/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+  "gateImage": "seerr/seerr:v3.3.0@sha256:c92d2dc117f62185e7bcb88cd56efd374ea79210eaf433275449e8d5988eb5a8",
+  "base": "http://<seerr>:5055",
+  "key": "X-Api-Key header (fake key of the throw-away container)",
+  "scenario": {
+    "users": {
+      "1": "admin, a Plex user (plexUsername fixture-admin, no username)",
+      "2": "local user with username fixture-local",
+      "3": "local user with only an e-mail (displayName is the e-mail)"
+    },
+    "requests": {
+      "1": "movie tmdb 234, not in PMS, by user 2: pending (1)",
+      "2": "movie tmdb 643, not in PMS, by user 2: declined (3)",
+      "3": "movie tmdb 653 (Nosferatu), by the admin: approved, completed (5) by the Plex scan",
+      "4": "movie tmdb 19 (Metropolis) in 4K, by the admin: sent to an unreachable 4K Radarr, failed (4)",
+      "5": "movie tmdb 992 (Sherlock Jr.), by user 3: approved, completed (5) by the Plex scan",
+      "6": "tv tmdb 6357 (The Twilight Zone) season 1, by user 2: approved (2), media partially available",
+      "7": "tv tmdb 6357 season 2, by user 3: pending (1)",
+      "8": "tv tmdb 21567 (The Outer Limits, 1963, not in PMS) seasons 1-2, by the admin: approved (2)",
+      "9": "tv tmdb 5273 (Alfred Hitchcock Presents) seasons 'all' (stored as 1-7), by the admin: approved (2)",
+      "10": "movie tmdb 3085 (His Girl Friday), by user 2: pending, completed (5) by the Plex scan"
+    }
+  },
+  "plexIds": {
+    "movies": {
+      "The General": "9",
+      "His Girl Friday": "1",
+      "Metropolis": "2",
+      "Night of the Living Dead": "3",
+      "Nosferatu": "4",
+      "Sherlock Jr.": "5"
+    },
+    "shows": {
+      "Alfred Hitchcock Presents": "17",
+      "The Twilight Zone": "28"
+    },
+    "episodes": {
+      "Alfred Hitchcock Presents S01E01": "19",
+      "Alfred Hitchcock Presents S01E02": "20",
+      "Alfred Hitchcock Presents S01E03": "21",
+      "Alfred Hitchcock Presents S02E01": "26",
+      "Alfred Hitchcock Presents S02E02": "27",
+      "The Twilight Zone S01E01": "30",
+      "The Twilight Zone S01E02": "31",
+      "The Twilight Zone S01E03": "32",
+      "The Twilight Zone S02E01": "34",
+      "The Twilight Zone S02E02": "35"
+    },
+    "seasons": {
+      "Alfred Hitchcock Presents S01": "18",
+      "Alfred Hitchcock Presents S02": "25",
+      "The Twilight Zone S01": "29",
+      "The Twilight Zone S02": "33"
+    },
+    "tracks": {
+      "Gymnopedie No 1": "40",
+      "Canon in D": "41",
+      "Rags & <Riches> \"Live\"": "42",
+      "Maple Leaf Rag": "45",
+      "The Entertainer": "46",
+      "Elite Syncopations": "47"
+    },
+    "machineIdentifier": "fc20cdf3f0f79321f15b0a4d85d1f8dd73200b0e"
+  },
+  "files": [
+    {
+      "file": "status.json",
+      "method": "GET",
+      "path": "/api/v1/status",
+      "query": "",
+      "auth": "none",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "image": "seerr/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+      "synthetic": false,
+      "sanitized": []
+    },
+    {
+      "file": "auth-me.json",
+      "method": "GET",
+      "path": "/api/v1/auth/me",
+      "query": "",
+      "auth": "header",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "image": "seerr/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+      "synthetic": false,
+      "sanitized": []
+    },
+    {
+      "file": "request-take-100-skip-0.json",
+      "method": "GET",
+      "path": "/api/v1/request",
+      "query": "take=100&skip=0&sort=added&sortDirection=asc",
+      "auth": "header",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "image": "seerr/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+      "synthetic": false,
+      "sanitized": [],
+      "note": "the refresh's exact query (§4.5); Seerr has no 'added' sort and orders by request id"
+    },
+    {
+      "file": "request-take-4-skip-0.json",
+      "method": "GET",
+      "path": "/api/v1/request",
+      "query": "take=4&skip=0&sort=added&sortDirection=asc",
+      "auth": "header",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "image": "seerr/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+      "synthetic": false,
+      "sanitized": [],
+      "note": "paging sample: 10 requests read 4 at a time"
+    },
+    {
+      "file": "request-take-4-skip-4.json",
+      "method": "GET",
+      "path": "/api/v1/request",
+      "query": "take=4&skip=4&sort=added&sortDirection=asc",
+      "auth": "header",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "image": "seerr/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+      "synthetic": false,
+      "sanitized": [],
+      "note": "paging sample: 10 requests read 4 at a time"
+    },
+    {
+      "file": "request-take-4-skip-8.json",
+      "method": "GET",
+      "path": "/api/v1/request",
+      "query": "take=4&skip=8&sort=added&sortDirection=asc",
+      "auth": "header",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "image": "seerr/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+      "synthetic": false,
+      "sanitized": [],
+      "note": "paging sample: 10 requests read 4 at a time"
+    },
+    {
+      "file": "user-take-100-skip-0.json",
+      "method": "GET",
+      "path": "/api/v1/user",
+      "query": "take=100&skip=0",
+      "auth": "header",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "image": "seerr/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+      "synthetic": false,
+      "sanitized": []
+    },
+    {
+      "file": "user-take-2-skip-0.json",
+      "method": "GET",
+      "path": "/api/v1/user",
+      "query": "take=2&skip=0",
+      "auth": "header",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "image": "seerr/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+      "synthetic": false,
+      "sanitized": [],
+      "note": "paging sample"
+    },
+    {
+      "file": "user-take-2-skip-2.json",
+      "method": "GET",
+      "path": "/api/v1/user",
+      "query": "take=2&skip=2",
+      "auth": "header",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "image": "seerr/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+      "synthetic": false,
+      "sanitized": [],
+      "note": "paging sample"
+    },
+    {
+      "file": "error-bad-key.json",
+      "method": "GET",
+      "path": "/api/v1/auth/me",
+      "query": "",
+      "auth": "header (wrong key)",
+      "status": 403,
+      "contentType": "application/json; charset=utf-8",
+      "image": "seerr/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+      "synthetic": false,
+      "sanitized": []
+    },
+    {
+      "file": "error-no-key.json",
+      "method": "GET",
+      "path": "/api/v1/auth/me",
+      "query": "",
+      "auth": "none",
+      "status": 401,
+      "contentType": "application/json; charset=utf-8",
+      "image": "seerr/seerr:v3.4.1@sha256:f4768de5f616248d723e05891f3345a1402123775d03bf0890dbfedc0831bda1",
+      "synthetic": false,
+      "sanitized": []
+    },
+    {
+      "file": "status-v3.3.0.json",
+      "method": "GET",
+      "path": "/api/v1/status",
+      "query": "",
+      "auth": "none",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "image": "seerr/seerr:v3.3.0@sha256:c92d2dc117f62185e7bcb88cd56efd374ea79210eaf433275449e8d5988eb5a8",
+      "synthetic": false,
+      "sanitized": [],
+      "note": "an unconfigured 3.3.0"
+    }
+  ]
+}

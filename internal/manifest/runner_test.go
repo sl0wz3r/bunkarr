@@ -318,7 +318,7 @@ type gateTiers struct {
 	release      chan struct{}
 }
 
-func (g *gateTiers) Decide(ctx context.Context, q Queryer, destinationID, sourceID int64) (func(int64) Decision, error) {
+func (g *gateTiers) Decide(ctx context.Context, r TierRead, destinationID, sourceID int64) (func(int64) Decision, error) {
 	g.mu.Lock()
 	g.active++
 	g.peak = max(g.peak, g.active)
@@ -328,7 +328,7 @@ func (g *gateTiers) Decide(ctx context.Context, q Queryer, destinationID, source
 	g.mu.Lock()
 	g.active--
 	g.mu.Unlock()
-	return AllFull{}.Decide(ctx, q, destinationID, sourceID)
+	return AllFull{}.Decide(ctx, r, destinationID, sourceID)
 }
 
 func TestBuildsTakeTurns(t *testing.T) {

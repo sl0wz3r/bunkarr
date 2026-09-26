@@ -1,0 +1,16 @@
+[
+  {
+    "id": 2,
+    "mediaServerId": "17",
+    "ruleGroupId": 6,
+    "parent": "17",
+    "type": "show"
+  },
+  {
+    "id": 1,
+    "mediaServerId": "9",
+    "ruleGroupId": null,
+    "parent": "9",
+    "type": "movie"
+  }
+]

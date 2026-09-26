@@ -17,6 +17,10 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/faultinject"
 	"github.com/sl0wz3r/bunkarr/internal/integrations"
 	"github.com/sl0wz3r/bunkarr/internal/integrations/arr"
+	"github.com/sl0wz3r/bunkarr/internal/integrations/maintainerr"
+	"github.com/sl0wz3r/bunkarr/internal/integrations/plex"
+	"github.com/sl0wz3r/bunkarr/internal/integrations/seerr"
+	"github.com/sl0wz3r/bunkarr/internal/integrations/tautulli"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
 )
 
@@ -71,6 +75,12 @@ type RefreshOptions struct {
 	// Client configures the *arr clients (tests: the HTTP client); its default transport dials
 	// through the outbound guard.
 	Client arr.Options
+	// Plex, Tautulli, Seerr and Maintainerr configure the clients of the provider refreshes
+	// (providers.go; the app passes its Plex options with the install's client identifier).
+	Plex        plex.Options
+	Tautulli    tautulli.Options
+	Seerr       seerr.Options
+	Maintainerr maintainerr.Options
 	// Log receives server-side events; nil discards them.
 	Log *slog.Logger
 	// Now is the clock (tests); nil is time.Now.
@@ -80,7 +90,8 @@ type RefreshOptions struct {
 	BatchSize   int
 }
 
-// Runner runs refresh jobs (jobs.TypeRefresh) of Sonarr, Radarr and Lidarr integrations.
+// Runner runs refresh jobs (jobs.TypeRefresh): of Sonarr, Radarr and Lidarr integrations, and
+// (providers.go) of the Plex library index, Tautulli, Seerr and Maintainerr.
 type Runner struct {
 	o     RefreshOptions
 	store *Store
@@ -118,9 +129,8 @@ func NewRunner(o RefreshOptions) (*Runner, error) {
 // Store returns the index store the runner writes.
 func (r *Runner) Store() *Store { return r.store }
 
-// Supports reports whether refresh jobs of integration type t can run: Sonarr, Radarr and
-// Lidarr. (The Plex library index and the Tautulli, Seerr and Maintainerr caches are later
-// slices of design §18.)
+// Supports reports whether t is an *arr type, whose refresh is the reconciling *arr refresh
+// (start-up refreshes, follow-up syncs). Refreshes covers every type that refreshes.
 func Supports(t integrations.Type) bool { return t.IsArr() }
 
 // UnmappedFolder counts an *arr root folder's files that map to no source (stats).
@@ -194,6 +204,9 @@ func (r *Runner) Run(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.Resu
 	}
 	if err != nil {
 		return jobs.Result{}, err
+	}
+	if !Supports(it.Type) && Refreshes(it) {
+		return r.runProvider(ctx, job, env, it)
 	}
 	if !Supports(it.Type) {
 		if len(p.ArrItemIDs) > 0 {

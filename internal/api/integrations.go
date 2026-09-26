@@ -30,6 +30,7 @@ func (s *Server) integrationRoutes(r chi.Router) {
 	r.Delete("/integrations/{id}", s.deleteIntegration)
 	r.Get("/integrations/{id}/plex/sections", s.plexSections)
 	r.Post("/integrations/{id}/plex/backup", s.plexBackup)
+	s.deletedIntegrationRoutes(r)
 }
 
 // integrationView returns it as the API shows it: a Plex integration's backup cron and enabled
@@ -39,7 +40,7 @@ func integrationView(list []jobqueue.Schedule, it integrations.Integration) inte
 		return arrBackupOverlay(list, arrRefreshOverlay(list, it))
 	}
 	if it.Type != integrations.TypePlex {
-		return it
+		return providerRefreshOverlay(list, it)
 	}
 	ps, err := it.PlexSettings()
 	if err != nil {
@@ -48,7 +49,7 @@ func integrationView(list []jobqueue.Schedule, it integrations.Integration) inte
 	if b, err := json.Marshal(plexScheduleOverlay(list, it.ID, ps)); err == nil {
 		it.Settings = b
 	}
-	return it
+	return providerRefreshOverlay(list, it)
 }
 
 func (s *Server) schedules(ctx context.Context) ([]jobqueue.Schedule, error) {
@@ -137,6 +138,10 @@ func (s *Server) createIntegration(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, "create integration", err)
 		return
 	}
+	if err := s.afterProviderSave(r.Context(), nil, it, true); err != nil {
+		s.fail(w, r, "create integration", err)
+		return
+	}
 	if err := s.syncArrBackupSchedule(r.Context(), it); err != nil {
 		s.fail(w, r, "create integration", errScheduleSync("the integration", err))
 		return
@@ -192,6 +197,10 @@ func (s *Server) updateIntegration(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, "update integration", err)
 		return
 	}
+	if err := s.afterProviderSave(r.Context(), &cur, it, strings.TrimSpace(in.APIKey) != "" || in.ClearAPIKey || body.PlexSignIn != nil); err != nil {
+		s.fail(w, r, "update integration", err)
+		return
+	}
 	if err := s.syncArrBackupSchedule(r.Context(), it); err != nil {
 		s.fail(w, r, "update integration", errScheduleSync("the integration", err))
 		return
@@ -222,12 +231,27 @@ func (s *Server) deleteIntegration(w http.ResponseWriter, r *http.Request) {
 			"integration %q has queued or running jobs (a backup or a refresh); cancel them or wait until they finish", it.Name))
 		return
 	}
-	n, err := s.app.Jobs.Store().DeleteSchedulesFor(ctx, jobs.Params{IntegrationID: it.ID})
+	// An *arr's folders stay unknown to the tier facts until the user confirms the removal (S14,
+	// DELETE /integrations/deleted/{key}): the delete cascades its index, which would make its
+	// files look unmanaged.
+	gone, err := s.app.Tiers.RememberDeletedArr(ctx, it)
 	if err != nil {
 		s.fail(w, r, "delete integration", err)
 		return
 	}
+	forget := func() {
+		if ferr := s.app.Tiers.ForgetDeletedArr(ctx, gone.Key); ferr != nil {
+			s.log.Error("Could not drop the tier record of an integration that was not deleted", "id", it.ID, "error", ferr)
+		}
+	}
+	n, err := s.app.Jobs.Store().DeleteSchedulesFor(ctx, jobs.Params{IntegrationID: it.ID})
+	if err != nil {
+		forget()
+		s.fail(w, r, "delete integration", err)
+		return
+	}
 	if err := s.app.Integrations.Delete(ctx, it.ID); err != nil {
+		forget()
 		if n > 0 {
 			// Put the schedule back: the integration is still there.
 			if serr := s.syncPlexSchedule(ctx, it); serr != nil {
@@ -240,7 +264,12 @@ func (s *Server) deleteIntegration(w http.ResponseWriter, r *http.Request) {
 	if n > 0 {
 		s.reloadSchedules(ctx)
 	}
-	s.log.Info("Integration deleted", "id", it.ID, "type", string(it.Type), "name", it.Name, "schedulesRemoved", n)
+	if gone.Key != "" {
+		s.log.Info("Integration deleted; its folders stay unknown (full) until the removal is confirmed", "id", it.ID, "type", string(it.Type),
+			"name", it.Name, "schedulesRemoved", n, "key", gone.Key, "folders", len(gone.Folders), "unmapped", len(gone.Unmapped))
+	} else {
+		s.log.Info("Integration deleted", "id", it.ID, "type", string(it.Type), "name", it.Name, "schedulesRemoved", n)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -303,8 +332,11 @@ func (s *Server) testIntegration(w http.ResponseWriter, r *http.Request) {
 		s.testArrIntegration(w, r, body.Type, body.URL, body.APIKey, body.Settings, cur)
 		return
 	case body.Type != integrations.TypePlex:
-		writeJSON(w, http.StatusOK, integrationTestResult{TestResult: plex.TestResult{
-			Message: fmt.Sprintf("Testing %s integrations is not available yet.", body.Type)}})
+		if body.PlexSignIn != nil {
+			s.fail(w, r, "test integration", errorf(http.StatusBadRequest, "plexSignIn is only for Plex integrations"))
+			return
+		}
+		s.testProviderIntegration(w, r, body.Type, body.URL, body.APIKey, body.Settings, cur)
 		return
 	}
 	u, err := integrations.NormalizeURL(body.URL)

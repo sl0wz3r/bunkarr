@@ -1,0 +1,30 @@
+[
+  {
+    "id": 6,
+    "mediaServerId": "30",
+    "ruleGroupId": 8,
+    "parent": "29",
+    "type": "episode"
+  },
+  {
+    "id": 7,
+    "mediaServerId": "31",
+    "ruleGroupId": 8,
+    "parent": "29",
+    "type": "episode"
+  },
+  {
+    "id": 8,
+    "mediaServerId": "32",
+    "ruleGroupId": 8,
+    "parent": "29",
+    "type": "episode"
+  },
+  {
+    "id": 1,
+    "mediaServerId": "9",
+    "ruleGroupId": null,
+    "parent": "9",
+    "type": "movie"
+  }
+]

@@ -91,7 +91,9 @@ type BuildScope struct {
 
 // Build builds a manifest (design §11.1) from the catalog, the metadata index, the tier
 // decisions and the destination's records, all read in one read transaction. Only the sources and
-// integrations (configuration, not state) are listed before it starts.
+// integrations (configuration, not state) are listed before it starts; the tier decisions take
+// them from these lists and read everything else through the transaction too, so a build uses one
+// connection of the read pool, never two (TierRead).
 func (b *Builder) Build(ctx context.Context, scope BuildScope) (*Manifest, error) {
 	srcs, err := b.o.Catalog.List(ctx)
 	if err != nil {
@@ -109,7 +111,7 @@ func (b *Builder) Build(ctx context.Context, scope BuildScope) (*Manifest, error
 	w := &builder{b: b, q: tx, scope: scope, now: b.o.Now().UTC(), locator: catalog.NewLocator(srcs),
 		sources: map[int64]catalog.Source{}, scopeSources: map[int64]bool{}, entries: map[entryKey]*entry{},
 		decide: map[int64]func(int64) Decision{}, used: map[int64]bool{}, folderItems: map[string]int{},
-		stems: map[entryKey][]stemRef{}}
+		stems: map[entryKey][]stemRef{}, tierRead: TierRead{Q: tx, Sources: srcs, Integrations: slices.Clone(ints)}}
 	for _, s := range srcs {
 		w.sources[s.ID] = s
 	}
@@ -146,6 +148,7 @@ type stemRef struct {
 type builder struct {
 	b            *Builder
 	q            Queryer
+	tierRead     TierRead
 	scope        BuildScope
 	now          time.Time
 	locator      *catalog.Locator
@@ -213,7 +216,7 @@ func (w *builder) loadFiles(ctx context.Context) error {
 			return err
 		}
 		if w.destScope() {
-			fn, err := w.b.o.Tiers.Decide(ctx, w.q, w.scope.Destination.ID, id)
+			fn, err := w.b.o.Tiers.Decide(ctx, w.tierRead, w.scope.Destination.ID, id)
 			if err != nil {
 				return fmt.Errorf("decide the tiers of source %d: %w", id, err)
 			}
@@ -406,7 +409,7 @@ func (w *builder) describe(e *entry) description {
 	if e.fileID != 0 && w.scopeSources[e.key.src] {
 		fn := w.decide[e.key.src]
 		if fn == nil {
-			fn, _ = AllFull{}.Decide(context.Background(), nil, 0, 0)
+			fn, _ = AllFull{}.Decide(context.Background(), TierRead{}, 0, 0)
 		}
 		dec := fn(e.fileID)
 		t := dec.Tier

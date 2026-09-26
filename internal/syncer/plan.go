@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"time"
 
 	"github.com/sl0wz3r/bunkarr/internal/destinations"
 	"github.com/sl0wz3r/bunkarr/internal/engines/filecopy"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
+	"github.com/sl0wz3r/bunkarr/internal/tiers"
 )
 
 // planFile is a live catalog file as the planner sees it.
@@ -21,6 +23,10 @@ type planFile struct {
 
 	rec       *Record // the live record of this source path, if any
 	unchanged bool    // rec exists, is not missing, and has the file's size and mtime
+	// dec is the file's tier decision at the destination (nil: no tier engine, full); tiers.go.
+	dec *tiers.Decision
+	// replaced: the *arr replaced the file at its path with equal size and mtime (tiers.go).
+	replaced bool
 }
 
 // planFS is what the planner reads from the filesystems (never writes).
@@ -48,6 +54,10 @@ type planItem struct {
 	change bool
 	// shrink marks an update to 0 bytes or to less than half the old size (always held).
 	shrink bool
+	// unknownWhy is set on a copy (new or repair) that is full only because a fact is unknown
+	// (S10, S14): why the fact is unknown. Its bytes are not decided bytes for the free-space
+	// check (checkFreeSpace, holdUnknownCopies).
+	unknownWhy string
 	// after is the item this one depends on: when that one is held, so is this one.
 	after *planItem
 }
@@ -83,6 +93,22 @@ type sourcePlanner struct {
 	targeted bool
 	deferred int64
 
+	// Tiers (tiers.go): dryRun lists the non-full files as skip items; release plans the
+	// releases of kept records; arrAdded is the *arr's dateAdded of the file at a source path
+	// (the same-path replacement check).
+	dryRun   bool
+	release  *releasePlan
+	arrAdded func(rel string) (time.Time, bool)
+	// replaceChecked are the same-path checks that found the backup equal (a real run records
+	// them: markReplaceChecked).
+	replaceChecked []replaceCheck
+	skips          []*planItem
+	releases       []*planItem
+	nonFullNew     []*planFile
+	tierStats      TierStats
+	tierKept       TierCount
+	releasedCount  TierCount
+
 	byRel    map[string]*planFile
 	recBySrc map[string]*Record
 	deps     map[int64][]*Record // live dependents by primary id
@@ -96,14 +122,24 @@ type sourcePlanner struct {
 	warnings   []string
 }
 
-// items returns the plan in execution order: promote, move, copy/update/adopt, link, retain.
+// items returns the plan in execution order: promote, move, copy/update/adopt, link, retain,
+// release; then a dry run's skip items (never executed).
 func (p *sourcePlanner) items() []*planItem {
-	out := make([]*planItem, 0, len(p.promotes)+len(p.moves)+len(p.puts)+len(p.links)+len(p.retains))
+	out := make([]*planItem, 0, len(p.promotes)+len(p.moves)+len(p.puts)+len(p.links)+len(p.retains)+len(p.releases)+len(p.skips))
 	out = append(out, p.promotes...)
 	out = append(out, p.moves...)
 	out = append(out, p.puts...)
 	out = append(out, p.links...)
-	return append(out, p.retains...)
+	out = append(out, p.retains...)
+	if len(p.releases) > 0 {
+		states := make(map[int64]State, len(p.recs))
+		for _, r := range p.recs {
+			states[r.ID] = r.State
+		}
+		sortReleases(p.releases, states)
+		out = append(out, p.releases...)
+	}
+	return append(out, p.skips...)
 }
 
 func (p *sourcePlanner) destPath(sourceRel string) string { return path.Join(p.destFolder, sourceRel) }
@@ -135,7 +171,11 @@ func (p *sourcePlanner) plan(ctx context.Context) error {
 			f.rec = r
 			seen[r.ID] = true
 			f.unchanged = r.State != StateMissing && r.Size == f.size && p.mtimeEqual(r.MtimeNs, f.mtimeNs)
+			if f.unchanged && f.full() && p.replacedInPlace(f) {
+				f.unchanged, f.replaced = false, true // a new *arr file with equal size and mtime (§8.5)
+			}
 		}
+		p.countTier(f)
 		if f.group != "" {
 			p.groups[f.group] = append(p.groups[f.group], f)
 		}
@@ -165,7 +205,8 @@ func (p *sourcePlanner) plan(ctx context.Context) error {
 	if p.targeted {
 		fresh = map[string]bool{}
 		for _, f := range p.files {
-			if f.rec == nil || !f.unchanged {
+			// Only a file that gets an item: a move (any tier), or a copy, update or link (full).
+			if moveFrom[f] != nil || (f.full() && (f.rec == nil || !f.unchanged)) {
 				fresh[path.Dir(f.rel)] = true
 			}
 		}
@@ -184,7 +225,7 @@ func (p *sourcePlanner) plan(ctx context.Context) error {
 	// A changed primary whose unchanged dependents still need its old content: promote first.
 	for _, f := range p.files {
 		r := f.rec
-		if r == nil || f.unchanged || r.State != StatePresent {
+		if r == nil || f.unchanged || r.State != StatePresent || !f.full() {
 			continue
 		}
 		if surv := p.surviving(r); len(surv) > 0 {
@@ -194,14 +235,24 @@ func (p *sourcePlanner) plan(ctx context.Context) error {
 		}
 	}
 
-	// A damaged (missing) primary's recorded-only links have no file of their own: its repair
-	// restores their content only when its source still has that content; otherwise each gets its
-	// own copy, planned before the primary's repair (which is refused while such a link still
-	// records the primary).
+	// A damaged (missing) primary's recorded-only links have no file of their own: a full
+	// primary's repair restores their content only when its source still has that content; a kept
+	// (not full) primary is never repaired (S15). Otherwise each full link gets its own copy,
+	// planned before the primary's repair (which is refused while such a link still records the
+	// primary). A kept link gets no copy (S15): its content went with the primary's file, so the
+	// full primary's repair marks it missing (lost, Detail.LostLinks) instead of waiting for it.
+	lost := map[int64][]int64{}
 	for _, f := range p.files {
 		if r := f.rec; r != nil && r.State == StateMissing {
 			for _, d := range p.surviving(r) {
-				if d.State == StateLinkRecorded && (f.size != d.Size || !p.mtimeEqual(f.mtimeNs, d.MtimeNs)) && !needRepair[d.ID] {
+				restored := f.full() && f.size == d.Size && p.mtimeEqual(f.mtimeNs, d.MtimeNs)
+				if df := p.byRel[d.SourceRelPath]; df != nil && !df.full() {
+					if f.full() && d.State == StateLinkRecorded && !restored {
+						lost[r.ID] = append(lost[r.ID], d.ID)
+					}
+					continue // kept: never repaired (S15)
+				}
+				if d.State == StateLinkRecorded && !restored && !needRepair[d.ID] {
 					needRepair[d.ID] = true
 					p.repair(p.byRel[d.SourceRelPath], d)
 				}
@@ -219,7 +270,7 @@ func (p *sourcePlanner) plan(ctx context.Context) error {
 	// to retention (a repair, see itemRun.oldVersion).
 	relink := map[int64]bool{}
 	for _, f := range p.files {
-		if f.rec == nil || f.rec.State != StateMissing {
+		if f.rec == nil || f.rec.State != StateMissing || !f.full() {
 			continue
 		}
 		for _, d := range p.deps[f.rec.ID] {
@@ -242,6 +293,20 @@ func (p *sourcePlanner) plan(ctx context.Context) error {
 			prim = primary[f.group]
 		}
 		r := f.rec
+		if !f.full() {
+			// Not full here (S15): a move follows the backed-up content; a record is kept; a file
+			// without one is not copied.
+			switch {
+			case r == nil && moveFrom[f] != nil:
+				p.move(f, moveFrom[f])
+			case r == nil:
+				p.nonFullNew = append(p.nonFullNew, f)
+				p.tierItem(f, reasonNotCopied, nil)
+			default:
+				p.keep(f, r)
+			}
+			continue
+		}
 		var it *planItem
 		switch {
 		case r == nil:
@@ -296,6 +361,14 @@ func (p *sourcePlanner) plan(ctx context.Context) error {
 	}
 	for _, l := range linkItems {
 		l.it.after = p.itemOf[l.p]
+	}
+	// The repair (or relink) of a missing primary carries its lost kept links.
+	for _, items := range [][]*planItem{p.puts, p.links} {
+		for _, it := range items {
+			if ids := lost[it.d.RecordID]; len(ids) > 0 {
+				it.d.LostLinks = ids
+			}
+		}
 	}
 	return nil
 }
@@ -459,7 +532,9 @@ func (p *sourcePlanner) promote(v, t *Record, forWhat string) *planItem {
 }
 
 func (p *sourcePlanner) fileDetail(f *planFile, reason string) Detail {
-	return Detail{SourceID: p.sourceID, Source: f.rel, Size: f.size, MtimeNs: f.mtimeNs, Group: f.group, Reason: reason}
+	d := Detail{SourceID: p.sourceID, Source: f.rel, Size: f.size, MtimeNs: f.mtimeNs, Group: f.group, Reason: reason}
+	f.withTier(&d)
+	return d
 }
 
 func shrinks(newSize, oldSize int64) bool {
@@ -468,6 +543,9 @@ func shrinks(newSize, oldSize int64) bool {
 
 func (p *sourcePlanner) update(f *planFile, r *Record) *planItem {
 	d := p.fileDetail(f, "changed")
+	if f.replaced {
+		d.Reason = reasonReplacedInPlace
+	}
 	d.RecordID, d.OldSize = r.ID, r.Size
 	it := &planItem{action: jobs.ActionUpdate, rel: r.RelPath, fileID: f.id, bytes: f.size, d: d, change: true, shrink: shrinks(f.size, r.Size)}
 	p.puts = append(p.puts, it)
@@ -482,6 +560,11 @@ func (p *sourcePlanner) repair(f *planFile, r *Record) *planItem {
 	d := p.fileDetail(f, "repair")
 	d.RecordID, d.OldSize = r.ID, r.Size
 	it := &planItem{action: jobs.ActionCopy, rel: r.RelPath, fileID: f.id, bytes: f.size, d: d, shrink: shrinks(f.size, r.Size)}
+	if f.dec != nil && f.dec.UnknownPromoted {
+		// Held with the other unknown-promoted copies when they do not fit (S14); a repair is not
+		// a change of the source, so the mass-change guard does not count it.
+		it.unknownWhy = f.dec.UnknownWhy()
+	}
 	p.puts = append(p.puts, it)
 	p.itemOf[f] = it
 	return it
@@ -490,7 +573,7 @@ func (p *sourcePlanner) repair(f *planFile, r *Record) *planItem {
 func (p *sourcePlanner) move(f *planFile, v *Record) {
 	dest := p.destPath(f.rel)
 	d := p.fileDetail(f, "renamed")
-	d.RecordID, d.From = v.ID, v.RelPath
+	d.RecordID, d.From, d.FromSource = v.ID, v.RelPath, v.SourceRelPath
 	it := &planItem{action: jobs.ActionMove, rel: dest, fileID: f.id, bytes: f.size, d: d}
 	if err := p.names.check(dest, v.RelPath); err != nil {
 		it.fail(err)
@@ -551,6 +634,7 @@ func (p *sourcePlanner) newFile(f *planFile) error {
 		return nil // e.g. a parent that is a file: the copy reports it
 	}
 	if !exists {
+		p.unknownCopy(it, f)
 		return nil
 	}
 	if !st.Regular() {
@@ -564,7 +648,16 @@ func (p *sourcePlanner) newFile(f *planFile) error {
 		return nil
 	}
 	it.d.Displace = true
+	p.unknownCopy(it, f)
 	return nil
+}
+
+// unknownCopy marks a new file's copy that is full only because a fact is unknown: a change for
+// the mass-change guard (S10, S14).
+func (p *sourcePlanner) unknownCopy(it *planItem, f *planFile) {
+	if f.dec != nil && f.dec.UnknownPromoted && it.action == jobs.ActionCopy {
+		it.change, it.unknownWhy = true, f.dec.UnknownWhy()
+	}
 }
 
 // adoptable reports whether an unrecorded destination file may be adopted for a source file of

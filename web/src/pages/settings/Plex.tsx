@@ -313,7 +313,10 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
       name: name.trim(),
       url: url.trim(),
       enabled,
+      // The server stores the settings as sent: keep what this form does not edit (the library
+      // index of Settings → Connect), or saving here would turn the index off.
       settings: {
+        ...integration?.settings,
         dataPath: dataPath.trim(),
         pathMappings,
         backup: { destinationId, cron, enabled: destinationId > 0 && schedule.enabled },

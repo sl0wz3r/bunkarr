@@ -1,0 +1,30 @@
+[
+  {
+    "id": 3,
+    "mediaServerId": "29",
+    "ruleGroupId": 7,
+    "parent": "28",
+    "type": "season"
+  },
+  {
+    "id": 4,
+    "mediaServerId": "33",
+    "ruleGroupId": 7,
+    "parent": "28",
+    "type": "season"
+  },
+  {
+    "id": 5,
+    "mediaServerId": "25",
+    "ruleGroupId": 7,
+    "parent": "25",
+    "type": "season"
+  },
+  {
+    "id": 1,
+    "mediaServerId": "9",
+    "ruleGroupId": null,
+    "parent": "9",
+    "type": "movie"
+  }
+]

@@ -1,0 +1,58 @@
+{
+  "pageInfo": {
+    "pages": 2,
+    "pageSize": 2,
+    "results": 3,
+    "page": 1
+  },
+  "results": [
+    {
+      "permissions": 2,
+      "warnings": [],
+      "id": 1,
+      "email": "fixture-admin@example.invalid",
+      "plexUsername": "fixture-admin",
+      "jellyfinUsername": null,
+      "username": null,
+      "recoveryLinkExpirationDate": null,
+      "userType": 1,
+      "plexId": 1000001,
+      "jellyfinUserId": null,
+      "avatar": "",
+      "avatarETag": null,
+      "avatarVersion": null,
+      "movieQuotaLimit": null,
+      "movieQuotaDays": null,
+      "tvQuotaLimit": null,
+      "tvQuotaDays": null,
+      "createdAt": "2026-09-26T08:28:25.000Z",
+      "updatedAt": "2026-09-26T08:28:25.000Z",
+      "requestCount": 4,
+      "displayName": "fixture-admin"
+    },
+    {
+      "permissions": 32,
+      "warnings": [],
+      "id": 2,
+      "email": "local-user@example.invalid",
+      "plexUsername": null,
+      "jellyfinUsername": null,
+      "username": "fixture-local",
+      "recoveryLinkExpirationDate": null,
+      "userType": 2,
+      "plexId": null,
+      "jellyfinUserId": null,
+      "avatar": "https://gravatar.com/avatar/7209de5c1b497c6558b921d729640834?default=mm&size=200",
+      "avatarETag": null,
+      "avatarVersion": null,
+      "movieQuotaLimit": null,
+      "movieQuotaDays": null,
+      "tvQuotaLimit": null,
+      "tvQuotaDays": null,
+      "createdAt": "2026-09-26T08:28:27.000Z",
+      "updatedAt": "2026-09-26T08:28:27.000Z",
+      "requestCount": 4,
+      "displayName": "fixture-local"
+    }
+  ]
+}

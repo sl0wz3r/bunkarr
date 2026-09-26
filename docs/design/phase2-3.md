@@ -1,14 +1,16 @@
 # Phase 2–3 design — *arr awareness, tiering and Plex sign-in
 
-Status: **Phase 2 implemented**; Phase 3 is the contract for implementation. Revision 3
-(2026-09-25).
+Status: **Phase 2 and Phase 3 implemented**. Revision 4 (2026-09-26).
 
-Revision 3 folds in what the Phase 2 implementation changed: the deviations the slice authors
+Revision 4 folds in Phase 3 as built (tiers, the Plex index, Tautulli, Seerr, Maintainerr, the
+tier UI): the deviations the slice authors reported and the fixes from the Phase 3 code review.
+The few sections they amend carry an *(as built)* note, and §21 lists every change with its
+reason. Phase 3's acceptances (6–9) pass (§21.1). The tier decisions are recorded in ADR 0007.
+
+Revision 3 folded in what the Phase 2 implementation changed: the deviations the slice authors
 made that are now the real behaviour, and the fixes from the code review. The sections they amend
 are updated in place, and §20 lists every change with its reason. Phase 2's acceptances (1–5 and
-10) pass (§20.1). Phase 3 (tiers, the Plex index, Tautulli, Seerr, Maintainerr) is not built yet;
-its sections are unchanged. Where Phase 2 code already has the Phase 3 hook (`manifest.Options.Tiers`
-with `AllFull`), every file is `full`.
+10) pass (§20.1).
 
 Revision 1 was written after three pieces of groundwork:
 - the *arr fixture spike: real Sonarr 4.0.20.3014, Radarr 6.4.4.10685 and Lidarr 3.1.0.4875. It
@@ -802,6 +804,18 @@ A URL change also queues a full refresh (§4.1).
   The deletion date is `addDate + deleteAfterDays`. Versions below 3.4.0 are refused: 2.x used a
   numeric `plexId`, 3.0 renamed it to `mediaServerId`, and 3.4.0 added `overlay-data` and `tvdbId`.
 
+  *(As built, ADR 0007.)* The clauses above match Maintainerr 3.29. The recorded 3.4.1 handler
+  differs (no action 5, no rule-failure field, a null `deleteAfterDays` handled at once,
+  exclusions ignored), so the pending set follows the server's version: below 3.27.0 a deleting
+  collection with no `deleteAfterDays` is pending, due at `addDate` (from 3.27.0 it deletes
+  nothing); below 3.29.0 an excluded member is `undecided`; an unparseable version counts as the
+  oldest. 3.4.1's `rules/exclusion?rulegroupId=N` returns every group's rows, so the client keeps
+  the group's and the global ones. Maintainerr does not expose its Plex server: each refresh
+  compares the members with the linked Plex index, and when they do not agree (as many
+  contradictions as agreements, or none agreeing after a server switch) it records
+  `plexMismatch` and the facts stay unknown. Tautulli, Seerr and Maintainerr rows record the Plex
+  server they came from; a linked index rebuilt from another server makes them unknown.
+
 ### 6.3 Plex library index
 It runs when `index.enabled` is set; the UI turns that on when a Tautulli or Maintainerr
 integration is linked, or a rule uses a Plex-based condition.
@@ -1008,7 +1022,10 @@ from the caches, read through the owners' exported queries (§14). Per file:
      rows) are unknown.
 - **Unmanaged.** A file outside every mapped root folder of every *arr integration, while every
   *arr cache is fresh, is unmanaged (§8.2). A file inside a root folder with no matching item
-  stays unknown: it may be an import that is not indexed yet.
+  stays unknown: it may be an import that is not indexed yet. *(As built.)* Also unknown: a file
+  under a root folder or item folder that no path mapping covers (with an unknown source naming
+  the folder), and a file under a root folder of a deleted *arr integration that no live *arr
+  claims (`tiers.deletedArr`, recorded before the delete) until the removal is confirmed.
 - **Plex item.** Found by `local_path` in `plex_files`, together with its parent and grandparent
   keys and the section. Tautulli and Maintainerr facts use only the rows of their linked Plex
   integration.
@@ -1061,7 +1078,10 @@ works like this:
   - When the item runs, it reads `tiers.revision` again and re-evaluates the file (`FactsFor`).
     If the revision changed, the item ends `skipped` ("rules changed since the preview; not
     released"). If the tier is `full` again, it ends `skipped` ("tier is full again; not
-    released").
+    released"). *(As built.)* The planner releases a record only when its decision was made at
+    the preview's revision (otherwise the job warns and releases nothing for it) and the preview
+    item matches its source, paths, size and mtime, not only its record id (ids can be reused).
+    The run-time check reads decisions cached for up to a minute (§21.3).
   - It then runs through the Phase 1 retain, promote and intent machinery and records reason
     `released` with `expires_at = now + deletedDays`. A retain with reason `released` skips the
     "reappeared at the source" check and the S6 wait; every other retain keeps both.
@@ -2496,3 +2516,62 @@ These are in DEFERRED.md with their reasons:
 - `make test-arr` in CI, a real Sonarr backup test, Lidarr Rename/Retag/`isUpgrade` in Docker;
 - test gaps the verifiers named (the Plex server switch-back path, the *arr Test error scoping,
   ctime alone in the listing cache on APFS).
+
+## 21. Revision 4: Phase 3 as built
+
+Phase 3 (slices 8–10 of §18) was built as the tier engine, the provider fixture spike, the
+providers and the tier UI, then reconciled (API, `openapi.json`, wiring), run against the pinned
+table, real Radarr and a real Phase 2 binary, and put through a six-lens code review (data safety,
+correctness, crash safety and security, performance, API/UI, upgrade). The review reported 39
+findings (6 high, 18 medium, 15 low). The 21 distinct non-low ones were all confirmed by two
+skeptics each; the lows went to their owners. Each fix has a regression test that fails without
+it; a verifier per package tried to break the fixes, and a second pass fixed what it found. The
+tier decisions are in ADR 0007. Where something was not done, DEFERRED.md has it.
+
+### 21.1 Acceptance
+
+| # | Result | How |
+|---|---|---|
+| 6 Rule change | pass | `TestTiersE2E` (fake Radarr, Plex, Tautulli, Seerr, Maintainerr from the recorded fixtures): the pinned table matches as structured reasons in the preview items and on every dry-run item, for R1/R2, then R0 inserted, then R1 also matching `seerr.requestedBy in [2]`. `TestDockerArrTiers`: real Radarr with a tag rule and a quality-profile rule; after the profile rule changes, the next dry run shows the new reasons. |
+| 7 Maintainerr | pass | Rule on: the pending movie is not copied. Cache stale (2 h skew, `staleAfterHours` 1): copied, and the reason says the cache is stale; the pinned stale case gives movie 3 → manifest by R2 with R0 unknown. Rule disabled: copied. Docker covers rule on and disabled. |
+| 8 Upgrade | pass | `TestUpgradeFromPhase2` builds the Phase 2 binary from `dce143f` (`git archive`; `/tiers/rules` answers 404 there). This binary, on a copy of the same database, gives the same dry-run items and stats, the preview shows every file full by the fallback, a second sync plans nothing, and without an *arr only Phase 1 job types exist. The syncer suite passes with the real no-rules engine (`BUNKARR_TEST_TIERS_ALL_FULL=1`). |
+| 9 Demotion | pass | Demoted files are kept (nothing retained, hashes intact); the release preview lists 3; a rule change after it makes the release a 409; a file flagged after the preview is not released, the other 2 are (reason `released`, retained copies hash-equal); the next sync plans nothing and the source is untouched. |
+
+The final run on the reviewed tree: `gofmt -l` clean; `go vet ./...` native, `GOOS=linux` and
+`-tags e2e`; `go test -race -count=1 ./...` (syncer about 460 s alone); web typecheck, 427 tests
+and build; `go test -tags e2e ./internal/e2e/...`; `make docker`; `make test-docker`;
+`make test-arr`. All pass.
+
+### 21.2 Implementation deviations (now the contract)
+
+| Area | Change | Why | § |
+|---|---|---|---|
+| Queries | `tiers/queries.go` reads `catalog_files` directly; the syncer reads `jobs` and `job_items` to load a release preview. | As `manifest/queries.go` does; a preview's items can be held by the guard, and the item store lists only pending ones. | §14.2 |
+| Resume | A resumed job's S6 check uses no tier decisions, so every file not backed up blocks. Unknown-promoted copies, repairs and relinks are held again on resume. | Waits more, never less. | S6, S14 |
+| Stats | `filesRetained` excludes `filesReleased`; `filesPlanned` excludes skip items. Job items get a tier dimension only with `by=tier`. An item's tier is the decision it records; with none, a file copy (copy, update, move, link, adopt) is `full` and other items (retains of deleted files, promotes, expires) have no tier. | Existing clients keep one row per action and status; a retain is not a tier decision. | §12.4, §13 |
+| Preview | A draft preview gives new rules negative ids. Previews expire on a timer after 10 min, at most 4 and 1,000,000 items in all. `GET /tiers/flags` refreshes the flags' last folders. | Bounded memory; the draft is not saved. | §8.6, §8.7 |
+| Evidence | Several integrations of one type combine: true if any says so, play counts add up, any unknown makes the result unknown. A file with several Plex items of different play histories, or in several Plex libraries (`plex.section`), is unknown. A section Tautulli does not know counts as history off (a lower bound). The guid fallback counts only plays of rating keys that are gone. | D12: mixed evidence is unknown. | §8.2, D12 |
+| Unknown sources | Unmapped root or item folders, a deleted *arr's folders, and provider rows from another Plex server are unknown (§6.2, §8.3 notes). | S14; ADR 0007. | §6.2, §8.3 |
+| Maintainerr | The pending set follows the server's version (§6.2 note); `plexMismatch`. | The recorded 3.4.1 handler differs from §6.2's 3.29 clauses. | §6.2 |
+| Seerr | Syncs, manifest builds and item views never call Seerr. The editor's live user list has a 5 s timeout and remembers a failure for a minute. A user that no request names is called stale only after a user list has been read. | §4.5 allows `/api/v1/user` live only; a restart must not flag every such user. | §4.5, §8.7 |
+| Refresh | Provider refreshes write only changed rows in their one transaction (all rows when more than half are gone). `file.age` loads the Plex index, so syncs read Plex `addedAt` as the item view does. | A nightly refresh held the writer for the whole cache; one definition of age. | §6, §8.2 |
+| Providers API | Testing Tautulli or Maintainerr before a Plex server is chosen answers `plexMatches: null`. `PlexSettings.index` is omitted when unset, so Phase 1 rows keep their JSON. `Supports` stays *arr-only, so start-up refreshes stay *arr-only. The file detail lists Tautulli, Seerr or Maintainerr as unknown only when such an integration exists. | §13; §6.1 and §12.3 require *arr-only start-up refreshes. | §13 |
+| Flags and links | Folder flags follow moves recorded by resumed, failed or cancelled attempts (replayed from `job_items`, `SyncRunner.OnJobFinish`). A missing full primary whose kept recorded-only link holds other content marks that link missing (`LostLinks`) instead of blocking its repair. When head and tail hashes match, a same-path check moves `copied_at` to the *arr's `dateAdded`, so each file is compared once. | Found by the review. | §8.7, S15 |
+| Clients | Tautulli below 2.18 is refused (2.17 answers a header-only key with 400, so its version cannot be read); 2.18.1 reports `v2.18.1`; an unknown `section_id` returns 0 rows. Seerr has no `sort=added` (ordered by id), answers 401 without a key and 403 with a wrong one, never sends empty TV `seasons`, and sends `ratingKey` as a string. | The fixture spike against the real apps. | §4.4, §4.5 |
+| UI | The job page carries the release: "Apply release", its notice, files by tier; "Apply held changes" and "Run this sync" are hidden on a release preview. The preview's `ruleId` 0 filter is "irreplaceable or no rule matched (built-in)". | The release step needs the job page; the server filters by rule id only. | §16 |
+| Tests | Acceptance 8's "Phase 1 planner tests with all full" is the opt-in `BUNKARR_TEST_TIERS_ALL_FULL=1`. Docker item 5 runs the binary on the host. "Maintainerr marks X pending" rewrites the recorded collection in the fake. | As the existing manifest Docker test; no Maintainerr write API. | §15 |
+
+### 21.3 Left open
+
+Fixed after the gate: confirming a deleted *arr integration (`GET /integrations/deleted`, `DELETE /integrations/deleted/{key}`, "Confirm removal" in Settings → Tiers, Connect, the file page and held-changes notices), and manifest tier decisions, which now read only through the build's own snapshot (`tiers.Snapshot`), so concurrent exports cannot exhaust the read pool.
+
+These are in DEFERRED.md with their reasons:
+- targeted syncs loading a whole source's facts; provider refreshes in the 2-slot refresh pool;
+- a Tautulli refresh before its Plex index fails instead of waiting;
+- the release check reads decisions cached for up to a minute (§8.5); release stats;
+- updates of unknown-promoted files count as decided bytes for the free-space check;
+- Maintainerr precision between 3.4.1 and 3.29.0, and the reason text for excluded members;
+- a downgrade to Phase 2 silently drops Phase 3's protections (no migration, no copy);
+- drag-and-drop rule order, the file browser's tier column, Plex genres, incremental Tautulli
+  history, Seerr 4K conditions;
+- `make test-arr` and the all-full syncer mode in CI.

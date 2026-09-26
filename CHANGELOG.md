@@ -8,6 +8,41 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Phase 3: backup tiers (design: `docs/design/phase2-3.md` revision 4, decisions in ADR 0007).
+- Tiers (Settings → Tiers): each destination holds a file as `full` (copied), `manifest` (not
+  copied, listed in the manifests) or `skip`. Ordered rules with all/any conditions, an action
+  and "Applies at" (all or chosen destinations), between a built-in "Irreplaceable → full" first
+  row and an "Everything else → full" last row. **With no rules every file is full**, and a sync
+  plans exactly what it did before. Presets (including the manifest-by-default set) only fill the
+  editor; saving checks the rule revision (a stale save is refused).
+- Conditions: `arr.managed`, `arr.monitored`, `arr.qualityProfile`, `arr.rootFolder`, `arr.tag`,
+  `media.genre`, `file.age`, `file.size`, `flag.irreplaceable`, `plex.section`,
+  `tautulli.playCount`, `tautulli.lastWatched`, `seerr.requested`, `seerr.requestedBy` and
+  `maintainerr.pendingDelete`. A fact Bunkarr cannot know (not set up, stale cache, conflicting
+  evidence, unmapped folder, deleted *arr) is unknown and never lowers protection: a more
+  protective rule that is unknown wins, and the fallback is full.
+- Preview ("what gets backed up and why"): per destination, files and bytes that are stored, full,
+  manifest, skip, unknown, to copy, kept and moved to non-full, with each file's rule and
+  structured reasons. Sync dry runs carry the tier and reasons on every item; job items can be
+  summarised and filtered by tier (`GET /jobs/{id}/items?by=tier`, `tier`, `ruleId`).
+- Demotion never removes a backup: a file that stops being full is kept (not updated, repaired or
+  retained) until you release it. A release is a dry run followed by "Apply release", which
+  releases only the files that dry run listed, still not full and at the same rule revision; they
+  go into retention with reason `released`.
+- Irreplaceable flags on a file or folder (Library item view, Settings → Tiers): always full
+  everywhere, following renames and moves; retention never expires a flagged file.
+- Library item view: a file's tier and reasons per destination, its facts and which are unknown,
+  and its flags (`GET /catalog/files/{id}`).
+- Tautulli (2.18+), Seerr and Maintainerr (3.4+) connections (Settings → Connect): read-only,
+  allow-listed requests, each linked to one Plex server, with a test, scheduled refreshes and
+  freshness. The Plex library index (sections, items, files) is turned on per Plex integration.
+  Maintainerr's pending deletions follow the server's version (ADR 0007).
+- Copies made only because a fact is unknown count as changes for the mass-change guard and are
+  held, not failed, when free space runs short.
+- Tests: recorded fixtures from real Tautulli 2.18.1, Seerr 3.4.1 and Maintainerr 3.4.1 and
+  3.29.0; the pinned tier table end to end; `TestDockerArrTiers` against real Radarr; an upgrade
+  test that runs the real Phase 2 binary and this one on the same database.
+
 - Phase 2: Sonarr, Radarr and Lidarr awareness (design: `docs/design/phase2-3.md`, decisions in
   ADR 0006).
 - *arr connections (Settings → Connect): URL, write-only API key, path mappings and a connection

@@ -1,0 +1,263 @@
+{
+  "MediaContainer": {
+    "size": 4,
+    "totalSize": 4,
+    "offset": 0,
+    "allowSync": true,
+    "art": "/:/resources/show-fanart.jpg",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 2,
+    "librarySectionTitle": "TV Shows",
+    "librarySectionUUID": "33a7d582-55fe-451d-b495-3da798305b14",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914513,
+    "nocache": true,
+    "thumb": "/:/resources/show.png",
+    "title1": "TV Shows",
+    "title2": "All Shows",
+    "viewGroup": "show",
+    "viewMode": 65592,
+    "Metadata": [
+      {
+        "ratingKey": "18",
+        "key": "/library/metadata/18/children",
+        "parentRatingKey": "17",
+        "guid": "plex://season/602e699066dfdb002c0a5a9e",
+        "parentGuid": "plex://show/5d9c08733c3f87001f350d20",
+        "parentSlug": "alfred-hitchcock-presents",
+        "parentStudio": "Universal Television",
+        "type": "season",
+        "title": "Season 1",
+        "parentKey": "/library/metadata/17",
+        "parentTitle": "Alfred Hitchcock Presents",
+        "summary": "",
+        "index": 1,
+        "parentIndex": 1,
+        "parentYear": 1955,
+        "thumb": "/library/metadata/18/thumb/1790411104",
+        "art": "/library/metadata/17/art/1790411104",
+        "parentThumb": "/library/metadata/17/thumb/1790411104",
+        "parentTheme": "/library/metadata/17/theme/1790411104",
+        "addedAt": 1790411103,
+        "updatedAt": 1790411104,
+        "Image": [
+          {
+            "alt": "Season 1",
+            "type": "coverPoster",
+            "url": "/library/metadata/18/thumb/1790411104"
+          },
+          {
+            "alt": "Season 1",
+            "type": "background",
+            "url": "/library/metadata/17/art/1790411104"
+          },
+          {
+            "alt": "Season 1",
+            "type": "clearLogo",
+            "url": "/library/metadata/17/clearLogo/1790411104"
+          },
+          {
+            "alt": "Season 1",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/17/squareArt/1790411104"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "043631",
+          "topRight": "b00e16",
+          "bottomRight": "803733",
+          "bottomLeft": "092620"
+        },
+        "Guid": [
+          {
+            "id": "tmdb://15241"
+          },
+          {
+            "id": "tvdb://6102"
+          }
+        ]
+      },
+      {
+        "ratingKey": "25",
+        "key": "/library/metadata/25/children",
+        "parentRatingKey": "17",
+        "guid": "plex://season/602e699566dfdb002c0a5aa7",
+        "parentGuid": "plex://show/5d9c08733c3f87001f350d20",
+        "parentSlug": "alfred-hitchcock-presents",
+        "parentStudio": "Universal Television",
+        "type": "season",
+        "title": "Season 2",
+        "parentKey": "/library/metadata/17",
+        "parentTitle": "Alfred Hitchcock Presents",
+        "summary": "",
+        "index": 2,
+        "parentIndex": 1,
+        "viewCount": 1,
+        "lastViewedAt": 1790411194,
+        "parentYear": 1955,
+        "thumb": "/library/metadata/25/thumb/1790411104",
+        "art": "/library/metadata/17/art/1790411104",
+        "parentThumb": "/library/metadata/17/thumb/1790411104",
+        "parentTheme": "/library/metadata/17/theme/1790411104",
+        "addedAt": 1790411103,
+        "updatedAt": 1790411104,
+        "Image": [
+          {
+            "alt": "Season 2",
+            "type": "coverPoster",
+            "url": "/library/metadata/25/thumb/1790411104"
+          },
+          {
+            "alt": "Season 2",
+            "type": "background",
+            "url": "/library/metadata/17/art/1790411104"
+          },
+          {
+            "alt": "Season 2",
+            "type": "clearLogo",
+            "url": "/library/metadata/17/clearLogo/1790411104"
+          },
+          {
+            "alt": "Season 2",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/17/squareArt/1790411104"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "35080a",
+          "topRight": "075440",
+          "bottomRight": "290607",
+          "bottomLeft": "520a10"
+        },
+        "Guid": [
+          {
+            "id": "tmdb://15242"
+          },
+          {
+            "id": "tvdb://6103"
+          }
+        ]
+      },
+      {
+        "ratingKey": "29",
+        "key": "/library/metadata/29/children",
+        "parentRatingKey": "28",
+        "guid": "plex://season/602e698cb2c087002d0cc55a",
+        "parentGuid": "plex://show/5d9c08732df347001e3b32d0",
+        "parentSlug": "the-twilight-zone",
+        "parentStudio": "Cayuga Productions",
+        "type": "season",
+        "title": "Season 1",
+        "parentKey": "/library/metadata/28",
+        "parentTitle": "The Twilight Zone",
+        "summary": "The first season of The Twilight Zone aired Fridays at 10:00–10:30 pm on CBS from October 2, 1959 to July 1, 1960. There are 36 episodes, including the pilot, \"Where Is Everybody?\". The theme music for this season, written by Bernard Herrman, is different from the music most commonly associated with the series, written by Marius Constant for the second season onwards.",
+        "index": 1,
+        "parentIndex": 1,
+        "viewCount": 3,
+        "lastViewedAt": 1790411183,
+        "parentYear": 1959,
+        "thumb": "/library/metadata/29/thumb/1790411104",
+        "art": "/library/metadata/28/art/1790411104",
+        "parentThumb": "/library/metadata/28/thumb/1790411104",
+        "parentTheme": "/library/metadata/28/theme/1790411104",
+        "addedAt": 1790411104,
+        "updatedAt": 1790411104,
+        "Image": [
+          {
+            "alt": "Season 1",
+            "type": "coverPoster",
+            "url": "/library/metadata/29/thumb/1790411104"
+          },
+          {
+            "alt": "Season 1",
+            "type": "background",
+            "url": "/library/metadata/28/art/1790411104"
+          },
+          {
+            "alt": "Season 1",
+            "type": "clearLogo",
+            "url": "/library/metadata/28/clearLogo/1790411104"
+          },
+          {
+            "alt": "Season 1",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/28/squareArt/1790411104"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "033341",
+          "topRight": "2c6679",
+          "bottomRight": "062f43",
+          "bottomLeft": "066389"
+        },
+        "Guid": [
+          {
+            "id": "tmdb://16510"
+          },
+          {
+            "id": "tvdb://6029"
+          }
+        ]
+      },
+      {
+        "ratingKey": "33",
+        "key": "/library/metadata/33/children",
+        "parentRatingKey": "28",
+        "guid": "plex://season/602e698fb2c087002d0cc569",
+        "parentGuid": "plex://show/5d9c08732df347001e3b32d0",
+        "parentSlug": "the-twilight-zone",
+        "parentStudio": "Cayuga Productions",
+        "type": "season",
+        "title": "Season 2",
+        "parentKey": "/library/metadata/28",
+        "parentTitle": "The Twilight Zone",
+        "summary": "The second season of The Twilight Zone aired Fridays at 10:00–10:30 pm on CBS from September 30, 1960 to June 2, 1961. There are 29 episodes.",
+        "index": 2,
+        "parentIndex": 1,
+        "parentYear": 1959,
+        "thumb": "/library/metadata/33/thumb/1790411104",
+        "art": "/library/metadata/28/art/1790411104",
+        "parentThumb": "/library/metadata/28/thumb/1790411104",
+        "parentTheme": "/library/metadata/28/theme/1790411104",
+        "addedAt": 1790411104,
+        "updatedAt": 1790411104,
+        "Image": [
+          {
+            "alt": "Season 2",
+            "type": "coverPoster",
+            "url": "/library/metadata/33/thumb/1790411104"
+          },
+          {
+            "alt": "Season 2",
+            "type": "background",
+            "url": "/library/metadata/28/art/1790411104"
+          },
+          {
+            "alt": "Season 2",
+            "type": "clearLogo",
+            "url": "/library/metadata/28/clearLogo/1790411104"
+          },
+          {
+            "alt": "Season 2",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/28/squareArt/1790411104"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "56100c",
+          "topRight": "a7261f",
+          "bottomRight": "a51412",
+          "bottomLeft": "7e0505"
+        },
+        "Guid": [
+          {
+            "id": "tmdb://16513"
+          },
+          {
+            "id": "tvdb://6030"
+          }
+        ]
+      }
+    ]
+  }
+}

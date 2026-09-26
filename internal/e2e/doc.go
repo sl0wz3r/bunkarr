@@ -13,8 +13,11 @@
 // kill -9 at fault points (BUNKARR_FAULTPOINT) and resume, a missing destination marker, an
 // emptied source, dry runs and the mass-change guard; and Phase 2's webhook path (fake Radarr and
 // Sonarr serving the recorded fixtures, the recorded webhooks, shortened windows) and "Sign in
-// with Plex" (a fake plex.tv and PMS), docs/design/phase2-3.md §15 E2E. The syncs and kill tests
-// also snapshot the source tree around every job: Bunkarr must never modify it (S1).
+// with Plex" (a fake plex.tv and PMS), docs/design/phase2-3.md §15 E2E; and Phase 3's tiers (the
+// pinned table's dry run with fake Plex, Tautulli, Seerr and Maintainerr, acceptance 7 with its
+// stale case, a demotion and its confirmed release) and an upgrade of a database the Phase 2
+// release wrote (BUNKARR_E2E_PREVIOUS_BINARY, else built from the Phase 2 commit). The syncs and
+// kill tests also snapshot the source tree around every job: Bunkarr must never modify it (S1).
 // BUNKARR_E2E_BINARY runs another binary; BUNKARR_E2E_TARGET_ROOT puts the destinations under
 // that directory (the share test).
 //

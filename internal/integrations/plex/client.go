@@ -266,6 +266,11 @@ func parseBaseURL(raw string) (string, error) {
 
 // get performs GET path and decodes the JSON body into out. withToken adds X-Plex-Token.
 func (c *Client) get(ctx context.Context, path string, withToken bool, out any) error {
+	return c.getQuery(ctx, path, nil, withToken, out)
+}
+
+// getQuery is get with a query string (never a credential: the token only goes in the header).
+func (c *Client) getQuery(ctx context.Context, path string, query url.Values, withToken bool, out any) error {
 	const method = http.MethodGet
 	fail := func(status int, cause error) error {
 		return &Error{Method: method, Path: path, StatusCode: status, Err: c.sanitize(cause)}
@@ -276,7 +281,11 @@ func (c *Client) get(ctx context.Context, path string, withToken bool, out any) 
 	rctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(rctx, method, c.base+path, nil)
+	target := c.base + path
+	if len(query) > 0 {
+		target += "?" + query.Encode()
+	}
+	req, err := http.NewRequestWithContext(rctx, method, target, nil)
 	if err != nil {
 		return fail(0, errors.New("cannot build the request"))
 	}

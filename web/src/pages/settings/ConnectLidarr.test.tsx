@@ -5,6 +5,9 @@ import type { Integration } from '@/api/types';
 import { callsTo, type Handler } from '@/test/fetch';
 import { source } from '@/test/fixtures';
 import { renderApp } from '@/test/render';
+import { slowPage } from '@/test/slow';
+
+slowPage();
 
 // Lidarr in Settings → Connect (design D2, §16): its own examples, triggers and webhook URL, and
 // what Lidarr sends no webhook for.

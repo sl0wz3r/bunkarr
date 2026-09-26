@@ -1,0 +1,208 @@
+{
+  "MediaContainer": {
+    "size": 2,
+    "totalSize": 2,
+    "offset": 0,
+    "allowSync": true,
+    "art": "/:/resources/show-fanart.jpg",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 2,
+    "librarySectionTitle": "TV Shows",
+    "librarySectionUUID": "33a7d582-55fe-451d-b495-3da798305b14",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914513,
+    "nocache": true,
+    "thumb": "/:/resources/show.png",
+    "title1": "TV Shows",
+    "title2": "All Shows",
+    "viewGroup": "show",
+    "viewMode": 65592,
+    "Metadata": [
+      {
+        "ratingKey": "17",
+        "key": "/library/metadata/17/children",
+        "guid": "plex://show/5d9c08733c3f87001f350d20",
+        "slug": "alfred-hitchcock-presents",
+        "studio": "Universal Television",
+        "type": "show",
+        "title": "Alfred Hitchcock Presents",
+        "contentRating": "TV-PG",
+        "contentRatingAge": 12,
+        "summary": "Alfred Hitchcock, the Master of Suspense hosts his own television show. Hitchcock introduced the show, which was then followed by a short half an hour episode which contained suspense, horror, and humor. After the story, Hitchcock would come back and end the show.",
+        "index": 1,
+        "audienceRating": 7.8,
+        "viewCount": 1,
+        "lastViewedAt": 1790411194,
+        "year": 1955,
+        "thumb": "/library/metadata/17/thumb/1790411104",
+        "art": "/library/metadata/17/art/1790411104",
+        "theme": "/library/metadata/17/theme/1790411104",
+        "duration": 1500000,
+        "originallyAvailableAt": "1955-10-02",
+        "leafCount": 5,
+        "viewedLeafCount": 1,
+        "childCount": 2,
+        "addedAt": 1790411103,
+        "updatedAt": 1790411104,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Image": [
+          {
+            "alt": "Alfred Hitchcock Presents",
+            "type": "coverPoster",
+            "url": "/library/metadata/17/thumb/1790411104"
+          },
+          {
+            "alt": "Alfred Hitchcock Presents",
+            "type": "background",
+            "url": "/library/metadata/17/art/1790411104"
+          },
+          {
+            "alt": "Alfred Hitchcock Presents",
+            "type": "clearLogo",
+            "url": "/library/metadata/17/clearLogo/1790411104"
+          },
+          {
+            "alt": "Alfred Hitchcock Presents",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/17/squareArt/1790411104"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "111011",
+          "topRight": "1a191a",
+          "bottomRight": "333134",
+          "bottomLeft": "070707"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0047708"
+          },
+          {
+            "id": "tmdb://5273"
+          },
+          {
+            "id": "tvdb://73614"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Mystery"
+          },
+          {
+            "tag": "Drama"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Alfred Hitchcock"
+          },
+          {
+            "tag": "Harry Tyler"
+          },
+          {
+            "tag": "John Williams"
+          }
+        ]
+      },
+      {
+        "ratingKey": "28",
+        "key": "/library/metadata/28/children",
+        "guid": "plex://show/5d9c08732df347001e3b32d0",
+        "slug": "the-twilight-zone",
+        "studio": "Cayuga Productions",
+        "type": "show",
+        "title": "The Twilight Zone",
+        "titleSort": "Twilight Zone",
+        "contentRating": "TV-14",
+        "contentRatingAge": 10,
+        "summary": "Ordinary people face uncanny and impossible events in standalone tales of science fiction, fantasy, horror, and suspense.",
+        "index": 1,
+        "audienceRating": 8.5,
+        "viewCount": 3,
+        "lastViewedAt": 1790411183,
+        "year": 1959,
+        "thumb": "/library/metadata/28/thumb/1790411104",
+        "art": "/library/metadata/28/art/1790411104",
+        "theme": "/library/metadata/28/theme/1790411104",
+        "duration": 1500000,
+        "originallyAvailableAt": "1959-10-02",
+        "leafCount": 5,
+        "viewedLeafCount": 2,
+        "childCount": 2,
+        "addedAt": 1790411104,
+        "updatedAt": 1790411104,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "hasPremiumPrimaryExtra": "1",
+        "primaryExtraKey": "/library/metadata/36",
+        "Image": [
+          {
+            "alt": "The Twilight Zone",
+            "type": "coverPoster",
+            "url": "/library/metadata/28/thumb/1790411104"
+          },
+          {
+            "alt": "The Twilight Zone",
+            "type": "background",
+            "url": "/library/metadata/28/art/1790411104"
+          },
+          {
+            "alt": "The Twilight Zone",
+            "type": "clearLogo",
+            "url": "/library/metadata/28/clearLogo/1790411104"
+          },
+          {
+            "alt": "The Twilight Zone",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/28/squareArt/1790411104"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "2e2e2e",
+          "topRight": "111212",
+          "bottomRight": "343537",
+          "bottomLeft": "0d0d0d"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0052520"
+          },
+          {
+            "id": "tmdb://6357"
+          },
+          {
+            "id": "tvdb://73587"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Drama"
+          },
+          {
+            "tag": "Mystery"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Rod Serling"
+          },
+          {
+            "tag": "Robert McCord"
+          },
+          {
+            "tag": "Jay Overholts"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ItemCount, JobItem } from '@/api/types';
+import type { ItemCount, JobItem, TierItemCount } from '@/api/types';
 import { type Call, callsTo, type Handler } from '@/test/fetch';
 import { destination, GiB, job, MiB, paged } from '@/test/fixtures';
 import { renderApp } from '@/test/render';
@@ -539,5 +539,75 @@ describe('Cancelling', () => {
     const dialog = within(await screen.findByRole('dialog', { name: 'Cancel job' }));
     expect(dialog.getByText(/taken off the queue and nothing is changed/)).toBeInTheDocument();
     expect(dialog.getByRole('button', { name: 'Keep it queued' })).toBeInTheDocument();
+  });
+});
+
+describe('Job detail of a tiered sync', () => {
+  const dry = job({
+    id: 40,
+    dryRun: true,
+    status: 'completed',
+    finishedAt: new Date().toISOString(),
+    stats: { dryRun: true, tierRevision: 3, tiers: { full: { files: 1, bytes: GiB }, manifest: { files: 2, bytes: 3 * GiB }, skip: { files: 0, bytes: 0 }, unknownPromoted: { files: 0, bytes: 0 } } },
+  });
+  const byTier: TierItemCount[] = [
+    { action: 'copy', status: 'pending', tier: 'full', files: 1, bytes: GiB },
+    { action: 'skip', status: 'pending', tier: 'manifest', files: 2, bytes: 3 * GiB },
+  ];
+  const items: (JobItem & { tier: string })[] = [
+    { id: 1, jobId: 40, relPath: 'movies/A.mkv', action: 'copy', status: 'pending', bytes: GiB, tier: 'full' },
+    { id: 2, jobId: 40, relPath: 'movies/B.mkv', action: 'skip', status: 'pending', bytes: GiB, tier: 'manifest' },
+    { id: 3, jobId: 40, relPath: 'movies/C.mkv', action: 'skip', status: 'pending', bytes: 2 * GiB, tier: 'manifest' },
+  ];
+
+  it('groups the items by tier and filters them by tier', async () => {
+    const { calls, user } = renderApp('/activity/jobs/40', {
+      ...names,
+      'GET /api/v1/jobs/40': () => ({ body: dry }),
+      'GET /api/v1/jobs/40/items/summary': () => ({
+        body: [
+          { action: 'copy', status: 'pending', files: 1, bytes: GiB },
+          { action: 'skip', status: 'pending', files: 2, bytes: 3 * GiB },
+        ],
+      }),
+      'GET /api/v1/jobs/40/items/summary?by=tier': () => ({ body: byTier }),
+      'GET /api/v1/jobs/40/items': (_: unknown, url: URL) => {
+        const tier = url.searchParams.get('tier');
+        const records = items.filter((i) => !tier || i.tier === tier).map(({ tier: _t, ...i }) => i);
+        return { body: paged(records, records.length, 1, 50) };
+      },
+      'GET /api/v1/jobs/40/logs': () => ({ body: [] }),
+    });
+    const group = await screen.findByRole('group', { name: 'Items by tier' });
+    expect(within(group).getByText(/Full: 1/)).toBeInTheDocument();
+    expect(within(group).getByText(/Manifest only: 2/)).toBeInTheDocument();
+    expect(await screen.findByText('movies/A.mkv')).toBeInTheDocument();
+
+    await user.click(within(group).getByRole('button', { name: 'Show manifest only items' }));
+    await waitFor(() => expect(screen.queryByText('movies/A.mkv')).not.toBeInTheDocument());
+    expect(screen.getByText('movies/C.mkv')).toBeInTheDocument();
+    expect(callsTo(calls, 'GET /api/v1/jobs/40/items').at(-1)!.query.get('tier')).toBe('manifest');
+    expect(screen.getByLabelText('Tier')).toHaveValue('manifest');
+
+    await user.selectOptions(screen.getByLabelText('Tier'), 'full');
+    await waitFor(() => expect(callsTo(calls, 'GET /api/v1/jobs/40/items').at(-1)!.query.get('tier')).toBe('full'));
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getByLabelText('Tier')).toHaveValue('');
+    expect(await screen.findByText('movies/B.mkv')).toBeInTheDocument();
+    expect(screen.getByText('movies/A.mkv')).toBeInTheDocument();
+  });
+
+  it('shows no tier grouping or filter for a sync without tier rules', async () => {
+    const { calls } = renderApp('/activity/jobs/41', {
+      ...names,
+      'GET /api/v1/jobs/41': () => ({ body: job({ id: 41, status: 'completed', finishedAt: new Date().toISOString(), stats: { filesCopied: 1 } }) }),
+      'GET /api/v1/jobs/41/items/summary': () => ({ body: [{ action: 'copy', status: 'done', files: 1, bytes: GiB }] }),
+      'GET /api/v1/jobs/41/items': () => ({ body: paged([items[0]], 1, 1, 50) }),
+      'GET /api/v1/jobs/41/logs': () => ({ body: [] }),
+    });
+    expect(await screen.findByText('movies/A.mkv')).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Items by tier' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Tier')).not.toBeInTheDocument();
+    expect(calls.some((c) => c.key === 'GET /api/v1/jobs/41/items/summary?by=tier')).toBe(false);
   });
 });

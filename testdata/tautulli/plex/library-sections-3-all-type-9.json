@@ -1,0 +1,77 @@
+{
+  "MediaContainer": {
+    "size": 2,
+    "totalSize": 2,
+    "offset": 0,
+    "allowSync": true,
+    "art": "/:/resources/artist-fanart.jpg",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 3,
+    "librarySectionTitle": "Music",
+    "librarySectionUUID": "b0ef9bd1-50cb-41ec-b040-30197350d272",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914513,
+    "nocache": true,
+    "thumb": "/:/resources/artist.png",
+    "title1": "Music",
+    "title2": "All Artists",
+    "viewGroup": "artist",
+    "viewMode": 65592,
+    "Metadata": [
+      {
+        "ratingKey": "39",
+        "key": "/library/metadata/39/children",
+        "parentRatingKey": "38",
+        "guid": "local://39",
+        "parentGuid": "plex://artist/5d07be5e403c640290686477",
+        "type": "album",
+        "title": "Classical Sampler",
+        "parentKey": "/library/metadata/38",
+        "parentTitle": "Kevin MacLeod",
+        "summary": "",
+        "index": 1,
+        "viewCount": 2,
+        "lastViewedAt": 1790411283,
+        "year": 2010,
+        "thumb": "/library/metadata/38/thumb/1790411106",
+        "parentThumb": "/library/metadata/38/thumb/1790411106",
+        "originallyAvailableAt": "2010-01-01",
+        "addedAt": 1790411105,
+        "Image": [
+          {
+            "alt": "Classical Sampler",
+            "type": "coverPoster",
+            "url": "/library/metadata/38/thumb/1790411106"
+          }
+        ]
+      },
+      {
+        "ratingKey": "44",
+        "key": "/library/metadata/44/children",
+        "parentRatingKey": "43",
+        "guid": "local://44",
+        "parentGuid": "plex://artist/5d07bc08403c6402904ae49f",
+        "type": "album",
+        "title": "Piano Rags",
+        "parentKey": "/library/metadata/43",
+        "parentTitle": "Scott Joplin",
+        "summary": "",
+        "index": 1,
+        "viewCount": 2,
+        "lastViewedAt": 1790411260,
+        "year": 1902,
+        "thumb": "/library/metadata/43/thumb/1790411106",
+        "parentThumb": "/library/metadata/43/thumb/1790411106",
+        "originallyAvailableAt": "1902-01-01",
+        "addedAt": 1790411105,
+        "Image": [
+          {
+            "alt": "Piano Rags",
+            "type": "coverPoster",
+            "url": "/library/metadata/43/thumb/1790411106"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -5,7 +5,10 @@ import type { Integration } from '@/api/types';
 import { callsTo, type Handler } from '@/test/fetch';
 import { source } from '@/test/fixtures';
 import { renderApp } from '@/test/render';
+import { slowPage } from '@/test/slow';
 import { webhookBaseProblem } from './ConnectArr';
+
+slowPage();
 
 const KEY = '0123456789abcdef0123456789abcdef';
 

@@ -1,0 +1,14 @@
+{
+  "response": {
+    "result": "success",
+    "message": null,
+    "data": {
+      "recordsFiltered": 0,
+      "recordsTotal": 13,
+      "data": [],
+      "draw": 1,
+      "filter_duration": "0",
+      "total_duration": "0"
+    }
+  }
+}

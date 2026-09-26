@@ -30,7 +30,7 @@ func (s *Server) manifestRoutes(r chi.Router) {
 const SHA256Header = "X-Bunkarr-SHA256"
 
 // newManifestRunner builds the manifest_export runner (it also serves the export and the
-// downloads). Every file's tier is full until Phase 3 plugs in the tier evaluator.
+// downloads). The tier engine decides each file's tier (TierEngine).
 func (a *App) newManifestRunner(o AppOptions, configDir string) (*manifest.Runner, error) {
 	return manifest.NewRunner(manifest.Options{
 		DB:           o.DB,
@@ -38,6 +38,7 @@ func (a *App) newManifestRunner(o AppOptions, configDir string) (*manifest.Runne
 		Integrations: a.Integrations,
 		Destinations: a.Destinations,
 		Index:        a.Index,
+		Tiers:        manifest.TierEngine{Engine: a.Tiers},
 		ConfigDir:    configDir,
 		Log:          a.log.With("component", "manifest"),
 		Location:     o.Location,

@@ -31,7 +31,8 @@
 //     checksum; a damaged version is marked and replaced; downloads verify before serving.
 //   - No secrets: integrations appear by id, type, name and version, never with a URL or key.
 //
-// Until Phase 3 every file's tier is full (AllFull); internal/tiers plugs in through Tiers.
+// The tier engine (internal/tiers) plugs in through Tiers (TierEngine); AllFull is the default
+// without one, and what the engine decides with no rules.
 package manifest
 
 import (
@@ -39,6 +40,9 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+
+	"github.com/sl0wz3r/bunkarr/internal/catalog"
+	"github.com/sl0wz3r/bunkarr/internal/integrations"
 )
 
 // Format identifiers of manifest.json (design §11.1).
@@ -357,13 +361,24 @@ type Queryer interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
+// TierRead is what Tiers.Decide reads: the manifest's read transaction, and the sources and
+// integrations the builder listed before it began (configuration, not state, §11.2).
+type TierRead struct {
+	// Q is the manifest's read transaction. It holds a connection of the read pool, so Decide
+	// reads nothing through the pool: that read would wait for a second connection (builds holding
+	// every connection would wait for each other for ever) and miss the snapshot (S20).
+	Q            Queryer
+	Sources      []catalog.Source
+	Integrations []integrations.Integration
+}
+
 // Tiers decides the tiers of the live catalog files of a destination's sources. Phase 3's
 // evaluator (internal/tiers) implements it; AllFull is the Phase 2 default.
 type Tiers interface {
 	// Decide returns the decision function of the live files of source sourceID at destination
-	// destinationID, reading what it needs through q (the manifest's read transaction). The
-	// function is called with catalog file ids of that source.
-	Decide(ctx context.Context, q Queryer, destinationID, sourceID int64) (func(fileID int64) Decision, error)
+	// destinationID, reading what it needs from r alone (see TierRead). The function is called
+	// with catalog file ids of that source.
+	Decide(ctx context.Context, r TierRead, destinationID, sourceID int64) (func(fileID int64) Decision, error)
 }
 
 // AllFull is the Tiers of Phase 2 (and of an install without rules, design D1): every file is
@@ -371,6 +386,6 @@ type Tiers interface {
 type AllFull struct{}
 
 // Decide implements Tiers.
-func (AllFull) Decide(context.Context, Queryer, int64, int64) (func(int64) Decision, error) {
+func (AllFull) Decide(context.Context, TierRead, int64, int64) (func(int64) Decision, error) {
 	return func(int64) Decision { return Decision{Tier: TierFull, RuleName: FallbackRuleName} }, nil
 }

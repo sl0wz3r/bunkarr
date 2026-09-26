@@ -1,0 +1,53 @@
+[INFO] [CollectionWorkerService] Started handling of all collections
+[INFO] [CollectionWorkerService] Skipping collection 'Do nothing' as its action is 'Do Nothing'
+[INFO] [CollectionWorkerService] Skipping collection 'No deadline' as it has no 'take action after days' set
+[INFO] [CollectionWorkerService] Collection handler summary: 9 total (isActive), 1 skipped (Do Nothing), 1 skipped (no window set), 1 skipped (no due media), 6 queued for handling
+[INFO] [CollectionWorkerService] Handling collection 'Watched movies'
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 4. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexAdapterService] Failed to delete item 4 from disk
+[WARN] [CollectionWorkerService] Failed to handle media with id 4 in collection 'Watched movies': DELETE http://172.***.***.11:32400/li...a/4 failed with exception: Plex Server didnt respond with a valid 2xx status code, response code: 400
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 3. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexAdapterService] Failed to delete item 3 from disk
+[WARN] [CollectionWorkerService] Failed to handle media with id 3 in collection 'Watched movies': DELETE http://172.***.***.11:32400/li...a/3 failed with exception: Plex Server didnt respond with a valid 2xx status code, response code: 400
+[INFO] [CollectionWorkerService] Handling collection 'Watched movies' finished
+[INFO] [CollectionWorkerService] Handling collection 'Unmonitor only'
+[INFO] [CollectionHandler] *arr action isn't possible without *arr configured. No action was taken for media with id 5.
+[WARN] [CollectionWorkerService] Failed to handle media with id 5 in collection 'Unmonitor only': the configured action could not be completed
+[INFO] [CollectionHandler] *arr action isn't possible without *arr configured. No action was taken for media with id 4.
+[WARN] [CollectionWorkerService] Failed to handle media with id 4 in collection 'Unmonitor only': the configured action could not be completed
+[INFO] [CollectionHandler] *arr action isn't possible without *arr configured. No action was taken for media with id 3.
+[WARN] [CollectionWorkerService] Failed to handle media with id 3 in collection 'Unmonitor only': the configured action could not be completed
+[INFO] [CollectionHandler] *arr action isn't possible without *arr configured. No action was taken for media with id 2.
+[WARN] [CollectionWorkerService] Failed to handle media with id 2 in collection 'Unmonitor only': the configured action could not be completed
+[INFO] [CollectionHandler] *arr action isn't possible without *arr configured. No action was taken for media with id 1.
+[WARN] [CollectionWorkerService] Failed to handle media with id 1 in collection 'Unmonitor only': the configured action could not be completed
+[INFO] [CollectionWorkerService] Handling collection 'Unmonitor only' finished
+[INFO] [CollectionWorkerService] Handling collection 'Watched shows'
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 28. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexAdapterService] Failed to delete item 28 from disk
+[WARN] [CollectionWorkerService] Failed to handle media with id 28 in collection 'Watched shows': DELETE http://172.***.***.11:32400/li.../28 failed with exception: Plex Server didnt respond with a valid 2xx status code, response code: 400
+[INFO] [CollectionWorkerService] Handling collection 'Watched shows' finished
+[INFO] [CollectionWorkerService] Handling collection 'All seasons'
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 18. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexAdapterService] Failed to delete item 18 from disk
+[WARN] [CollectionWorkerService] Failed to handle media with id 18 in collection 'All seasons': DELETE http://172.***.***.11:32400/li.../18 failed with exception: Plex Server didnt respond with a valid 2xx status code, response code: 400
+[INFO] [CollectionWorkerService] Handling collection 'All seasons' finished
+[INFO] [CollectionWorkerService] Handling collection 'Watched episodes'
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 26. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexAdapterService] Failed to delete item 26 from disk
+[WARN] [CollectionWorkerService] Failed to handle media with id 26 in collection 'Watched episodes': DELETE http://172.***.***.11:32400/li.../26 failed with exception: Plex Server didnt respond with a valid 2xx status code, response code: 400
+[INFO] [CollectionWorkerService] Handling collection 'Watched episodes' finished
+[INFO] [CollectionWorkerService] Handling collection 'Episodes, delete show if empty'
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 31. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexAdapterService] Failed to delete item 31 from disk
+[WARN] [CollectionWorkerService] Failed to handle media with id 31 in collection 'Episodes, delete show if empty': DELETE http://172.***.***.11:32400/li.../31 failed with exception: Plex Server didnt respond with a valid 2xx status code, response code: 400
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 30. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexAdapterService] Failed to delete item 30 from disk
+[WARN] [CollectionWorkerService] Failed to handle media with id 30 in collection 'Episodes, delete show if empty': DELETE http://172.***.***.11:32400/li.../30 failed with exception: Plex Server didnt respond with a valid 2xx status code, response code: 400
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 26. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexAdapterService] Failed to delete item 26 from disk
+[WARN] [CollectionWorkerService] Failed to handle media with id 26 in collection 'Episodes, delete show if empty': DELETE http://172.***.***.11:32400/li.../26 failed with exception: Plex Server didnt respond with a valid 2xx status code, response code: 400
+[INFO] [CollectionWorkerService] Handling collection 'Episodes, delete show if empty' finished
+[INFO] [CollectionWorkerService] All collections handled. No data was altered
+[INFO] [CollectionWorkerService] Updating collection size cache...
+[INFO] [CollectionWorkerService] Collection size cache updated

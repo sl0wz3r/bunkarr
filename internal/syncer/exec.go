@@ -17,6 +17,7 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/engines/filecopy"
 	"github.com/sl0wz3r/bunkarr/internal/faultinject"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
+	"github.com/sl0wz3r/bunkarr/internal/tiers"
 )
 
 // phases is the execution order of design §4.1 step 5 (S6: new before old).
@@ -622,8 +623,10 @@ func (x *itemRun) place(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	// (A same-path replacement with equal size and mtime, phase2-3.md §8.5, is done only once this
+	// job recorded it.)
 	if hasRec && rec.State == StatePresent && rec.Size == src.Size && rec.MtimeNs == src.MtimeNs && finExists &&
-		fin.Regular() && fin.Size == rec.Size {
+		fin.Regular() && fin.Size == rec.Size && (x.d.Reason != reasonReplacedInPlace || rec.JobID == x.s.job.ID) {
 		// Already done (a resumed item whose database write happened).
 		x.removeTemp()
 		x.d.Outcome = outcomeAlreadyDone
@@ -898,6 +901,11 @@ func placedTx(ctx context.Context, tx *sql.Tx, h *destinations.Handle, jobID int
 			return itemErr("%s is recorded for another source", dest)
 		}
 		rec.ID = cur.ID
+		if cur.State == StateMissing {
+			if err := loseLinks(ctx, tx, cur.ID, d.LostLinks); err != nil {
+				return err
+			}
+		}
 		if err := releaseDependents(ctx, tx, cur); err != nil {
 			return err
 		}
@@ -940,6 +948,9 @@ func (x *itemRun) checkDependents(ctx context.Context, rec Record, src filecopy.
 		if rec.State == StateMissing {
 			if d.Size == src.Size && filecopy.MtimeMatch(d.MtimeNs, src.MtimeNs, x.s.h.Capabilities.MtimeGranularityNs, 0) {
 				continue
+			}
+			if slices.Contains(x.d.LostLinks, d.ID) {
+				continue // kept (not full): its content is gone, the repair marks it missing (loseLinks)
 			}
 		} else if d.Size != rec.Size || d.MtimeNs != rec.MtimeNs {
 			continue
@@ -1027,8 +1038,13 @@ func (x *itemRun) adopt(ctx context.Context) error {
 	return x.fallbackPlace(ctx)
 }
 
-// fallbackPlace copies the file instead of the planned cheaper action.
+// fallbackPlace copies the file instead of the planned cheaper action. A file that is not full
+// at the destination is never copied: a move of its backed-up content that cannot run is skipped
+// (phase2-3.md §8.5).
 func (x *itemRun) fallbackPlace(ctx context.Context) error {
+	if x.d.Tier != nil && x.d.Tier.Tier != tiers.Full && x.d.Temp == "" {
+		return x.finish(ctx, jobs.ItemSkipped, 0, "not copied: "+x.d.Tier.Summary())
+	}
 	n, err := x.place(ctx)
 	if err != nil {
 		return err
@@ -1120,6 +1136,7 @@ func (x *itemRun) move(ctx context.Context) error {
 		return x.fallbackPlace(ctx) // the recorded file is gone
 	}
 	faultinject.Point(PointRecordAfterFS)
+	var oldSource string
 	err = x.write(ctx, func(ctx context.Context, tx *sql.Tx) error {
 		cur, ok, err := getTx(ctx, tx, v.ID)
 		if err != nil {
@@ -1128,12 +1145,17 @@ func (x *itemRun) move(ctx context.Context) error {
 		if !ok {
 			return itemErr("the record of %s vanished", from)
 		}
+		oldSource = cur.SourceRelPath
 		cur.RelPath, cur.SourceRelPath, cur.JobID = to, x.d.Source, x.s.job.ID
 		if err := updateRecord(ctx, tx, cur); err != nil {
 			if isUniqueViolation(err) {
 				return itemErr("%s is already recorded at the destination", to)
 			}
 			return err
+		}
+		// An irreplaceable flag on the exact file follows the move (phase2-3.md §8.7).
+		if t := x.s.r.tiers; t != nil && oldSource != x.d.Source {
+			return t.MoveFlagsTx(ctx, tx, x.d.SourceID, oldSource, x.d.Source)
 		}
 		return nil
 	})
@@ -1315,6 +1337,11 @@ func (x *itemRun) link(ctx context.Context) error {
 		}
 		if ok {
 			nr.ID = cur.ID
+			if cur.State == StateMissing {
+				if err := loseLinks(ctx, tx, cur.ID, x.d.LostLinks); err != nil {
+					return err
+				}
+			}
 			if err := repoint(ctx, tx, cur.ID, p.ID); err != nil {
 				return err
 			}
@@ -1505,6 +1532,16 @@ func (x *itemRun) retain(ctx context.Context) error {
 	if !v.State.Live() || v.SourceID != x.d.SourceID || v.SourceRelPath != x.d.Source {
 		return x.finish(ctx, jobs.ItemSkipped, 0, "the record changed since planning")
 	}
+	// A release (S15) retains a kept file whose source is still there: it re-checks the rules and
+	// the file's tier before it starts, and skips the reappeared check and the S6 wait.
+	release := x.d.Reason == ReasonReleased
+	if release && x.d.Retained == "" {
+		if why, err := x.checkRelease(ctx, v); err != nil {
+			return err
+		} else if why != "" {
+			return x.finish(ctx, jobs.ItemSkipped, 0, why)
+		}
+	}
 	fin, finExists, err := x.lstat(v.RelPath)
 	if err != nil {
 		return err
@@ -1519,7 +1556,7 @@ func (x *itemRun) retain(ctx context.Context) error {
 			retained = true
 		}
 	}
-	if !retained {
+	if !retained && !release {
 		if back, err := x.reappeared(ctx, v.SourceRelPath); err != nil {
 			return err
 		} else if back {
@@ -1572,13 +1609,16 @@ func (x *itemRun) retain(ctx context.Context) error {
 		}
 		// S6: the new version of a vanished name (a Radarr upgrade renames X-1080p.mkv to
 		// X-2160p.mkv) must be backed up before the old one goes to retention.
-		if name, err := x.s.notBackedUp(ctx, x.d.SourceID, v.SourceRelPath); err != nil {
+		reason := ReasonDeleted
+		if release {
+			reason = ReasonReleased
+		} else if name, err := x.s.notBackedUp(ctx, x.d.SourceID, v.SourceRelPath); err != nil {
 			return err
 		} else if name != "" {
 			return itemErr("not retained yet: %s in the same folder is not backed up (its copy failed or was held); %s stays until it is",
 				name, v.RelPath)
 		}
-		if err := x.keepInRetention(ctx, v, v.RelPath, fin, false, ReasonDeleted); err != nil {
+		if err := x.keepInRetention(ctx, v, v.RelPath, fin, false, reason); err != nil {
 			return err
 		}
 		faultinject.Point(PointRetainAfterRename)

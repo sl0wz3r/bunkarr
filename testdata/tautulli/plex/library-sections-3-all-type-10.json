@@ -1,0 +1,324 @@
+{
+  "MediaContainer": {
+    "size": 6,
+    "totalSize": 6,
+    "offset": 0,
+    "allowSync": true,
+    "art": "/:/resources/artist-fanart.jpg",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 3,
+    "librarySectionTitle": "Music",
+    "librarySectionUUID": "b0ef9bd1-50cb-41ec-b040-30197350d272",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914513,
+    "nocache": true,
+    "thumb": "/:/resources/artist.png",
+    "title1": "Music",
+    "title2": "All Artists",
+    "viewGroup": "artist",
+    "viewMode": 65592,
+    "Metadata": [
+      {
+        "ratingKey": "40",
+        "key": "/library/metadata/40",
+        "parentRatingKey": "39",
+        "grandparentRatingKey": "38",
+        "guid": "local://40",
+        "parentGuid": "local://39",
+        "grandparentGuid": "plex://artist/5d07be5e403c640290686477",
+        "type": "track",
+        "title": "Gymnopedie No 1",
+        "grandparentKey": "/library/metadata/38",
+        "parentKey": "/library/metadata/39",
+        "grandparentTitle": "Kevin MacLeod",
+        "parentTitle": "Classical Sampler",
+        "summary": "",
+        "index": 1,
+        "parentIndex": 1,
+        "viewCount": 1,
+        "lastViewedAt": 1790411238,
+        "parentYear": 2010,
+        "grandparentThumb": "/library/metadata/38/thumb/1790411106",
+        "duration": 18244,
+        "addedAt": 1790411047,
+        "Media": [
+          {
+            "id": 48,
+            "duration": 18244,
+            "bitrate": 128,
+            "audioChannels": 2,
+            "audioCodec": "mp3",
+            "container": "mp3",
+            "Part": [
+              {
+                "id": 48,
+                "key": "/library/parts/48/1790411047/file.mp3",
+                "duration": 18244,
+                "file": "/data/music/Kevin MacLeod/Classical Sampler/01 - Gymnopedie No 1.mp3",
+                "size": 292039,
+                "container": "mp3"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Gymnopedie No 1",
+            "type": "coverPoster",
+            "url": "/library/metadata/38/thumb/1790411106"
+          }
+        ]
+      },
+      {
+        "ratingKey": "41",
+        "key": "/library/metadata/41",
+        "parentRatingKey": "39",
+        "grandparentRatingKey": "38",
+        "guid": "local://41",
+        "parentGuid": "local://39",
+        "grandparentGuid": "plex://artist/5d07be5e403c640290686477",
+        "type": "track",
+        "title": "Canon in D",
+        "grandparentKey": "/library/metadata/38",
+        "parentKey": "/library/metadata/39",
+        "grandparentTitle": "Kevin MacLeod",
+        "parentTitle": "Classical Sampler",
+        "summary": "",
+        "index": 2,
+        "parentIndex": 1,
+        "parentYear": 2010,
+        "grandparentThumb": "/library/metadata/38/thumb/1790411106",
+        "duration": 18244,
+        "addedAt": 1790411047,
+        "Media": [
+          {
+            "id": 49,
+            "duration": 18244,
+            "bitrate": 128,
+            "audioChannels": 2,
+            "audioCodec": "mp3",
+            "container": "mp3",
+            "Part": [
+              {
+                "id": 49,
+                "key": "/library/parts/49/1790411047/file.mp3",
+                "duration": 18244,
+                "file": "/data/music/Kevin MacLeod/Classical Sampler/02 - Canon in D.mp3",
+                "size": 292034,
+                "container": "mp3"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Canon in D",
+            "type": "coverPoster",
+            "url": "/library/metadata/38/thumb/1790411106"
+          }
+        ]
+      },
+      {
+        "ratingKey": "42",
+        "key": "/library/metadata/42",
+        "parentRatingKey": "39",
+        "grandparentRatingKey": "38",
+        "guid": "local://42",
+        "parentGuid": "local://39",
+        "grandparentGuid": "plex://artist/5d07be5e403c640290686477",
+        "type": "track",
+        "title": "Rags & <Riches> \"Live\"",
+        "grandparentKey": "/library/metadata/38",
+        "parentKey": "/library/metadata/39",
+        "grandparentTitle": "Kevin MacLeod",
+        "parentTitle": "Classical Sampler",
+        "summary": "",
+        "index": 3,
+        "parentIndex": 1,
+        "viewCount": 1,
+        "lastViewedAt": 1790411283,
+        "parentYear": 2010,
+        "grandparentThumb": "/library/metadata/38/thumb/1790411106",
+        "duration": 18244,
+        "addedAt": 1790411047,
+        "Media": [
+          {
+            "id": 50,
+            "duration": 18244,
+            "bitrate": 128,
+            "audioChannels": 2,
+            "audioCodec": "mp3",
+            "container": "mp3",
+            "Part": [
+              {
+                "id": 50,
+                "key": "/library/parts/50/1790411047/file.mp3",
+                "duration": 18244,
+                "file": "/data/music/Kevin MacLeod/Classical Sampler/03 - Rags & <Riches> \"Live\".mp3",
+                "size": 292046,
+                "container": "mp3"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Rags & <Riches> \"Live\"",
+            "type": "coverPoster",
+            "url": "/library/metadata/38/thumb/1790411106"
+          }
+        ]
+      },
+      {
+        "ratingKey": "45",
+        "key": "/library/metadata/45",
+        "parentRatingKey": "44",
+        "grandparentRatingKey": "43",
+        "guid": "local://45",
+        "parentGuid": "local://44",
+        "grandparentGuid": "plex://artist/5d07bc08403c6402904ae49f",
+        "type": "track",
+        "title": "Maple Leaf Rag",
+        "grandparentKey": "/library/metadata/43",
+        "parentKey": "/library/metadata/44",
+        "grandparentTitle": "Scott Joplin",
+        "parentTitle": "Piano Rags",
+        "summary": "",
+        "index": 1,
+        "parentIndex": 1,
+        "viewCount": 2,
+        "lastViewedAt": 1790411260,
+        "parentYear": 1902,
+        "grandparentThumb": "/library/metadata/43/thumb/1790411106",
+        "duration": 18244,
+        "addedAt": 1790411047,
+        "Media": [
+          {
+            "id": 51,
+            "duration": 18244,
+            "bitrate": 128,
+            "audioChannels": 2,
+            "audioCodec": "mp3",
+            "container": "mp3",
+            "Part": [
+              {
+                "id": 51,
+                "key": "/library/parts/51/1790411047/file.mp3",
+                "duration": 18244,
+                "file": "/data/music/Scott Joplin/Piano Rags/01 - Maple Leaf Rag.mp3",
+                "size": 292029,
+                "container": "mp3"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Maple Leaf Rag",
+            "type": "coverPoster",
+            "url": "/library/metadata/43/thumb/1790411106"
+          }
+        ]
+      },
+      {
+        "ratingKey": "46",
+        "key": "/library/metadata/46",
+        "parentRatingKey": "44",
+        "grandparentRatingKey": "43",
+        "guid": "local://46",
+        "parentGuid": "local://44",
+        "grandparentGuid": "plex://artist/5d07bc08403c6402904ae49f",
+        "type": "track",
+        "title": "The Entertainer",
+        "titleSort": "Entertainer",
+        "grandparentKey": "/library/metadata/43",
+        "parentKey": "/library/metadata/44",
+        "grandparentTitle": "Scott Joplin",
+        "parentTitle": "Piano Rags",
+        "summary": "",
+        "index": 2,
+        "parentIndex": 1,
+        "parentYear": 1902,
+        "grandparentThumb": "/library/metadata/43/thumb/1790411106",
+        "duration": 18244,
+        "addedAt": 1790411047,
+        "Media": [
+          {
+            "id": 52,
+            "duration": 18244,
+            "bitrate": 128,
+            "audioChannels": 2,
+            "audioCodec": "mp3",
+            "container": "mp3",
+            "Part": [
+              {
+                "id": 52,
+                "key": "/library/parts/52/1790411047/file.mp3",
+                "duration": 18244,
+                "file": "/data/music/Scott Joplin/Piano Rags/02 - The Entertainer.mp3",
+                "size": 292030,
+                "container": "mp3"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "The Entertainer",
+            "type": "coverPoster",
+            "url": "/library/metadata/43/thumb/1790411106"
+          }
+        ]
+      },
+      {
+        "ratingKey": "47",
+        "key": "/library/metadata/47",
+        "parentRatingKey": "44",
+        "grandparentRatingKey": "43",
+        "guid": "local://47",
+        "parentGuid": "local://44",
+        "grandparentGuid": "plex://artist/5d07bc08403c6402904ae49f",
+        "type": "track",
+        "title": "Elite Syncopations",
+        "grandparentKey": "/library/metadata/43",
+        "parentKey": "/library/metadata/44",
+        "grandparentTitle": "Scott Joplin",
+        "parentTitle": "Piano Rags",
+        "summary": "",
+        "index": 3,
+        "parentIndex": 1,
+        "parentYear": 1902,
+        "grandparentThumb": "/library/metadata/43/thumb/1790411106",
+        "duration": 18244,
+        "addedAt": 1790411047,
+        "Media": [
+          {
+            "id": 53,
+            "duration": 18244,
+            "bitrate": 128,
+            "audioChannels": 2,
+            "audioCodec": "mp3",
+            "container": "mp3",
+            "Part": [
+              {
+                "id": 53,
+                "key": "/library/parts/53/1790411047/file.mp3",
+                "duration": 18244,
+                "file": "/data/music/Scott Joplin/Piano Rags/03 - Elite Syncopations.mp3",
+                "size": 292033,
+                "container": "mp3"
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Elite Syncopations",
+            "type": "coverPoster",
+            "url": "/library/metadata/43/thumb/1790411106"
+          }
+        ]
+      }
+    ]
+  }
+}

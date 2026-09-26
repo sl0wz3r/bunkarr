@@ -1,0 +1,475 @@
+{
+  "MediaContainer": {
+    "size": 4,
+    "totalSize": 10,
+    "offset": 0,
+    "allowSync": true,
+    "art": "/:/resources/show-fanart.jpg",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 2,
+    "librarySectionTitle": "TV Shows",
+    "librarySectionUUID": "33a7d582-55fe-451d-b495-3da798305b14",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914513,
+    "nocache": true,
+    "thumb": "/:/resources/show.png",
+    "title1": "TV Shows",
+    "title2": "All Shows",
+    "viewGroup": "show",
+    "viewMode": 65592,
+    "Metadata": [
+      {
+        "ratingKey": "19",
+        "key": "/library/metadata/19",
+        "parentRatingKey": "18",
+        "grandparentRatingKey": "17",
+        "guid": "plex://episode/5d9c13bf4eefaa001f652c9d",
+        "parentGuid": "plex://season/602e699066dfdb002c0a5a9e",
+        "grandparentGuid": "plex://show/5d9c08733c3f87001f350d20",
+        "grandparentSlug": "alfred-hitchcock-presents",
+        "type": "episode",
+        "title": "Revenge",
+        "grandparentKey": "/library/metadata/17",
+        "parentKey": "/library/metadata/18",
+        "grandparentTitle": "Alfred Hitchcock Presents",
+        "parentTitle": "Season 1",
+        "contentRating": "TV-PG",
+        "summary": "When Carl Spann's wife Elsa is left traumatized after being assaulted by an unknown attacker, he becomes determined to track down the perpetrator and take revenge.",
+        "index": 1,
+        "parentIndex": 1,
+        "audienceRating": 7.0,
+        "year": 1955,
+        "thumb": "/library/metadata/19/thumb/1790411104",
+        "art": "/library/metadata/17/art/1790411104",
+        "parentThumb": "/library/metadata/18/thumb/1790411104",
+        "grandparentThumb": "/library/metadata/17/thumb/1790411104",
+        "grandparentArt": "/library/metadata/17/art/1790411104",
+        "grandparentTheme": "/library/metadata/17/theme/1790411104",
+        "duration": 1620000,
+        "originallyAvailableAt": "1955-10-02",
+        "addedAt": 1790411047,
+        "updatedAt": 1790411104,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 27,
+            "Part": [
+              {
+                "id": 27,
+                "key": "/library/parts/27/1790411047/file.mkv",
+                "file": "/data/tv/Alfred Hitchcock Presents (1955)/Season 01/Alfred Hitchcock Presents (1955) - S01E01.mkv",
+                "size": 4096
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Revenge",
+            "type": "coverPoster",
+            "url": "/library/metadata/17/thumb/1790411104"
+          },
+          {
+            "alt": "Revenge",
+            "type": "snapshot",
+            "url": "/library/metadata/19/thumb/1790411104"
+          },
+          {
+            "alt": "Revenge",
+            "type": "background",
+            "url": "/library/metadata/17/art/1790411104"
+          },
+          {
+            "alt": "Revenge",
+            "type": "clearLogo",
+            "url": "/library/metadata/17/clearLogo/1790411104"
+          },
+          {
+            "alt": "Revenge",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/17/squareArt/1790411104"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "232423",
+          "topRight": "3b3b3b",
+          "bottomRight": "2b2b2b",
+          "bottomLeft": "141314"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0508235"
+          },
+          {
+            "id": "tmdb://356608"
+          },
+          {
+            "id": "tvdb://121340"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Alfred Hitchcock"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Francis M. Cockrell"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Alfred Hitchcock"
+          },
+          {
+            "tag": "Ralph Meeker"
+          },
+          {
+            "tag": "Vera Miles"
+          }
+        ]
+      },
+      {
+        "ratingKey": "20",
+        "key": "/library/metadata/20",
+        "parentRatingKey": "18",
+        "grandparentRatingKey": "17",
+        "guid": "plex://episode/5d9c13bfba6eb9001fc25133",
+        "parentGuid": "plex://season/602e699066dfdb002c0a5a9e",
+        "grandparentGuid": "plex://show/5d9c08733c3f87001f350d20",
+        "grandparentSlug": "alfred-hitchcock-presents",
+        "type": "episode",
+        "title": "Premonition",
+        "grandparentKey": "/library/metadata/17",
+        "parentKey": "/library/metadata/18",
+        "grandparentTitle": "Alfred Hitchcock Presents",
+        "parentTitle": "Season 1",
+        "contentRating": "TV-PG",
+        "summary": "A famous pianist returning to his home town finds his father has died, and suspects his friends and family are covering up the true details of that death.",
+        "index": 2,
+        "parentIndex": 1,
+        "audienceRating": 7.9,
+        "year": 1955,
+        "thumb": "/library/metadata/20/thumb/1790411104",
+        "art": "/library/metadata/17/art/1790411104",
+        "parentThumb": "/library/metadata/18/thumb/1790411104",
+        "grandparentThumb": "/library/metadata/17/thumb/1790411104",
+        "grandparentArt": "/library/metadata/17/art/1790411104",
+        "grandparentTheme": "/library/metadata/17/theme/1790411104",
+        "duration": 1620000,
+        "originallyAvailableAt": "1955-10-09",
+        "addedAt": 1790411047,
+        "updatedAt": 1790411104,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 28,
+            "Part": [
+              {
+                "id": 28,
+                "key": "/library/parts/28/1790411047/file.mkv",
+                "file": "/data/tv/Alfred Hitchcock Presents (1955)/Season 01/Alfred Hitchcock Presents (1955) - S01E02.mkv",
+                "size": 4096
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Premonition",
+            "type": "coverPoster",
+            "url": "/library/metadata/17/thumb/1790411104"
+          },
+          {
+            "alt": "Premonition",
+            "type": "snapshot",
+            "url": "/library/metadata/20/thumb/1790411104"
+          },
+          {
+            "alt": "Premonition",
+            "type": "background",
+            "url": "/library/metadata/17/art/1790411104"
+          },
+          {
+            "alt": "Premonition",
+            "type": "clearLogo",
+            "url": "/library/metadata/17/clearLogo/1790411104"
+          },
+          {
+            "alt": "Premonition",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/17/squareArt/1790411104"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "2e2e2e",
+          "topRight": "1c1c1c",
+          "bottomRight": "333333",
+          "bottomLeft": "232423"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0508232"
+          },
+          {
+            "id": "tmdb://356609"
+          },
+          {
+            "id": "tvdb://121341"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Robert Stevens"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Harold Swanton"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Alfred Hitchcock"
+          },
+          {
+            "tag": "George Macready"
+          },
+          {
+            "tag": "Warren Stevens"
+          }
+        ]
+      },
+      {
+        "ratingKey": "21",
+        "key": "/library/metadata/21",
+        "parentRatingKey": "18",
+        "grandparentRatingKey": "17",
+        "guid": "plex://episode/5d9c13bf4eefaa001f652c99",
+        "parentGuid": "plex://season/602e699066dfdb002c0a5a9e",
+        "grandparentGuid": "plex://show/5d9c08733c3f87001f350d20",
+        "grandparentSlug": "alfred-hitchcock-presents",
+        "type": "episode",
+        "title": "Triggers in Leash",
+        "grandparentKey": "/library/metadata/17",
+        "parentKey": "/library/metadata/18",
+        "grandparentTitle": "Alfred Hitchcock Presents",
+        "parentTitle": "Season 1",
+        "contentRating": "TV-PG",
+        "summary": "A cook tries everything she can think of to end a dispute between two gunmen who have sworn to kill each other.",
+        "index": 3,
+        "parentIndex": 1,
+        "audienceRating": 7.2,
+        "year": 1955,
+        "thumb": "/library/metadata/21/thumb/1790411104",
+        "art": "/library/metadata/17/art/1790411104",
+        "parentThumb": "/library/metadata/18/thumb/1790411104",
+        "grandparentThumb": "/library/metadata/17/thumb/1790411104",
+        "grandparentArt": "/library/metadata/17/art/1790411104",
+        "grandparentTheme": "/library/metadata/17/theme/1790411104",
+        "duration": 1620000,
+        "originallyAvailableAt": "1955-10-16",
+        "addedAt": 1790411047,
+        "updatedAt": 1790411104,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 29,
+            "Part": [
+              {
+                "id": 29,
+                "key": "/library/parts/29/1790411047/file.mkv",
+                "file": "/data/tv/Alfred Hitchcock Presents (1955)/Season 01/Alfred Hitchcock Presents (1955) - S01E03.mkv",
+                "size": 4096
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Triggers in Leash",
+            "type": "coverPoster",
+            "url": "/library/metadata/17/thumb/1790411104"
+          },
+          {
+            "alt": "Triggers in Leash",
+            "type": "snapshot",
+            "url": "/library/metadata/21/thumb/1790411104"
+          },
+          {
+            "alt": "Triggers in Leash",
+            "type": "background",
+            "url": "/library/metadata/17/art/1790411104"
+          },
+          {
+            "alt": "Triggers in Leash",
+            "type": "clearLogo",
+            "url": "/library/metadata/17/clearLogo/1790411104"
+          },
+          {
+            "alt": "Triggers in Leash",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/17/squareArt/1790411104"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "1c1c1c",
+          "topRight": "2b2b2b",
+          "bottomRight": "1c1c1c",
+          "bottomLeft": "2b2b2b"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0508360"
+          },
+          {
+            "id": "tmdb://356610"
+          },
+          {
+            "id": "tvdb://121342"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Don Medford"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Richard Carr"
+          },
+          {
+            "tag": "Allan Vaughan Elston"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Alfred Hitchcock"
+          },
+          {
+            "tag": "Gene Barry"
+          },
+          {
+            "tag": "Darren McGavin"
+          }
+        ]
+      },
+      {
+        "ratingKey": "26",
+        "key": "/library/metadata/26",
+        "parentRatingKey": "25",
+        "grandparentRatingKey": "17",
+        "guid": "plex://episode/5d9c13bf170e24001f2d4996",
+        "parentGuid": "plex://season/602e699566dfdb002c0a5aa7",
+        "grandparentGuid": "plex://show/5d9c08733c3f87001f350d20",
+        "grandparentSlug": "alfred-hitchcock-presents",
+        "type": "episode",
+        "title": "Wet Saturday",
+        "grandparentKey": "/library/metadata/17",
+        "parentKey": "/library/metadata/25",
+        "grandparentTitle": "Alfred Hitchcock Presents",
+        "parentTitle": "Season 2",
+        "contentRating": "TV-PG",
+        "summary": "After his daughter kills a man, Mr. Princey devises a plan to save his family name.",
+        "index": 1,
+        "parentIndex": 2,
+        "audienceRating": 7.0,
+        "viewCount": 1,
+        "lastViewedAt": 1790411194,
+        "year": 1956,
+        "thumb": "/library/metadata/26/thumb/1790411104",
+        "art": "/library/metadata/17/art/1790411104",
+        "parentThumb": "/library/metadata/25/thumb/1790411104",
+        "grandparentThumb": "/library/metadata/17/thumb/1790411104",
+        "grandparentArt": "/library/metadata/17/art/1790411104",
+        "grandparentTheme": "/library/metadata/17/theme/1790411104",
+        "duration": 1620000,
+        "originallyAvailableAt": "1956-09-30",
+        "addedAt": 1790411047,
+        "updatedAt": 1790411104,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 35,
+            "Part": [
+              {
+                "id": 35,
+                "key": "/library/parts/35/1790411047/file.mkv",
+                "file": "/data/tv/Alfred Hitchcock Presents (1955)/Season 02/Alfred Hitchcock Presents (1955) - S02E01.mkv",
+                "size": 4096
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Wet Saturday",
+            "type": "coverPoster",
+            "url": "/library/metadata/17/thumb/1790411104"
+          },
+          {
+            "alt": "Wet Saturday",
+            "type": "snapshot",
+            "url": "/library/metadata/26/thumb/1790411104"
+          },
+          {
+            "alt": "Wet Saturday",
+            "type": "background",
+            "url": "/library/metadata/17/art/1790411104"
+          },
+          {
+            "alt": "Wet Saturday",
+            "type": "clearLogo",
+            "url": "/library/metadata/17/clearLogo/1790411104"
+          },
+          {
+            "alt": "Wet Saturday",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/17/squareArt/1790411104"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "2e2e2e",
+          "topRight": "1c1c1c",
+          "bottomRight": "141314",
+          "bottomLeft": "300403"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0508363"
+          },
+          {
+            "id": "tmdb://356647"
+          },
+          {
+            "id": "tvdb://121379"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Alfred Hitchcock"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "John Collier"
+          },
+          {
+            "tag": "Marian B. Cockrell"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Alfred Hitchcock"
+          },
+          {
+            "tag": "Cedric Hardwicke"
+          },
+          {
+            "tag": "John Williams"
+          }
+        ]
+      }
+    ]
+  }
+}

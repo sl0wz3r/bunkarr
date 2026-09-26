@@ -62,7 +62,10 @@ type RetentionStats struct {
 	FilesPlanned int64 `json:"filesPlanned"`
 	FilesExpired int64 `json:"filesExpired"`
 	// FilesKept were not expired: still referenced by a live record, or not the recorded file.
-	FilesKept    int64 `json:"filesKept"`
+	FilesKept int64 `json:"filesKept"`
+	// FilesHeld were not expired because an irreplaceable flag covers their source path
+	// (phase2-3.md §8.7): held until the flag is removed.
+	FilesHeld    int64 `json:"filesHeld"`
 	FilesFailed  int64 `json:"filesFailed"`
 	BytesExpired int64 `json:"bytesExpired"`
 	DurationMs   int64 `json:"durationMs"`
@@ -184,6 +187,8 @@ type retentionRun struct {
 	// and a failed check of the destination's inode numbers (prepareIdentity).
 	unsettled int
 	progress  jobs.Progress
+	// covered is the irreplaceable-flag coverage, loaded at the first expiry (flagHold).
+	covered func(sourceID int64, rel string) (int64, bool)
 }
 
 // linked reports whether a source is linked to the destination (orphan rows are never expired).
@@ -296,6 +301,12 @@ func (rr *retentionRun) expire(ctx context.Context, it jobs.Item) error {
 		rr.rep.Log(slog.LevelWarn, "retained content is still referenced by a live record; kept", "path", rec.RetainedPath, "referencedBy", deps[0].RelPath)
 		return finish(jobs.ItemSkipped, 0, fmt.Sprintf("still referenced by %s; kept", deps[0].RelPath))
 	}
+	if held, err := rr.flagHold(ctx, rec); err != nil {
+		return err
+	} else if held != "" {
+		rr.rep.Log(slog.LevelWarn, held, "path", rec.RetainedPath, "source", rec.SourceRelPath)
+		return finish(jobs.ItemHeld, 0, held)
+	}
 	err = filecopy.Expire(rr.h.Root, rec.RetainedPath, rec.Size)
 	switch {
 	case err == nil, errors.Is(err, fs.ErrNotExist):
@@ -337,6 +348,8 @@ func (rr *retentionRun) result(ctx context.Context, started time.Time) (jobs.Res
 			st.FilesFailed += c.Files
 		case jobs.ItemSkipped:
 			st.FilesKept += c.Files
+		case jobs.ItemHeld:
+			st.FilesHeld += c.Files
 		}
 	}
 	st.DurationMs = rr.r.now().Sub(started).Milliseconds()
@@ -348,6 +361,9 @@ func (rr *retentionRun) result(ctx context.Context, started time.Time) (jobs.Res
 		if st.FilesKept+st.FilesFailed > 0 {
 			summary += fmt.Sprintf("; %d kept", st.FilesKept+st.FilesFailed)
 		}
+		if st.FilesHeld > 0 {
+			summary += fmt.Sprintf("; %d held by an irreplaceable flag", st.FilesHeld)
+		}
 	}
-	return jobs.Result{Stats: st, Warnings: int(st.FilesFailed+st.FilesKept) + rr.unsettled, Summary: summary}, nil
+	return jobs.Result{Stats: st, Warnings: int(st.FilesFailed+st.FilesKept+st.FilesHeld) + rr.unsettled, Summary: summary}, nil
 }

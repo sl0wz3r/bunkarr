@@ -226,3 +226,93 @@ func TestListItemsPaging(t *testing.T) {
 		t.Fatalf("page = %+v", p)
 	}
 }
+
+// TestItemTierFilters: the tier and rule filters and the tier dimension read the decision an
+// item's detail records (detail.tier); a file copy that records none is full, and any other
+// item that records none (a vanished file's retain, a promote, an expire, another job type's
+// skip) has no tier: no tier filter lists it and the tier dimension leaves it out
+// (phase2-3.md §13).
+func TestItemTierFilters(t *testing.T) {
+	ctx := context.Background()
+	st := NewStore(openDB(t))
+	job := newJob(t, st)
+	decision := func(tier string, rule int64) json.RawMessage {
+		return json.RawMessage(fmt.Sprintf(`{"tier": {"tier": %q, "ruleId": %d, "ruleName": "r"}}`, tier, rule))
+	}
+	items := []jobs.Item{
+		{RelPath: "copy-full", Action: jobs.ActionCopy, Bytes: 1, Detail: decision("full", 0)},
+		{RelPath: "copy-plain", Action: jobs.ActionCopy, Bytes: 2},
+		{RelPath: "skip-manifest", Action: jobs.ActionSkip, Bytes: 4, Detail: decision("manifest", 3)},
+		{RelPath: "skip-skip", Action: jobs.ActionSkip, Bytes: 8, Detail: decision("skip", 5)},
+		{RelPath: "retain-manifest", Action: jobs.ActionRetain, Bytes: 16, Detail: decision("manifest", 3)},
+		{RelPath: "update-plain", Action: jobs.ActionUpdate, Bytes: 32},
+		{RelPath: "move-plain", Action: jobs.ActionMove, Bytes: 64},
+		{RelPath: "link-plain", Action: jobs.ActionLink, Bytes: 128},
+		{RelPath: "adopt-plain", Action: jobs.ActionAdopt, Bytes: 256},
+		{RelPath: "retain-vanished", Action: jobs.ActionRetain, Bytes: 512, Detail: json.RawMessage(`{"reason": "vanished"}`)},
+		{RelPath: "promote-plain", Action: jobs.ActionPromote, Bytes: 1024},
+		{RelPath: "expire-plain", Action: jobs.ActionExpire, Bytes: 2048},
+		{RelPath: "skip-plain", Action: jobs.ActionSkip, Bytes: 4096},
+	}
+	if err := st.AddItems(ctx, job.ID, items, true); err != nil {
+		t.Fatal(err)
+	}
+	rule := func(id int64) *int64 { return &id }
+	for _, c := range []struct {
+		name string
+		q    ItemQuery
+		want []string
+	}{
+		{"full includes file copies without a decision", ItemQuery{Tier: "full"},
+			[]string{"copy-full", "copy-plain", "update-plain", "move-plain", "link-plain", "adopt-plain"}},
+		{"a retain without a decision is not full", ItemQuery{Tier: "full", Action: jobs.ActionRetain}, nil},
+		{"a skip without a decision has no tier", ItemQuery{Tier: "skip"}, []string{"skip-skip"}},
+		{"manifest", ItemQuery{Tier: "manifest"}, []string{"skip-manifest", "retain-manifest"}},
+		{"tier and action", ItemQuery{Tier: "manifest", Action: jobs.ActionSkip}, []string{"skip-manifest"}},
+		{"rule", ItemQuery{RuleID: rule(3)}, []string{"skip-manifest", "retain-manifest"}},
+		{"rule 0 is the built-ins, not items without a decision", ItemQuery{RuleID: rule(0)}, []string{"copy-full"}},
+		{"unknown rule", ItemQuery{RuleID: rule(99)}, nil},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			p, err := st.ListItems(ctx, job.ID, c.q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, it := range p.Records {
+				got = append(got, it.RelPath)
+			}
+			if !reflect.DeepEqual(got, c.want) || p.TotalRecords != int64(len(c.want)) {
+				t.Fatalf("got %v (total %d), want %v", got, p.TotalRecords, c.want)
+			}
+		})
+	}
+	if _, err := st.ListItems(ctx, job.ID, ItemQuery{Tier: "gold"}); !isValidation(err) {
+		t.Fatalf("ListItems(bad tier) = %v", err)
+	}
+
+	counts, err := st.TierCounts(ctx, job.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []TierItemCount{
+		{ItemCount: jobs.ItemCount{Action: jobs.ActionAdopt, Status: jobs.ItemPending, Files: 1, Bytes: 256}, Tier: "full"},
+		{ItemCount: jobs.ItemCount{Action: jobs.ActionCopy, Status: jobs.ItemPending, Files: 2, Bytes: 3}, Tier: "full"},
+		{ItemCount: jobs.ItemCount{Action: jobs.ActionLink, Status: jobs.ItemPending, Files: 1, Bytes: 128}, Tier: "full"},
+		{ItemCount: jobs.ItemCount{Action: jobs.ActionMove, Status: jobs.ItemPending, Files: 1, Bytes: 64}, Tier: "full"},
+		{ItemCount: jobs.ItemCount{Action: jobs.ActionRetain, Status: jobs.ItemPending, Files: 1, Bytes: 16}, Tier: "manifest"},
+		{ItemCount: jobs.ItemCount{Action: jobs.ActionSkip, Status: jobs.ItemPending, Files: 1, Bytes: 4}, Tier: "manifest"},
+		{ItemCount: jobs.ItemCount{Action: jobs.ActionSkip, Status: jobs.ItemPending, Files: 1, Bytes: 8}, Tier: "skip"},
+		{ItemCount: jobs.ItemCount{Action: jobs.ActionUpdate, Status: jobs.ItemPending, Files: 1, Bytes: 32}, Tier: "full"},
+	}
+	if !reflect.DeepEqual(counts, want) {
+		t.Fatalf("TierCounts = %+v, want %+v", counts, want)
+	}
+	raw, err := json.Marshal(counts[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != `{"action":"copy","status":"pending","files":2,"bytes":3,"tier":"full"}` {
+		t.Fatalf("TierItemCount JSON %s", raw)
+	}
+}

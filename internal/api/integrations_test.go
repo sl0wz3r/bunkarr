@@ -139,8 +139,9 @@ func TestIntegrationTest(t *testing.T) {
 			t.Fatalf("token sent in a URL: %+v", r)
 		}
 	}
+	// A Plex URL tested as Tautulli (Phase 3 tests Tautulli for real): Plex answers /api/v2 with 401.
 	e.call(t, 200, "POST", "/integrations/test", map[string]any{"type": "tautulli", "url": pms.URL}, &res)
-	if res.OK || !strings.Contains(res.Message, "not available") {
+	if res.OK || !strings.Contains(res.Message, "Tautulli") {
 		t.Fatalf("test of a tautulli integration: %+v", res)
 	}
 	for _, b := range []map[string]any{

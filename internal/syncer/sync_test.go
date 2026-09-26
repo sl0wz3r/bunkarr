@@ -52,7 +52,8 @@ func TestInitialSyncThenOnlyChanges(t *testing.T) {
 	h.renameSrc("rename-me.mkv", "renamed/it.mkv")
 	res, st, j = h.mustSync(false, jobs.Params{})
 	want := SyncStats{FilesPlanned: 4, FilesCopied: 1, FilesUpdated: 1, FilesMoved: 1, FilesRetained: 1, BytesPlanned: 222 + 3100, BytesCopied: 222 + 3100}
-	st.DurationMs, st.Sources = 0, nil
+	// Tiers: the tier counts, present when the harness has a tier engine (envTiersAllFull).
+	st.DurationMs, st.Sources, st.Tiers = 0, nil, nil
 	if !reflect.DeepEqual(st, want) {
 		t.Fatalf("second sync stats\n got %+v\nwant %+v\nitems %+v", st, want, h.items(j.ID))
 	}

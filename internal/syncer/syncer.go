@@ -21,6 +21,9 @@
 //     only its paths, and retains a vanished name only when the name's folder gets new content in
 //     the same plan (an upgrade or a rename); every other vanished name stays live and recorded
 //     until the next untargeted sync, whose mass-change guard sees the whole change (targeted.go).
+//   - S14/S15 (phase2-3.md §8.5): with Options.Tiers only full files are copied; a file whose tier
+//     stops being full keeps what the destination holds until an explicit release, and a copy that
+//     is full only because a fact is unknown is a change for the mass-change guard (tiers.go).
 //
 // Records whose source is no longer linked to the destination (or was deleted) are orphans: a
 // sync never retains, moves or modifies them.
@@ -124,6 +127,9 @@ type Options struct {
 	// ExpectedFiles returns the files the *arr index expects under the paths of a webhook sync
 	// of src (phase2-3.md §9.1 "expected files"); nil checks none.
 	ExpectedFiles func(ctx context.Context, src catalog.Source, paths []string) ([]ExpectedFile, error)
+	// Tiers decides each file's tier at the destination (phase2-3.md §8.5, tiers.go); nil makes
+	// every file full and the plan Phase 1's.
+	Tiers Tiers
 }
 
 // base is what every runner shares.
@@ -138,11 +144,12 @@ type base struct {
 	enq           jobs.Enqueuer
 	manifestAfter func(ctx context.Context, destinationID int64) (bool, error)
 	expected      func(ctx context.Context, src catalog.Source, paths []string) ([]ExpectedFile, error)
+	tiers         Tiers
 }
 
 func newBase(o Options) base {
 	b := base{store: o.Store, cat: o.Catalog, scan: o.Scanner, dests: o.Destinations, log: o.Logger, now: o.Now,
-		enq: o.Enqueuer, manifestAfter: o.ManifestAfterSync, expected: o.ExpectedFiles}
+		enq: o.Enqueuer, manifestAfter: o.ManifestAfterSync, expected: o.ExpectedFiles, tiers: o.Tiers}
 	if b.store == nil {
 		b.store = NewStore(o.DB)
 	}

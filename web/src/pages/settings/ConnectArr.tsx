@@ -40,6 +40,7 @@ import { ErrorNotice, Notice } from '@/components/Notice';
 import { Pagination } from '@/components/Pagination';
 import { PathPicker } from '@/components/PathPicker';
 import { Badge } from '@/components/StatusBadge';
+import { DeletedIntegrations } from '@/components/tiers/DeletedIntegrations';
 import { copyText } from '@/lib/clipboard';
 import { describeCron, validateCron, type CronPreset } from '@/lib/cron';
 import { formatBytes, formatNumber, formatRelative } from '@/lib/format';
@@ -106,6 +107,9 @@ export function ArrConnections() {
           <ArrCard key={i.id} integration={i} onEdit={() => setEditing(i)} onDelete={() => setDeleting(i)} />
         ))}
       </div>
+      <div className="mt-3">
+        <DeletedIntegrations />
+      </div>
       {editing && (
         <ArrForm
           integration={typeof editing === 'string' ? null : editing}
@@ -129,7 +133,10 @@ export function ArrConnections() {
             Delete <strong>{deleting.name}</strong>? Its stored API key, webhook key, index and schedules are removed; webhooks it sends are refused from
             then on.
           </p>
-          <p className="text-ink-muted">Files already backed up stay on your destinations.</p>
+          <p className="text-ink-muted">
+            Files already backed up stay on your destinations. Files in its folders that no other *arr manages stay fully backed up until you confirm the
+            removal (offered here after the delete, and in Settings → Tiers).
+          </p>
         </ConfirmDialog>
       )}
     </section>

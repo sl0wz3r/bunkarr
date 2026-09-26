@@ -149,6 +149,23 @@ describe('Settings → Plex → Sign in with Plex', () => {
     expect(body).not.toHaveProperty('plexSignIn');
     expect(callsTo(r.calls, 'POST /api/v1/plex/signin')).toHaveLength(0);
   });
+
+  it('keeps the library index (set in Settings → Connect) when the server is edited here', async () => {
+    const index = { enabled: true, cron: '0 1 * * *', staleAfterHours: 72 };
+    const indexed = plexIntegration({ settings: { ...plexIntegration().settings, index } });
+    const r = renderApp('/settings/plex', {
+      ...routes(),
+      'GET /api/v1/integrations': () => ({ body: [indexed] }),
+      'PUT /api/v1/integrations/3': () => ({ body: indexed }),
+    });
+    await r.user.click(within(await screen.findByRole('article', { name: 'Plex' })).getByRole('button', { name: 'Edit Plex' }));
+    const form = within(await screen.findByRole('dialog', { name: 'Edit Plex server · Plex' }));
+    await r.user.click(form.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(callsTo(r.calls, 'PUT /api/v1/integrations/3')).toHaveLength(1));
+    const body = callsTo(r.calls, 'PUT /api/v1/integrations/3')[0].body as IntegrationInput;
+    expect(body.settings.index).toEqual(index);
+    expect(body.settings.dataPath).toBe('/plex');
+  });
 });
 
 describe('Settings → Plex → Sign in with Plex: the selection follows the picker', () => {

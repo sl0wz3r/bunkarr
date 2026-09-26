@@ -1,0 +1,715 @@
+{
+  "MediaContainer": {
+    "size": 6,
+    "totalSize": 6,
+    "offset": 0,
+    "allowSync": true,
+    "art": "/:/resources/movie-fanart.jpg",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "18d8d303-08b9-4c15-8b06-971622f6bc16",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914513,
+    "thumb": "/:/resources/movie.png",
+    "title1": "Movies",
+    "title2": "All Movies",
+    "viewGroup": "movie",
+    "viewMode": 65592,
+    "Metadata": [
+      {
+        "ratingKey": "9",
+        "key": "/library/metadata/9",
+        "guid": "plex://movie/5d7768297228e5001f1dd175",
+        "slug": "the-general",
+        "studio": "Joseph M. Schenck Productions",
+        "type": "movie",
+        "title": "The General",
+        "titleSort": "General",
+        "contentRating": "Not Rated",
+        "contentRatingAge": 8,
+        "summary": "After being rejected by the Confederate military, not realizing it was due to his crucial civilian role, an engineer must single-handedly recapture his beloved locomotive after it is seized by Union spies and return it through enemy lines.",
+        "rating": 9.2,
+        "audienceRating": 9.2,
+        "viewCount": 1,
+        "lastViewedAt": 1790411139,
+        "year": 1926,
+        "tagline": "Buster drives \"The General\" to trainload of laughter.",
+        "thumb": "/library/metadata/9/thumb/1790411103",
+        "art": "/library/metadata/9/art/1790411103",
+        "duration": 4486358,
+        "originallyAvailableAt": "1926-12-25",
+        "addedAt": 1790411047,
+        "updatedAt": 1790411103,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "hasPremiumPrimaryExtra": "1",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 13,
+            "Part": [
+              {
+                "id": 13,
+                "key": "/library/parts/13/1790411047/file.mkv",
+                "file": "/data/movies/The General (1926)/The General (1926).mkv",
+                "size": 4096
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "The General",
+            "type": "coverPoster",
+            "url": "/library/metadata/9/thumb/1790411103"
+          },
+          {
+            "alt": "The General",
+            "type": "background",
+            "url": "/library/metadata/9/art/1790411103"
+          },
+          {
+            "alt": "The General",
+            "type": "clearLogo",
+            "url": "/library/metadata/9/clearLogo/1790411103"
+          },
+          {
+            "alt": "The General",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/9/squareArt/1790411103"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "120303",
+          "topRight": "1c0d03",
+          "bottomRight": "a13223",
+          "bottomLeft": "993a2c"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0017925"
+          },
+          {
+            "id": "tmdb://961"
+          },
+          {
+            "id": "tvdb://5343"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Comedy"
+          },
+          {
+            "tag": "Drama"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Clyde Bruckman"
+          },
+          {
+            "tag": "Buster Keaton"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Paul Gerard Smith"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Buster Keaton"
+          },
+          {
+            "tag": "Marion Mack"
+          },
+          {
+            "tag": "Glen Cavender"
+          }
+        ]
+      },
+      {
+        "ratingKey": "1",
+        "key": "/library/metadata/1",
+        "guid": "plex://movie/5d77682cf54112001f5bc78d",
+        "slug": "his-girl-friday",
+        "studio": "Columbia Pictures",
+        "type": "movie",
+        "title": "His Girl Friday",
+        "contentRating": "Passed",
+        "contentRatingAge": 12,
+        "summary": "Walter Burns is an irresistibly conniving newspaper publisher desperate to woo back his paper’s star reporter, who also happens to be his estranged wife. She’s threatening to quit and settle down with a new beau, but, as Walter knows, she has a weakness: she can’t resist a juicy scoop.",
+        "rating": 9.9,
+        "audienceRating": 9.0,
+        "year": 1940,
+        "tagline": "They're at each other's throats when they're not in each other's arms!",
+        "thumb": "/library/metadata/1/thumb/1790411103",
+        "art": "/library/metadata/1/art/1790411103",
+        "duration": 5524353,
+        "originallyAvailableAt": "1940-01-18",
+        "addedAt": 1790411047,
+        "updatedAt": 1790411103,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "hasPremiumExtras": "1",
+        "hasPremiumPrimaryExtra": "1",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 1,
+            "Part": [
+              {
+                "id": 1,
+                "key": "/library/parts/1/1790411047/file.mkv",
+                "file": "/data/movies/His Girl Friday (1940)/His Girl Friday (1940).mkv",
+                "size": 4096
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "His Girl Friday",
+            "type": "coverPoster",
+            "url": "/library/metadata/1/thumb/1790411103"
+          },
+          {
+            "alt": "His Girl Friday",
+            "type": "background",
+            "url": "/library/metadata/1/art/1790411103"
+          },
+          {
+            "alt": "His Girl Friday",
+            "type": "clearLogo",
+            "url": "/library/metadata/1/clearLogo/1790411103"
+          },
+          {
+            "alt": "His Girl Friday",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/1/squareArt/1790411103"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "442511",
+          "topRight": "96401e",
+          "bottomRight": "8e4726",
+          "bottomLeft": "313540"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0032599"
+          },
+          {
+            "id": "tmdb://3085"
+          },
+          {
+            "id": "tvdb://8213"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Comedy"
+          },
+          {
+            "tag": "Drama"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Howard Hawks"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Charles MacArthur"
+          },
+          {
+            "tag": "Charles Lederer"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Cary Grant"
+          },
+          {
+            "tag": "Rosalind Russell"
+          },
+          {
+            "tag": "Ralph Bellamy"
+          }
+        ]
+      },
+      {
+        "ratingKey": "2",
+        "key": "/library/metadata/2",
+        "guid": "plex://movie/5d776824e6d55c002040ae63",
+        "slug": "metropolis",
+        "studio": "UFA",
+        "type": "movie",
+        "title": "Metropolis",
+        "contentRating": "Not Rated",
+        "contentRatingAge": 12,
+        "summary": "In a futuristic city sharply divided between the working class and the city planners, the son of the city's mastermind falls in love with a working-class prophet who predicts the coming of a savior to mediate their differences.",
+        "rating": 9.7,
+        "audienceRating": 9.1,
+        "viewOffset": 2664000,
+        "lastViewedAt": 1790411150,
+        "year": 1927,
+        "tagline": "There can be no understanding between the hands and the brain unless the heart acts as mediator.",
+        "thumb": "/library/metadata/2/thumb/1790411103",
+        "art": "/library/metadata/2/art/1790411103",
+        "duration": 8880000,
+        "originallyAvailableAt": "1927-02-06",
+        "addedAt": 1790411047,
+        "updatedAt": 1790411103,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "hasPremiumPrimaryExtra": "1",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 2,
+            "Part": [
+              {
+                "id": 2,
+                "key": "/library/parts/2/1790411047/file.mkv",
+                "file": "/data/movies/Metropolis (1927)/Metropolis (1927).mkv",
+                "size": 4096
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Metropolis",
+            "type": "coverPoster",
+            "url": "/library/metadata/2/thumb/1790411103"
+          },
+          {
+            "alt": "Metropolis",
+            "type": "background",
+            "url": "/library/metadata/2/art/1790411103"
+          },
+          {
+            "alt": "Metropolis",
+            "type": "clearLogo",
+            "url": "/library/metadata/2/clearLogo/1790411103"
+          },
+          {
+            "alt": "Metropolis",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/2/squareArt/1790411103"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "152d52",
+          "topRight": "0b112a",
+          "bottomRight": "23536d",
+          "bottomLeft": "a62b10"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0017136"
+          },
+          {
+            "id": "tmdb://19"
+          },
+          {
+            "id": "tvdb://2006"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Drama"
+          },
+          {
+            "tag": "Science Fiction"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Germany"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Fritz Lang"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Fritz Lang"
+          },
+          {
+            "tag": "Thea von Harbou"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Gustav Fröhlich"
+          },
+          {
+            "tag": "Brigitte Helm"
+          },
+          {
+            "tag": "Alfred Abel"
+          }
+        ]
+      },
+      {
+        "ratingKey": "3",
+        "key": "/library/metadata/3",
+        "guid": "plex://movie/5d77683585719b001f3a3946",
+        "slug": "night-of-the-living-dead",
+        "studio": "Image Ten",
+        "type": "movie",
+        "title": "Night of the Living Dead",
+        "contentRating": "Not Rated",
+        "contentRatingAge": 17,
+        "summary": "A ragtag group of Pennsylvanians barricade themselves in an old farmhouse to remain safe from a horde of flesh-eating ghouls that are ravaging the Northeast of the United States.",
+        "rating": 9.5,
+        "audienceRating": 8.7,
+        "year": 1968,
+        "tagline": "If it doesn't scare you, you're already dead!",
+        "thumb": "/library/metadata/3/thumb/1790411103",
+        "art": "/library/metadata/3/art/1790411103",
+        "duration": 5740694,
+        "originallyAvailableAt": "1968-10-04",
+        "addedAt": 1790411047,
+        "updatedAt": 1790411103,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "hasPremiumPrimaryExtra": "1",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 3,
+            "Part": [
+              {
+                "id": 3,
+                "key": "/library/parts/3/1790411047/file.mkv",
+                "file": "/data/movies/Night of the Living Dead (1968)/Night of the Living Dead (1968).mkv",
+                "size": 4096
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Night of the Living Dead",
+            "type": "coverPoster",
+            "url": "/library/metadata/3/thumb/1790411103"
+          },
+          {
+            "alt": "Night of the Living Dead",
+            "type": "background",
+            "url": "/library/metadata/3/art/1790411103"
+          },
+          {
+            "alt": "Night of the Living Dead",
+            "type": "clearLogo",
+            "url": "/library/metadata/3/clearLogo/1790411103"
+          },
+          {
+            "alt": "Night of the Living Dead",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/3/squareArt/1790411103"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "551210",
+          "topRight": "38090d",
+          "bottomRight": "982a2a",
+          "bottomLeft": "5c1214"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0063350"
+          },
+          {
+            "id": "tmdb://10331"
+          },
+          {
+            "id": "tvdb://1831"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Horror"
+          },
+          {
+            "tag": "Thriller"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "George A. Romero"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "George A. Romero"
+          },
+          {
+            "tag": "John A. Russo"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Judith O'Dea"
+          },
+          {
+            "tag": "Duane Jones"
+          },
+          {
+            "tag": "Marilyn Eastman"
+          }
+        ]
+      },
+      {
+        "ratingKey": "4",
+        "key": "/library/metadata/4",
+        "guid": "plex://movie/5d7768278718ba001e311d5d",
+        "slug": "nosferatu",
+        "studio": "Prana-Film",
+        "type": "movie",
+        "title": "Nosferatu",
+        "originalTitle": "Nosferatu, eine Symphonie des Grauens",
+        "contentRating": "Not Rated",
+        "contentRatingAge": 13,
+        "summary": "Vampire Count Orlok expresses interest in a new residence and real estate agent Hutter's wife.",
+        "rating": 9.7,
+        "audienceRating": 8.7,
+        "viewCount": 3,
+        "lastViewedAt": 1790411205,
+        "year": 1922,
+        "tagline": "A symphony of horror.",
+        "thumb": "/library/metadata/4/thumb/1790411103",
+        "art": "/library/metadata/4/art/1790411103",
+        "duration": 5139834,
+        "originallyAvailableAt": "1922-05-18",
+        "addedAt": 1790411047,
+        "updatedAt": 1790411103,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "hasPremiumPrimaryExtra": "1",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 4,
+            "Part": [
+              {
+                "id": 4,
+                "key": "/library/parts/4/1790411047/file.mkv",
+                "file": "/data/movies/Nosferatu (1922)/Nosferatu (1922).mkv",
+                "size": 4096
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Nosferatu",
+            "type": "coverPoster",
+            "url": "/library/metadata/4/thumb/1790411103"
+          },
+          {
+            "alt": "Nosferatu",
+            "type": "background",
+            "url": "/library/metadata/4/art/1790411103"
+          },
+          {
+            "alt": "Nosferatu",
+            "type": "clearLogo",
+            "url": "/library/metadata/4/clearLogo/1790411103"
+          },
+          {
+            "alt": "Nosferatu",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/4/squareArt/1790411103"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "52170c",
+          "topRight": "2f1003",
+          "bottomRight": "772615",
+          "bottomLeft": "3c0f03"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0013442"
+          },
+          {
+            "id": "tmdb://653"
+          },
+          {
+            "id": "tvdb://5097"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Fantasy"
+          },
+          {
+            "tag": "Horror"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "Germany"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "F. W. Murnau"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Henrik Galeen"
+          },
+          {
+            "tag": "Bram Stoker"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Max Schreck"
+          },
+          {
+            "tag": "Gustav von Wangenheim"
+          },
+          {
+            "tag": "Greta Schröder"
+          }
+        ]
+      },
+      {
+        "ratingKey": "5",
+        "key": "/library/metadata/5",
+        "guid": "plex://movie/5d776828961905001eb919e3",
+        "slug": "sherlock-jr",
+        "studio": "Metro Pictures Corporation",
+        "type": "movie",
+        "title": "Sherlock Jr.",
+        "contentRating": "Not Rated",
+        "contentRatingAge": 8,
+        "summary": "A film projectionist longs to be a detective, and puts his meagre skills to work when he is framed by a rival for stealing his girlfriend's father's pocketwatch.",
+        "rating": 8.7,
+        "audienceRating": 9.5,
+        "year": 1924,
+        "tagline": "Every inch of footage holds such a laugh!",
+        "thumb": "/library/metadata/5/thumb/1790411103",
+        "art": "/library/metadata/5/art/1790411103",
+        "duration": 2655737,
+        "originallyAvailableAt": "1924-04-17",
+        "addedAt": 1790411047,
+        "updatedAt": 1790411103,
+        "audienceRatingImage": "rottentomatoes://image.rating.upright",
+        "hasPremiumPrimaryExtra": "1",
+        "ratingImage": "rottentomatoes://image.rating.ripe",
+        "Media": [
+          {
+            "id": 5,
+            "Part": [
+              {
+                "id": 5,
+                "key": "/library/parts/5/1790411047/file.mkv",
+                "file": "/data/movies/Sherlock Jr. (1924)/Sherlock Jr. (1924).mkv",
+                "size": 4096
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "Sherlock Jr.",
+            "type": "coverPoster",
+            "url": "/library/metadata/5/thumb/1790411103"
+          },
+          {
+            "alt": "Sherlock Jr.",
+            "type": "background",
+            "url": "/library/metadata/5/art/1790411103"
+          },
+          {
+            "alt": "Sherlock Jr.",
+            "type": "clearLogo",
+            "url": "/library/metadata/5/clearLogo/1790411103"
+          },
+          {
+            "alt": "Sherlock Jr.",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/5/squareArt/1790411103"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "551305",
+          "topRight": "94411e",
+          "bottomRight": "94421c",
+          "bottomLeft": "a03417"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0015324"
+          },
+          {
+            "id": "tmdb://992"
+          },
+          {
+            "id": "tvdb://5027"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Comedy"
+          },
+          {
+            "tag": "Mystery"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Buster Keaton"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Clyde Bruckman"
+          },
+          {
+            "tag": "Joseph A. Mitchell"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Buster Keaton"
+          },
+          {
+            "tag": "Kathryn McGuire"
+          },
+          {
+            "tag": "Joe Keaton"
+          }
+        ]
+      }
+    ]
+  }
+}

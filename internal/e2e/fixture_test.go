@@ -416,7 +416,9 @@ func onServer(t *testing.T, p string) string {
 // target's retention directory.
 func retained(t *testing.T, target, destFolder, rel string) []string {
 	t.Helper()
-	m, err := filepath.Glob(filepath.Join(target, ".bunkarr", "retention", "*", destFolder, filepath.FromSlash(rel)))
+	// The names are literal: an *arr's "[Bluray-1080p]" is not a character class.
+	literal := strings.NewReplacer(`\`, `\\`, `*`, `\*`, `?`, `\?`, `[`, `\[`).Replace
+	m, err := filepath.Glob(filepath.Join(target, ".bunkarr", "retention", "*", literal(destFolder), literal(filepath.FromSlash(rel))))
 	if err != nil {
 		t.Fatal(err)
 	}

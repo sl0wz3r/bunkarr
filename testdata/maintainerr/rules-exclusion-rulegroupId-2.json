@@ -1,0 +1,58 @@
+[
+  {
+    "id": 1,
+    "mediaServerId": "9",
+    "ruleGroupId": null,
+    "parent": "9",
+    "type": "movie"
+  },
+  {
+    "id": 2,
+    "mediaServerId": "17",
+    "ruleGroupId": 6,
+    "parent": "17",
+    "type": "show"
+  },
+  {
+    "id": 3,
+    "mediaServerId": "29",
+    "ruleGroupId": 7,
+    "parent": "28",
+    "type": "season"
+  },
+  {
+    "id": 4,
+    "mediaServerId": "33",
+    "ruleGroupId": 7,
+    "parent": "28",
+    "type": "season"
+  },
+  {
+    "id": 5,
+    "mediaServerId": "25",
+    "ruleGroupId": 7,
+    "parent": "25",
+    "type": "season"
+  },
+  {
+    "id": 6,
+    "mediaServerId": "30",
+    "ruleGroupId": 8,
+    "parent": "29",
+    "type": "episode"
+  },
+  {
+    "id": 7,
+    "mediaServerId": "31",
+    "ruleGroupId": 8,
+    "parent": "29",
+    "type": "episode"
+  },
+  {
+    "id": 8,
+    "mediaServerId": "32",
+    "ruleGroupId": 8,
+    "parent": "29",
+    "type": "episode"
+  }
+]

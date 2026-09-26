@@ -4,6 +4,9 @@ import type { IntegrationInput, Notification, NotificationInput } from '@/api/ty
 import { callsTo } from '@/test/fetch';
 import { destination, job, plexIntegration } from '@/test/fixtures';
 import { renderApp } from '@/test/render';
+import { slowPage } from '@/test/slow';
+
+slowPage();
 
 const phone: Notification = {
   id: 4,

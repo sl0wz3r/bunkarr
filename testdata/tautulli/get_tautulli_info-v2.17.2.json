@@ -1,0 +1,7 @@
+{
+  "response": {
+    "result": "error",
+    "message": "Parameter apikey is required",
+    "data": {}
+  }
+}

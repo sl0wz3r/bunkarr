@@ -1,0 +1,5 @@
+{
+  "message": "Cannot GET /api/collections/overlay-data",
+  "error": "Not Found",
+  "statusCode": 404
+}

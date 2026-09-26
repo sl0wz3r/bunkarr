@@ -21,6 +21,37 @@ type PlexSettings struct {
 	PathMappings []PathMapping `json:"pathMappings"`
 	// Backup configures the scheduled Plex DB backup.
 	Backup PlexBackup `json:"backup"`
+	// Index configures the Plex library index (design §6.3). Absent (nil) is the default:
+	// disabled; IndexSettings returns it with the defaults applied.
+	Index *PlexIndex `json:"index,omitempty"`
+}
+
+// Defaults of the Plex library index (design §4.2, §12.3).
+const (
+	// DefaultPlexIndexCron is the index refresh schedule of an enabled index without one.
+	DefaultPlexIndexCron = "0 1 * * *"
+	// DefaultPlexIndexStaleAfterHours is how long the index stays fresh after a complete refresh.
+	DefaultPlexIndexStaleAfterHours = 72
+)
+
+// PlexIndex configures the Plex library index: sections, items and files, read by refresh jobs
+// for the Tautulli and Maintainerr joins and the Plex-based tier facts.
+type PlexIndex struct {
+	Enabled bool `json:"enabled"`
+	// Cron is a 5-field cron expression; an enabled index without one gets DefaultPlexIndexCron.
+	Cron string `json:"cron"`
+	// StaleAfterHours (1-720, default 72): the index's facts are unknown this long after its last
+	// complete refresh (design D15).
+	StaleAfterHours int `json:"staleAfterHours"`
+}
+
+// IndexSettings returns the library index settings with the defaults applied (disabled when
+// absent).
+func (s PlexSettings) IndexSettings() PlexIndex {
+	if s.Index == nil {
+		return PlexIndex{StaleAfterHours: DefaultPlexIndexStaleAfterHours}
+	}
+	return *s.Index
 }
 
 // PathMapping maps a path prefix as Plex sees it to the same directory as Bunkarr sees it.
@@ -58,6 +89,15 @@ func ParsePlexSettings(raw json.RawMessage) (PlexSettings, error) {
 		s.PathMappings = []PathMapping{}
 	}
 	s.Backup.Cron = strings.TrimSpace(s.Backup.Cron)
+	if s.Index != nil {
+		s.Index.Cron = strings.TrimSpace(s.Index.Cron)
+		if s.Index.Enabled && s.Index.Cron == "" {
+			s.Index.Cron = DefaultPlexIndexCron
+		}
+		if s.Index.StaleAfterHours == 0 {
+			s.Index.StaleAfterHours = DefaultPlexIndexStaleAfterHours
+		}
+	}
 	return s, nil
 }
 
@@ -130,6 +170,16 @@ func (s PlexSettings) Validate() error {
 			return ValidationError(fmt.Sprintf("path mapping %d: the Plex path %s is mapped twice", i+1, m.Plex))
 		}
 		seen[m.Plex] = true
+	}
+	if ix := s.Index; ix != nil {
+		if ix.StaleAfterHours < MinStaleAfterHours || ix.StaleAfterHours > MaxStaleAfterHours {
+			return ValidationError(fmt.Sprintf("index.staleAfterHours must be %d to %d", MinStaleAfterHours, MaxStaleAfterHours))
+		}
+		if ix.Enabled {
+			if err := validateCron(ix.Cron); err != nil {
+				return ValidationError("index.cron is not a valid schedule: " + err.Error())
+			}
+		}
 	}
 	if s.Backup.DestinationID < 0 {
 		return ValidationError("backup.destinationId must be a destination id")

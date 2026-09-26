@@ -1,0 +1,7 @@
+{
+  "response": {
+    "result": "error",
+    "message": "API not enabled",
+    "data": {}
+  }
+}

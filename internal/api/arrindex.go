@@ -59,8 +59,11 @@ func (s *Server) refreshIntegration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
-	case !mediaindex.Supports(it.Type):
-		s.fail(w, r, "start a refresh", errorf(http.StatusBadRequest, "refreshing %s integrations is not available yet", it.Type.AppName()))
+	case it.Type == integrations.TypePlex && !mediaindex.Refreshes(it):
+		s.fail(w, r, "start a refresh", errorf(http.StatusBadRequest, "the library index of %[1]q is turned off: turn it on in Settings → Connect (Library index · %[1]s)", it.Name))
+		return
+	case !mediaindex.Refreshes(it):
+		s.fail(w, r, "start a refresh", errorf(http.StatusBadRequest, "refreshing %s integrations is not available", it.Type.AppName()))
 		return
 	case !it.Enabled:
 		s.fail(w, r, "start a refresh", errorf(http.StatusConflict, "%s %q is disabled", it.Type.AppName(), it.Name))
@@ -371,5 +374,6 @@ func (a *App) newRefreshRunner(o AppOptions) (*mediaindex.Runner, error) {
 		Enqueuer:     a.Jobs,
 		Destinations: a.followUpDestinations,
 		Log:          a.log.With("component", "mediaindex"),
+		Plex:         a.plexOpts,
 	})
 }

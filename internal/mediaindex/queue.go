@@ -41,21 +41,52 @@ func QueueStartup(ctx context.Context, list []integrations.Integration, enq jobs
 
 // NeedsRefresh reports whether a saved integration needs a full refresh (design §4.1): it was
 // created (before is nil), or an update changed its URL, its key (keyChanged) or its path
-// mappings. Only enabled integrations whose refresh Supports need one.
+// mappings; for Tautulli, Seerr and Maintainerr also the Plex server it is linked to, and for Plex
+// a library index just turned on. Only enabled integrations that Refreshes need one.
 func NeedsRefresh(before *integrations.Integration, after integrations.Integration, keyChanged bool) bool {
-	if !after.Enabled || !Supports(after.Type) {
+	if !after.Enabled || !Refreshes(after) {
 		return false
 	}
 	if before == nil || !before.Enabled || before.URL != after.URL || keyChanged {
 		return true
 	}
-	if after.Type.IsArr() {
+	switch after.Type {
+	case integrations.TypeSonarr, integrations.TypeRadarr, integrations.TypeLidarr:
 		a, errA := before.ArrSettings()
 		b, errB := after.ArrSettings()
 		if errA != nil || errB != nil {
 			return true
 		}
 		return !slices.Equal(a.PathMappings, b.PathMappings)
+	case integrations.TypePlex:
+		a, errA := before.PlexSettings()
+		b, errB := after.PlexSettings()
+		if errA != nil || errB != nil {
+			return true
+		}
+		return !a.IndexSettings().Enabled || !slices.Equal(a.PathMappings, b.PathMappings)
+	case integrations.TypeTautulli, integrations.TypeSeerr, integrations.TypeMaintainerr:
+		return linkedPlexOf(*before) != linkedPlexOf(after)
 	}
 	return false
+}
+
+// linkedPlexOf returns the plexIntegrationId of a Tautulli, Seerr or Maintainerr integration (0
+// when none or unreadable).
+func linkedPlexOf(it integrations.Integration) int64 {
+	switch it.Type {
+	case integrations.TypeTautulli:
+		if s, err := it.TautulliSettings(); err == nil {
+			return s.PlexIntegrationID
+		}
+	case integrations.TypeSeerr:
+		if s, err := it.SeerrSettings(); err == nil {
+			return s.PlexIntegrationID
+		}
+	case integrations.TypeMaintainerr:
+		if s, err := it.MaintainerrSettings(); err == nil {
+			return s.PlexIntegrationID
+		}
+	}
+	return 0
 }

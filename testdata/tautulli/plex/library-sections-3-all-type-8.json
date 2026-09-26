@@ -1,0 +1,110 @@
+{
+  "MediaContainer": {
+    "size": 2,
+    "totalSize": 2,
+    "offset": 0,
+    "allowSync": true,
+    "art": "/:/resources/artist-fanart.jpg",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 3,
+    "librarySectionTitle": "Music",
+    "librarySectionUUID": "b0ef9bd1-50cb-41ec-b040-30197350d272",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914513,
+    "nocache": true,
+    "thumb": "/:/resources/artist.png",
+    "title1": "Music",
+    "title2": "All Artists",
+    "viewGroup": "artist",
+    "viewMode": 65592,
+    "Metadata": [
+      {
+        "ratingKey": "38",
+        "key": "/library/metadata/38/children",
+        "guid": "plex://artist/5d07be5e403c640290686477",
+        "type": "artist",
+        "title": "Kevin MacLeod",
+        "summary": "There are two artists with the name Kevin Macleod.\n\nKevin MacLeod is an American composer and music producer who is best known for his distribution of royalty-free library music through his website, Incompetech.com. MacLeod has made over 2,000 self-composed pieces of music available for download under the Creative Commons: By Attribution 3.0 license, which allows anyone to use his music for free as long as he receives attribution, leading to his music being used in millions of YouTube videos and thousands of films. As of 26 March 2015, MacLeod has over 1,800 composer credits listed on the Internet Movie Database (IMDb. His music has been used in Hugo, several commercial video games (including The Stanley Parable, Kerbal Space Program, and Hatoful Boyfriend), and videos by online content creators such as the Fine Brothers, CollegeHumor, and many other popular YouTube channels.\n\nThere is also a Scottish traditional musician by the name of Kevin Macleod. He plays the Scottish mandolin, resonator tenor guitar, bouzouki & tenor banjo. Macleod acted as road manager for the Irish band De Danann for 5 years. In 1986, he and Freeland Barbour formed a ceilidh band known as \"The Occasionals\" that is still active today. Read more on Last.fm. User-contributed text is available under the Creative Commons By-SA License; additional terms may apply.",
+        "index": 1,
+        "viewCount": 2,
+        "lastViewedAt": 1790411283,
+        "thumb": "/library/metadata/38/thumb/1790411106",
+        "addedAt": 1790411105,
+        "updatedAt": 1790411106,
+        "Image": [
+          {
+            "alt": "Kevin MacLeod",
+            "type": "coverPoster",
+            "url": "/library/metadata/38/thumb/1790411106"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "0e333a",
+          "topRight": "100b33",
+          "bottomRight": "2e6960",
+          "bottomLeft": "14456b"
+        },
+        "Guid": [
+          {
+            "id": "mbid://8292bf44-2dd1-4bad-8019-276ec38f28e7"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "International"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ]
+      },
+      {
+        "ratingKey": "43",
+        "key": "/library/metadata/43/children",
+        "guid": "plex://artist/5d07bc08403c6402904ae49f",
+        "type": "artist",
+        "title": "Scott Joplin",
+        "summary": "Scott Joplin was \"the King of Ragtime Writers,\" a composer who elevated \"banjo piano playing,\" a lowly entertainment associated with saloons and brothels, into an American art form loved by millions. Born in Texas in either 1867 or 1868, Joplin was raised in Texarkana, the son of a laborer and former enslaved person. As a child, Joplin taught himself piano on an instrument belonging to a family that granted him access to it, and ultimately studied with a local, German-born teacher who introduced Joplin to classical music. Joplin attended high school in Sedalia, Missouri, a town that would serve as Joplin's home base during his most prosperous years, and where a museum would later bear his name.\r\nIn 1891, the first traceable evidence of Joplin's music career is found, placing him in a minstrel troupe in Texarkana. In 1893, he played in Chicago while the Columbian Exposition was held, reportedly leading a band with a cornet. Afterward, Joplin settled in Sedalia, worked with other brass bands, and founded a vocal group called the Texas Medley Quartette. During an 1895 appearance in Syracuse, New York, the quality of Joplin's original songs for the Texas Medley Quartette so impressed a group of local businessmen that they arranged for Joplin's first publications. Around 1896, Joplin enrolled in Sedalia's historically Black George R. Smith College to study formally, publishing a few more pieces in the years to follow.\r\nIn 1899, publisher John Stark of Sedalia issued Joplin's second ragtime composition, \"Maple Leaf Rag.\" It didn't catch on immediately, but within a few years the popularity of \"Maple Leaf Rag\" was so enormous that it made Joplin's name; Joplin earned a small percentage of income from it for the rest of his days, helping to stabilize him in his last years. By the end of 1899, Joplin presented his first ambitious work, the ballet The Ragtime Dance, at the Wood Opera House in Sedalia. It didn't appear in print until 1902, and then only in a truncated form. Joplin moved to St. Louis in 1901, as did Stark, who set his new publishing venture up as \"The House of Classic Rags.\" Joplin wrote many of his other well-known rags during this time, including \"The Entertainer,\" \"The Easy Winners,\" and \"Elite Syncopations.\"\r\nIn 1903, Joplin organized a touring company to perform his first opera, A Guest of Honor, which foundered after a couple of months, leaving Joplin destitute. He had recovered well enough to appear at the 1904 St. Louis World's Fair to present his rag \"The Cascades,\" which proved his second great success. Joplin also married for a second time to a woman who died only a few weeks into their marriage after a bout with pneumonia, plunging Joplin into another bout of despair. During a visit to Chicago in 1907, he renewed an acquaintance with the St. Louis pianist Louis Chauvin, who did not long outlast the visit. Joplin utilized a strain drawn from Chauvin's playing into the finest of his \"collaborative\" rags, \"Heliotrope Bouquet.\" This was published after Joplin moved to New York in 1907. Stark had also resettled there, and they resumed their partnership to some degree, but Joplin also published through Seminary Music, likewise home to aspiring songwriter Irving Berlin. Through Seminary, many of the best of his late works appeared, such as \"Pine Apple Rag,\" the transparently beautiful \"Mexican serenade\" \"Solace,\" and the harmonically adventurous \"Euphonic Sounds.\"\r\nFrom 1911 until his death in 1917, most of Joplin's efforts went into his second opera, Treemonishia, which he heard in concert but never managed to stage during his own lifetime. With his third wife, Lotte Joplin, Joplin formed his own music company and published his final piano rag, \"Magnetic Rag\" (1914), one of his best. By this time, debilitating, long-term effects of syphilis were beginning to break down Joplin's health, although he did manage to make seven hand-played piano rolls in 1916 and 1917; though heavily edited, these rolls are as close as one is likely to get to hearing Joplin's own playing. One of them is W.C. Handy's \"Ole Miss Rag,\" which suggests that Joplin might have had a hand in its composition or arrangement. Joplin was tireless and selfless in his advocacy of his fellow ragtime composers, collaborating with James Scott, Arthur Marshall, Louis Chauvin, and Scott Hayden and helping to arrange others by Artie Matthews and the New Jersey composer Joseph Lamb, whose work Joplin pitched to Stark.\r\n\"Maple Leaf Rag\" remained a constant in popular music throughout the Jazz Age, but the better part of Joplin's work remained unknown until the \"ragtime revival\" of the early 1970s, during which \"Scott Joplin\" became a household name and Treemonishia was finally staged by the Houston Grand Opera. Although primary sources on Joplin's music were still extant as late as the late '40s, not a single manuscript page in Joplin's hand existed by the end of the century, and only three photographs of him survived, along with precious few first-hand quotations. Joplin died in a mental facility convinced that he had failed in his mission to achieve success as an Black composer of serious music. Were he alive today, Joplin would be astounded to learn that, a century after his work was first printed, he was considered the most successful African American composer of serious music that ever lived -- and by far. Some of his works have been recorded hundreds of times and arranged for practically every conceivable instrumental combination, played by everything from symphony orchestras to ice cream trucks. ~ Uncle Dave Lewis",
+        "index": 1,
+        "viewCount": 2,
+        "lastViewedAt": 1790411260,
+        "thumb": "/library/metadata/43/thumb/1790411106",
+        "addedAt": 1790411105,
+        "updatedAt": 1790411106,
+        "Image": [
+          {
+            "alt": "Scott Joplin",
+            "type": "coverPoster",
+            "url": "/library/metadata/43/thumb/1790411106"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "1e3511",
+          "topRight": "58340b",
+          "bottomRight": "894c12",
+          "bottomLeft": "81511a"
+        },
+        "Guid": [
+          {
+            "id": "mbid://aec8a328-d2e8-4780-b2ea-318c7f8d6f75"
+          }
+        ],
+        "Genre": [
+          {
+            "tag": "Jazz"
+          },
+          {
+            "tag": "Classical"
+          }
+        ],
+        "Country": [
+          {
+            "tag": "United States of America"
+          }
+        ]
+      }
+    ]
+  }
+}

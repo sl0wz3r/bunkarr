@@ -1,0 +1,9 @@
+{
+  "message": "cookie 'connect.sid' required",
+  "errors": [
+    {
+      "path": "/api/v1/auth/me",
+      "message": "cookie 'connect.sid' required"
+    }
+  ]
+}

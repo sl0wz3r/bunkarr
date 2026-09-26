@@ -411,7 +411,7 @@
               "object",
               "null"
             ],
-            "description": "Runner-specific counters, e.g. sync: filesPlanned, filesCopied, filesUpdated, filesMoved, filesAdopted, filesLinked, filesRetained, filesDisplaced, filesHeld, filesFailed, filesSkipped, bytesPlanned, bytesCopied, durationMs; refresh: items, itemsAdded, itemsUpdated, itemsDeleted, files, filesMapped, filesUnmapped, filesMismatched, guardHeld, followUpJobs; arr_backup: method, reusedScheduled, unchanged, bytes, integrity, snapshotId, versionsPruned; manifest_export: items, files, bytes, unchanged, damagedFound, manifestId, versionsPruned."
+            "description": "Runner-specific counters, e.g. sync: filesPlanned, filesCopied, filesUpdated, filesMoved, filesAdopted, filesLinked, filesRetained, filesDisplaced, filesHeld, filesFailed, filesSkipped, bytesPlanned, bytesCopied, durationMs, and with tier rules: tiers {full, manifest, skip, unknownPromoted: {files, bytes}}, filesKept, bytesKept, filesReleased, bytesReleased, movedToNonFull, staleReferences, tierRevision; refresh: items, itemsAdded, itemsUpdated, itemsDeleted, files, filesMapped, filesUnmapped, filesMismatched, guardHeld, followUpJobs (Plex index, Tautulli, Seerr, Maintainerr: items, files, requests and a type-specific cache object); arr_backup: method, reusedScheduled, unchanged, bytes, integrity, snapshotId, versionsPruned; manifest_export: items, files, bytes, unchanged, damagedFound, manifestId, versionsPruned."
           },
           "warnings": {
             "type": "integer"
@@ -776,6 +776,9 @@
           },
           "backup": {
             "$ref": "#/components/schemas/PlexBackup"
+          },
+          "index": {
+            "$ref": "#/components/schemas/PlexIndexSettings"
           }
         }
       },
@@ -934,7 +937,7 @@
           },
           "settings": {
             "type": "object",
-            "description": "Unsaved settings to test with (*arr: pathMappings, backupFolder), validated like a create"
+            "description": "Unsaved settings to test with (*arr: pathMappings, backupFolder), validated like a create, except that Tautulli and Maintainerr may leave plexIntegrationId unset or 0 (no Plex server chosen yet; plexMatches is then null)"
           },
           "plexSignIn": {
             "allOf": [
@@ -1020,9 +1023,16 @@
           "fileDate": {
             "type": "string",
             "description": "The *arr's change-file-date setting; anything but none is a warning"
+          },
+          "plexMatches": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Tautulli and Maintainerr: whether the application works with the linked Plex server (null without a plexIntegrationId, or when it cannot be told)"
           }
         },
-        "description": "Plex: version, machineIdentifier and the butler window. Sonarr, Radarr, Lidarr: appName, backup, manualBackups, rootFolders, recycleBin, fileDate."
+        "description": "Plex: version, machineIdentifier and the butler window. Sonarr, Radarr, Lidarr: appName, backup, manualBackups, rootFolders, recycleBin, fileDate. Tautulli, Seerr, Maintainerr: version, appName and (Tautulli, Maintainerr) plexMatches."
       },
       "PlexLocation": {
         "type": "object",
@@ -1824,6 +1834,20 @@
           "allowChanges": {
             "type": "boolean",
             "description": "Run changes the mass-change guard holds (S10b)"
+          },
+          "releaseDemoted": {
+            "type": "boolean",
+            "description": "Release files whose tier is no longer full (removed from the destination). With dryRun: the release preview. Without: needs releaseOf and releaseRevision"
+          },
+          "releaseOf": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The finished release preview (dry run) this release applies; 409 unless it is one of this destination"
+          },
+          "releaseRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The rule revision that preview evaluated; 409 when the rules changed since"
           }
         }
       },
@@ -3115,6 +3139,1533 @@
             "description": "damaged: missing or not matching its checksums when read back; not downloadable"
           }
         }
+      },
+      "Tier": {
+        "type": "string",
+        "enum": [
+          "full",
+          "manifest",
+          "skip"
+        ],
+        "description": "What a destination does with a file: full copies it; manifest lists it in the manifests only; skip neither copies nor lists it (an *arr file is still listed in its item)."
+      },
+      "TierResult": {
+        "type": "string",
+        "enum": [
+          "true",
+          "false",
+          "unknown"
+        ]
+      },
+      "TierCondition": {
+        "type": "object",
+        "required": [
+          "field",
+          "op"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "enum": [
+              "arr.tag",
+              "arr.qualityProfile",
+              "arr.rootFolder",
+              "arr.monitored",
+              "arr.managed",
+              "media.genre",
+              "source",
+              "file.size",
+              "file.age",
+              "plex.section",
+              "seerr.requested",
+              "seerr.requestedBy",
+              "tautulli.playCount",
+              "tautulli.lastWatched",
+              "maintainerr.pendingDelete",
+              "flag.irreplaceable"
+            ]
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "is",
+              "isNot",
+              "has",
+              "hasNot",
+              "gt",
+              "gte",
+              "lt",
+              "lte",
+              "eq",
+              "olderThan",
+              "newerThan",
+              "never",
+              "in",
+              "notIn"
+            ],
+            "description": "The operators a field takes are listed by GET /tiers/fields"
+          },
+          "value": {
+            "description": "Of the field's valueType (bool, string, a non-negative integer, or a non-empty list of Seerr user ids); none for never"
+          }
+        }
+      },
+      "TierRule": {
+        "type": "object",
+        "required": [
+          "id",
+          "priority",
+          "name",
+          "enabled",
+          "match",
+          "conditions",
+          "action",
+          "destinationIds",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Evaluation order, 1..n"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "match": {
+            "type": "string",
+            "enum": [
+              "all",
+              "any"
+            ]
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierCondition"
+            }
+          },
+          "action": {
+            "$ref": "#/components/schemas/Tier"
+          },
+          "destinationIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "Applies at: null is every destination, a list only those, an empty list none"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TierRuleInput": {
+        "type": "object",
+        "required": [
+          "name",
+          "conditions",
+          "action"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "A saved rule's id; missing or 0 is a new rule"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          },
+          "match": {
+            "type": "string",
+            "enum": [
+              "all",
+              "any"
+            ],
+            "default": "all"
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierCondition"
+            }
+          },
+          "action": {
+            "$ref": "#/components/schemas/Tier"
+          },
+          "destinationIds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "Applies at: null or missing is every destination, [] none"
+          }
+        }
+      },
+      "TierRuleSet": {
+        "type": "object",
+        "required": [
+          "revision",
+          "rules"
+        ],
+        "description": "The rules in priority order. With no rules every file is full.",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "description": "Changes with every save; a save must send the revision it loaded"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierRule"
+            }
+          }
+        }
+      },
+      "TierRulesUpdate": {
+        "type": "object",
+        "required": [
+          "revision"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "description": "The revision the rules were loaded at (a stale one gets 409)"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierRuleInput"
+            },
+            "description": "The whole set; the array order is the priority"
+          }
+        }
+      },
+      "TierWarning": {
+        "type": "object",
+        "required": [
+          "ruleIndex",
+          "conditionIndex",
+          "message"
+        ],
+        "description": "A rule value no fresh index knows (a renamed tag or profile): the condition is false or unknown everywhere.",
+        "properties": {
+          "ruleIndex": {
+            "type": "integer",
+            "description": "0-based position in the rules"
+          },
+          "conditionIndex": {
+            "type": "integer",
+            "description": "0-based position in the rule's conditions"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "TierRulesSaved": {
+        "type": "object",
+        "required": [
+          "revision",
+          "rules",
+          "warnings"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierRule"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierWarning"
+            }
+          }
+        }
+      },
+      "TierPreset": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "rules"
+        ],
+        "description": "A rule set the editor can load; nothing is applied until it is saved.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierRuleInput"
+            }
+          }
+        }
+      },
+      "TierSuggestion": {
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "properties": {
+          "value": {
+            "description": "A condition value (string or integer)"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "TierField": {
+        "type": "object",
+        "required": [
+          "field",
+          "label",
+          "ops",
+          "valueType",
+          "source",
+          "available",
+          "suggestions"
+        ],
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "ops": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "valueType": {
+            "type": "string",
+            "enum": [
+              "bool",
+              "string",
+              "int",
+              "ints"
+            ]
+          },
+          "noValueOps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Operators that take no value"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "bytes",
+              "days",
+              "plays"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "catalog",
+              "arr",
+              "plex",
+              "tautulli",
+              "seerr",
+              "maintainerr",
+              "flag"
+            ]
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the field is not available"
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierSuggestion"
+            },
+            "description": "Tags, profiles, root folders, Plex libraries, sources, genres and Seerr users (labels read live)"
+          }
+        }
+      },
+      "TierPreviewRequest": {
+        "type": "object",
+        "properties": {
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierRuleInput"
+            },
+            "description": "A draft to preview; missing previews the saved rules"
+          },
+          "destinationIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Only these destinations (missing: every enabled one)"
+          }
+        }
+      },
+      "TierCount": {
+        "type": "object",
+        "required": [
+          "files",
+          "bytes"
+        ],
+        "properties": {
+          "files": {
+            "type": "integer"
+          },
+          "bytes": {
+            "type": "integer"
+          }
+        }
+      },
+      "TierFullCount": {
+        "type": "object",
+        "required": [
+          "files",
+          "bytes",
+          "uniqueBytes"
+        ],
+        "properties": {
+          "files": {
+            "type": "integer"
+          },
+          "bytes": {
+            "type": "integer"
+          },
+          "uniqueBytes": {
+            "type": "integer",
+            "description": "The content once per hardlink group"
+          }
+        }
+      },
+      "TierUnknownSource": {
+        "type": "object",
+        "required": [
+          "integrationId",
+          "name",
+          "reason"
+        ],
+        "properties": {
+          "integrationId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "DeletedIntegration": {
+        "type": "object",
+        "description": "A deleted *arr integration as the tier facts remember it (tiers.deletedArr)",
+        "required": [
+          "key",
+          "integrationId",
+          "name",
+          "app",
+          "folders",
+          "deletedAt"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Identifies the record"
+          },
+          "integrationId": {
+            "type": "integer",
+            "description": "The id the integration had"
+          },
+          "name": {
+            "type": "string"
+          },
+          "app": {
+            "type": "string",
+            "description": "Sonarr, Radarr or Lidarr"
+          },
+          "folders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Its mapped root folders, and mapped item folders outside them, as Bunkarr sees them"
+          },
+          "unmapped": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Its root folders (as the *arr sees them) no path mapping covered: every file no live *arr claims stays unknown while the record exists"
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TierConfigBackup": {
+        "type": "object",
+        "required": [
+          "kind",
+          "integrationId",
+          "name",
+          "lastBytes"
+        ],
+        "description": "A Plex DB or *arr backup aimed at the destination: always full, never tiered.",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "plexdb",
+              "arr"
+            ]
+          },
+          "integrationId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "lastBytes": {
+            "type": "integer",
+            "description": "Size of its newest version (0: none yet)"
+          }
+        }
+      },
+      "TierDestinationPreview": {
+        "type": "object",
+        "required": [
+          "destinationId",
+          "name",
+          "stored",
+          "full",
+          "manifest",
+          "skip",
+          "unknownPromoted",
+          "toCopy",
+          "kept",
+          "movedToNonFull",
+          "byRule",
+          "configBackups"
+        ],
+        "properties": {
+          "destinationId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "stored": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TierCount"
+              }
+            ],
+            "description": "What the live records hold now"
+          },
+          "full": {
+            "$ref": "#/components/schemas/TierFullCount"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/TierCount"
+          },
+          "skip": {
+            "$ref": "#/components/schemas/TierCount"
+          },
+          "unknownPromoted": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TierCount"
+              }
+            ],
+            "description": "Full only because a fact is unknown"
+          },
+          "toCopy": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TierCount"
+              }
+            ],
+            "description": "Full files without an up-to-date record"
+          },
+          "kept": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TierCount"
+              }
+            ],
+            "description": "Non-full files with a record: what a release would free"
+          },
+          "movedToNonFull": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TierCount"
+              }
+            ],
+            "description": "Backed-up files that reappeared in another source of the destination under a non-full tier"
+          },
+          "byRule": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "ruleId",
+                "name",
+                "action",
+                "files",
+                "bytes"
+              ],
+              "properties": {
+                "ruleId": {
+                  "type": "integer",
+                  "description": "0: a built-in (no rule matched, irreplaceable)"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "action": {
+                  "$ref": "#/components/schemas/Tier"
+                },
+                "files": {
+                  "type": "integer"
+                },
+                "bytes": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "configBackups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierConfigBackup"
+            }
+          }
+        }
+      },
+      "TierPreview": {
+        "type": "object",
+        "required": [
+          "id",
+          "revision",
+          "createdAt",
+          "unknownSources",
+          "staleReferences",
+          "destinations"
+        ],
+        "description": "Kept for 10 minutes (at most 4 at a time); its items are read with GET /tiers/preview/{id}/items.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          },
+          "revision": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "draft"
+                ]
+              }
+            ],
+            "description": "The saved rules' revision, or draft for rules sent with the request"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unknownSources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierUnknownSource"
+            },
+            "description": "Caches whose facts are unknown now, and why"
+          },
+          "staleReferences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierWarning"
+            }
+          },
+          "destinations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierDestinationPreview"
+            }
+          }
+        }
+      },
+      "TierReason": {
+        "type": "object",
+        "required": [
+          "ruleId",
+          "conditionIndex",
+          "field",
+          "op",
+          "result",
+          "source"
+        ],
+        "description": "One evaluated condition. Rule id 0 with field flag.irreplaceable is the built-in irreplaceable override.",
+        "properties": {
+          "ruleId": {
+            "type": "integer"
+          },
+          "conditionIndex": {
+            "type": "integer"
+          },
+          "field": {
+            "type": "string"
+          },
+          "op": {
+            "type": "string"
+          },
+          "value": {
+            "description": "The condition's value"
+          },
+          "actual": {
+            "description": "What the value was compared with (a Seerr user by id only)"
+          },
+          "result": {
+            "$ref": "#/components/schemas/TierResult"
+          },
+          "source": {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "catalog",
+                  "arr",
+                  "plex",
+                  "tautulli",
+                  "seerr",
+                  "maintainerr",
+                  "flag"
+                ]
+              },
+              "integrationId": {
+                "type": "integer"
+              }
+            }
+          },
+          "why": {
+            "type": "string",
+            "description": "Why the result is unknown"
+          }
+        }
+      },
+      "TierPreviewItem": {
+        "type": "object",
+        "required": [
+          "destinationId",
+          "fileId",
+          "sourceId",
+          "sourceName",
+          "relPath",
+          "size",
+          "tier",
+          "ruleId",
+          "ruleName",
+          "reasons",
+          "unknown",
+          "unknownPromoted",
+          "state"
+        ],
+        "properties": {
+          "destinationId": {
+            "type": "integer"
+          },
+          "fileId": {
+            "type": "integer"
+          },
+          "sourceId": {
+            "type": "integer"
+          },
+          "sourceName": {
+            "type": "string"
+          },
+          "relPath": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/Tier"
+          },
+          "ruleId": {
+            "type": "integer",
+            "description": "The deciding rule (0: a built-in)"
+          },
+          "ruleName": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierReason"
+            }
+          },
+          "unknown": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierReason"
+            },
+            "description": "The unknown conditions of the rules evaluated before the decision"
+          },
+          "unknownPromoted": {
+            "type": "boolean",
+            "description": "Full only because a more protective rule could not be decided"
+          },
+          "follows": {
+            "type": "string",
+            "description": "The file whose decision this is (a sidecar's media file, a hardlink group's most protective name)"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "stored",
+              "to-copy",
+              "kept",
+              "not-copied"
+            ]
+          }
+        }
+      },
+      "TierPreviewItemPage": {
+        "type": "object",
+        "required": [
+          "page",
+          "pageSize",
+          "totalRecords",
+          "records"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500
+          },
+          "totalRecords": {
+            "type": "integer"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierPreviewItem"
+            }
+          }
+        }
+      },
+      "ExternalIds": {
+        "type": "object",
+        "properties": {
+          "tmdb": {
+            "type": "integer"
+          },
+          "imdb": {
+            "type": "string"
+          },
+          "tvdb": {
+            "type": "integer"
+          },
+          "tvmaze": {
+            "type": "integer"
+          },
+          "mbid": {
+            "type": "string",
+            "description": "MusicBrainz id"
+          }
+        }
+      },
+      "ItemFlag": {
+        "type": "object",
+        "required": [
+          "id",
+          "flag",
+          "kind",
+          "integrationId",
+          "externalIds",
+          "lastSourceId",
+          "lastRelPath",
+          "sourceId",
+          "relPath",
+          "note",
+          "createdAt",
+          "updatedAt",
+          "resolved"
+        ],
+        "description": "A manual flag. An *arr flag follows the item's external ids (re-adds, renames, moves); a path flag covers a file, or every file under a folder, of a source.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "flag": {
+            "type": "string",
+            "enum": [
+              "irreplaceable"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "arr",
+              "path"
+            ]
+          },
+          "integrationId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "*arr flags: the integration it was set on (null once deleted)"
+          },
+          "arrKind": {
+            "type": "string",
+            "enum": [
+              "movie",
+              "series",
+              "artist"
+            ]
+          },
+          "arrId": {
+            "type": "integer"
+          },
+          "externalIds": {
+            "$ref": "#/components/schemas/ExternalIds"
+          },
+          "lastSourceId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "*arr flags: where the item was last located"
+          },
+          "lastRelPath": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sourceId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Path flags: the source"
+          },
+          "relPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Path flags: the file or folder (empty: the whole source)"
+          },
+          "note": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolved": {
+            "type": "boolean",
+            "description": "Whether the flag covers something now"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why it covers nothing"
+          }
+        }
+      },
+      "ItemFlagInput": {
+        "type": "object",
+        "required": [
+          "flag",
+          "target"
+        ],
+        "properties": {
+          "flag": {
+            "type": "string",
+            "enum": [
+              "irreplaceable"
+            ]
+          },
+          "target": {
+            "description": "An *arr item or a path, not both",
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "integrationId",
+                  "kind",
+                  "arrId"
+                ],
+                "properties": {
+                  "integrationId": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "movie",
+                      "series",
+                      "artist"
+                    ]
+                  },
+                  "arrId": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "sourceId",
+                  "relPath"
+                ],
+                "properties": {
+                  "sourceId": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "relPath": {
+                    "type": "string",
+                    "description": "A clean relative path; empty is the whole source"
+                  }
+                }
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "FileFacts": {
+        "type": "object",
+        "required": [
+          "arr",
+          "plex",
+          "watch",
+          "requests",
+          "maintainerr",
+          "flags",
+          "unknown"
+        ],
+        "description": "A file's tier facts; null parts are not read (no such integration).",
+        "properties": {
+          "arr": {
+            "type": "object",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "item",
+                  "unmanaged",
+                  "unknown"
+                ]
+              },
+              "why": {
+                "type": "string"
+              },
+              "integrationId": {
+                "type": "integer"
+              },
+              "item": {
+                "type": "object",
+                "description": "The claiming *arr item",
+                "properties": {
+                  "integrationId": {
+                    "type": "integer"
+                  },
+                  "app": {
+                    "type": "string"
+                  },
+                  "itemId": {
+                    "type": "integer"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "movie",
+                      "series",
+                      "artist"
+                    ]
+                  },
+                  "arrId": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "year": {
+                    "type": "integer"
+                  },
+                  "externalIds": {
+                    "$ref": "#/components/schemas/ExternalIds"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "qualityProfile": {
+                    "type": "string"
+                  },
+                  "qualityProfileId": {
+                    "type": "integer"
+                  },
+                  "rootFolder": {
+                    "type": "string"
+                  },
+                  "monitored": {
+                    "type": "boolean"
+                  },
+                  "genres": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "folder": {
+                    "type": "string"
+                  }
+                }
+              },
+              "byFolder": {
+                "type": "boolean",
+                "description": "Attributed to the item whose folder contains it (an extra)"
+              },
+              "arrFileId": {
+                "type": "integer"
+              },
+              "dateAdded": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "quality": {
+                "type": "string"
+              }
+            }
+          },
+          "plex": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "known": {
+                "type": "boolean"
+              },
+              "why": {
+                "type": "string"
+              },
+              "integrationId": {
+                "type": "integer"
+              },
+              "section": {
+                "type": "string",
+                "description": "<plexIntegrationId>:<sectionKey>"
+              },
+              "addedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "watch": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "known": {
+                "type": "boolean"
+              },
+              "why": {
+                "type": "string"
+              },
+              "integrationId": {
+                "type": "integer"
+              },
+              "plays": {
+                "type": "integer"
+              },
+              "lastWatched": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "lowerBound": {
+                "type": "boolean",
+                "description": "Some history is not kept: the counts are lower bounds"
+              }
+            }
+          },
+          "requests": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "requested": {
+                "$ref": "#/components/schemas/TierResult"
+              },
+              "why": {
+                "type": "string"
+              },
+              "integrationId": {
+                "type": "integer"
+              },
+              "users": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                },
+                "description": "Seerr user ids"
+              }
+            }
+          },
+          "maintainerr": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "pending": {
+                "$ref": "#/components/schemas/TierResult"
+              },
+              "why": {
+                "type": "string"
+              },
+              "integrationId": {
+                "type": "integer"
+              },
+              "deleteAfter": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "flags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "Ids of the flags that cover the file"
+          },
+          "follows": {
+            "type": "string"
+          },
+          "unknown": {
+            "type": "array",
+            "description": "The fact sources that are unknown for the file, and why. Tautulli, Seerr and Maintainerr are left out while no integration of that application is set up (their facts still carry the reason)",
+            "items": {
+              "type": "object",
+              "required": [
+                "source",
+                "reason"
+              ],
+              "properties": {
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "arr",
+                    "plex",
+                    "tautulli",
+                    "seerr",
+                    "maintainerr"
+                  ]
+                },
+                "reason": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "FileDetail": {
+        "type": "object",
+        "required": [
+          "file",
+          "source",
+          "facts",
+          "tiers"
+        ],
+        "description": "A live catalog file, its facts, and its tier at every destination linked to its source.",
+        "properties": {
+          "file": {
+            "type": "object",
+            "required": [
+              "id",
+              "relPath",
+              "size",
+              "mtime",
+              "hardlinkGroup"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "relPath": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer"
+              },
+              "mtime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "hardlinkGroup": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "source": {
+            "$ref": "#/components/schemas/NamedRef"
+          },
+          "facts": {
+            "$ref": "#/components/schemas/FileFacts"
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "destinationId",
+                "destinationName",
+                "tier",
+                "ruleId",
+                "ruleName",
+                "reasons",
+                "unknown",
+                "unknownPromoted",
+                "record"
+              ],
+              "properties": {
+                "destinationId": {
+                  "type": "integer"
+                },
+                "destinationName": {
+                  "type": "string"
+                },
+                "tier": {
+                  "$ref": "#/components/schemas/Tier"
+                },
+                "ruleId": {
+                  "type": "integer"
+                },
+                "ruleName": {
+                  "type": "string"
+                },
+                "reasons": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/TierReason"
+                  }
+                },
+                "unknown": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "items": {
+                    "$ref": "#/components/schemas/TierReason"
+                  }
+                },
+                "unknownPromoted": {
+                  "type": "boolean"
+                },
+                "follows": {
+                  "type": "string"
+                },
+                "record": {
+                  "description": "The destination's live record of the file (null: none)",
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "state",
+                        "relPath",
+                        "size",
+                        "copiedAt",
+                        "verifiedAt"
+                      ],
+                      "properties": {
+                        "state": {
+                          "type": "string"
+                        },
+                        "relPath": {
+                          "type": "string"
+                        },
+                        "size": {
+                          "type": "integer"
+                        },
+                        "copiedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "verifiedAt": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "SeerrUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "description": "A Seerr user; the label is built from user names only (never an e-mail).",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "PlexIndexSettings": {
+        "type": "object",
+        "description": "The Plex library index (sections, items, files) that the Tautulli and Maintainerr joins and the plex.section tier field read; managed as a refresh schedule.",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "cron": {
+            "type": "string",
+            "description": "Empty takes the default (0 1 * * *)"
+          },
+          "staleAfterHours": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 720,
+            "default": 72
+          }
+        }
+      },
+      "TierItemCount": {
+        "type": "object",
+        "required": [
+          "action",
+          "status",
+          "tier",
+          "files",
+          "bytes"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ItemAction"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ItemStatus"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/Tier"
+          },
+          "files": {
+            "type": "integer"
+          },
+          "bytes": {
+            "type": "integer"
+          }
+        }
       }
     },
     "responses": {
@@ -3887,7 +5438,8 @@
         },
         "tags": [
           "Integrations"
-        ]
+        ],
+        "description": "An *arr integration's folders are recorded first (GET /integrations/deleted): a file under them that no live *arr claims stays unknown, so full, until the removal is confirmed (DELETE /integrations/deleted/{key})."
       }
     },
     "/integrations/{id}/plex/sections": {
@@ -3978,6 +5530,78 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/deleted": {
+      "get": {
+        "operationId": "listDeletedIntegrations",
+        "summary": "Deleted *arr integrations whose removal is not confirmed yet",
+        "description": "Deleting an *arr integration keeps a record of its folders for the tier facts (S14): a file under one of them that no live *arr claims stays unknown, so full, and such copies meet the mass-change guard, until the removal is confirmed (DELETE /integrations/deleted/{key}).",
+        "responses": {
+          "200": {
+            "description": "The records, oldest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeletedIntegration"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/deleted/{key}": {
+      "delete": {
+        "operationId": "confirmDeletedIntegration",
+        "summary": "Confirm the removal of a deleted *arr integration (forget its folders)",
+        "description": "Forgets the record of a deleted *arr integration's folders. From the next evaluation (a sync, a preview) a file there that no live *arr claims is decided by the live integrations alone: unmanaged (arr.* conditions false) while every *arr cache is fresh and every root folder mapped, so the rules may lower its tier. What the destinations hold for it is kept until a release (S15). The confirmation is logged.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "description": "The record's key (GET /integrations/deleted)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Confirmed: the record is gone"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "500": {
             "$ref": "#/components/responses/ServerError"
@@ -5074,6 +6698,22 @@
             }
           },
           {
+            "name": "tier",
+            "in": "query",
+            "description": "The tier decision the item records (an item that records none is full)",
+            "schema": {
+              "$ref": "#/components/schemas/Tier"
+            }
+          },
+          {
+            "name": "ruleId",
+            "in": "query",
+            "description": "The deciding tier rule the item records (0: a built-in: no rule matched, or irreplaceable)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
             "$ref": "#/components/parameters/page"
           },
           {
@@ -5115,10 +6755,21 @@
     "/jobs/{id}/items/summary": {
       "get": {
         "operationId": "summarizeJobItems",
-        "summary": "Item counts and bytes by action and status",
+        "summary": "Item counts and bytes by action and status (by=tier: and tier)",
         "parameters": [
           {
             "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "by",
+            "in": "query",
+            "description": "tier adds the tier dimension: one row per action, status and tier",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "tier"
+              ]
+            }
           }
         ],
         "responses": {
@@ -5129,8 +6780,16 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ItemCount"
-                  }
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/ItemCount"
+                      },
+                      {
+                        "$ref": "#/components/schemas/TierItemCount"
+                      }
+                    ]
+                  },
+                  "description": "ItemCount rows; TierItemCount rows with by=tier"
                 }
               }
             }
@@ -5613,7 +7272,7 @@
     "/integrations/{id}/refresh": {
       "post": {
         "operationId": "refreshIntegration",
-        "summary": "Refresh the *arr index now (full refresh)",
+        "summary": "Refresh the integration's cache now (full refresh)",
         "parameters": [
           {
             "$ref": "#/components/parameters/id"
@@ -5669,7 +7328,7 @@
         "tags": [
           "Integrations"
         ],
-        "description": "Sonarr, Radarr and Lidarr only; other types are 400."
+        "description": "Sonarr, Radarr and Lidarr (the *arr index), Tautulli, Seerr and Maintainerr (their caches) and Plex (its library index; 400 while the index is turned off)."
       }
     },
     "/integrations/{id}/arr/metadata": {
@@ -6944,6 +8603,524 @@
         },
         "tags": [
           "Destinations"
+        ]
+      }
+    },
+    "/integrations/{id}/seerr/users": {
+      "get": {
+        "operationId": "listSeerrUsers",
+        "summary": "A Seerr integration's users, fetched live (labels from user names only)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SeerrUser"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The integration's settings are not valid, or its URL changed during the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "description": "Seerr answered badly or not at all",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/tiers/rules": {
+      "get": {
+        "operationId": "getTierRules",
+        "summary": "The tier rules in priority order and their revision",
+        "responses": {
+          "200": {
+            "description": "Rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierRuleSet"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Tiers"
+        ]
+      },
+      "put": {
+        "operationId": "saveTierRules",
+        "summary": "Replace the tier rules (the array order is the priority)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TierRulesUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved rules and the stale-reference warnings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierRulesSaved"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "The rules changed since they were loaded (stale revision): reload them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Tiers"
+        ]
+      }
+    },
+    "/tiers/presets": {
+      "get": {
+        "operationId": "listTierPresets",
+        "summary": "Rule sets the editor can load (nothing is applied until saved)",
+        "responses": {
+          "200": {
+            "description": "Presets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TierPreset"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Tiers"
+        ]
+      }
+    },
+    "/tiers/fields": {
+      "get": {
+        "operationId": "listTierFields",
+        "summary": "The condition fields with their operators, availability and suggestions",
+        "responses": {
+          "200": {
+            "description": "Fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TierField"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Tiers"
+        ]
+      }
+    },
+    "/tiers/preview": {
+      "post": {
+        "operationId": "previewTiers",
+        "summary": "What gets backed up and why: evaluate the saved rules, or a draft, over every destination (nothing is written)",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TierPreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The preview, kept for 10 minutes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Tiers"
+        ]
+      }
+    },
+    "/tiers/preview/{id}/items": {
+      "get": {
+        "operationId": "listTierPreviewItems",
+        "summary": "A kept preview's files, filtered and paged",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The preview id",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            }
+          },
+          {
+            "name": "destinationId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "tier",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Tier"
+            }
+          },
+          {
+            "name": "ruleId",
+            "in": "query",
+            "description": "The deciding rule (0: the built-ins)",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stored",
+                "to-copy",
+                "kept",
+                "not-copied"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Case-insensitive substring of the path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/pageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierPreviewItemPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such preview, or it expired: run it again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Tiers"
+        ]
+      }
+    },
+    "/tiers/flags": {
+      "get": {
+        "operationId": "listTierFlags",
+        "summary": "The manual flags, with whether each covers something now",
+        "responses": {
+          "200": {
+            "description": "Flags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ItemFlag"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Tiers"
+        ]
+      },
+      "post": {
+        "operationId": "createTierFlag",
+        "summary": "Flag an *arr item, a file or a folder irreplaceable (full at every destination)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemFlagInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The flag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemFlag"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "description": "The target is flagged already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Tiers"
+        ]
+      }
+    },
+    "/tiers/flags/{id}": {
+      "delete": {
+        "operationId": "deleteTierFlag",
+        "summary": "Remove a flag (a file it covered is decided by the rules from the next sync)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Tiers"
+        ]
+      }
+    },
+    "/catalog/files/{id}": {
+      "get": {
+        "operationId": "getCatalogFile",
+        "summary": "A live catalog file with its facts and its tier at each destination (the Library item view)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Sources"
         ]
       }
     }

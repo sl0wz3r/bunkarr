@@ -1,0 +1,80 @@
+[INFO] [CollectionWorkerService] Started handling of all collections
+[INFO] [CollectionWorkerService] Skipping collection 'Do nothing' as its action is 'Do Nothing'
+[INFO] [CollectionWorkerService] Collection handler summary: 7 total (isActive), 1 skipped (Do Nothing), 1 skipped (no due media), 5 queued for handling
+[INFO] [CollectionWorkerService] Handling collection 'Watched movies'
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 4. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexApiService] Something went wrong while removing media 4 from Plex.
+[INFO] [PlexAdapterService] Successfully deleted Plex item 4 from disk
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 9. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexApiService] Something went wrong while removing media 9 from Plex.
+[INFO] [PlexAdapterService] Successfully deleted Plex item 9 from disk
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [PlexApiService] Removed collection from Plex
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 3. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexApiService] Something went wrong while removing media 3 from Plex.
+[INFO] [PlexAdapterService] Successfully deleted Plex item 3 from disk
+[INFO] [CollectionWorkerService] Handling collection 'Watched movies' finished
+[INFO] [CollectionWorkerService] Handling collection 'Unmonitor only'
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] *arr unmonitor action isn't possible, since *arr is not available. Didn't unmonitor media with id 5.}
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] *arr unmonitor action isn't possible, since *arr is not available. Didn't unmonitor media with id 4.}
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] *arr unmonitor action isn't possible, since *arr is not available. Didn't unmonitor media with id 3.}
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] *arr unmonitor action isn't possible, since *arr is not available. Didn't unmonitor media with id 2.}
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] *arr unmonitor action isn't possible, since *arr is not available. Didn't unmonitor media with id 1.}
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [PlexApiService] Removed collection from Plex
+[INFO] [CollectionHandler] *arr unmonitor action isn't possible, since *arr is not available. Didn't unmonitor media with id 9.}
+[INFO] [CollectionWorkerService] Handling collection 'Unmonitor only' finished
+[INFO] [CollectionWorkerService] Handling collection 'Watched shows'
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 28. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexApiService] Something went wrong while removing media 28 from Plex.
+[INFO] [PlexAdapterService] Successfully deleted Plex item 28 from disk
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [PlexApiService] Removed collection from Plex
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 17. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexApiService] Something went wrong while removing media 17 from Plex.
+[INFO] [PlexAdapterService] Successfully deleted Plex item 17 from disk
+[INFO] [CollectionWorkerService] Handling collection 'Watched shows' finished
+[INFO] [CollectionWorkerService] Handling collection 'All seasons'
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 33. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexApiService] Something went wrong while removing media 33 from Plex.
+[INFO] [PlexAdapterService] Successfully deleted Plex item 33 from disk
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 29. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexApiService] Something went wrong while removing media 29 from Plex.
+[INFO] [PlexAdapterService] Successfully deleted Plex item 29 from disk
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 25. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexApiService] Something went wrong while removing media 25 from Plex.
+[INFO] [PlexAdapterService] Successfully deleted Plex item 25 from disk
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [PlexApiService] Removed collection from Plex
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 18. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexApiService] Something went wrong while removing media 18 from Plex.
+[INFO] [PlexAdapterService] Successfully deleted Plex item 18 from disk
+[INFO] [CollectionWorkerService] Handling collection 'All seasons' finished
+[INFO] [CollectionWorkerService] Handling collection 'Watched episodes'
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 31. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexApiService] Something went wrong while removing media 31 from Plex.
+[INFO] [PlexAdapterService] Successfully deleted Plex item 31 from disk
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 30. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexApiService] Something went wrong while removing media 30 from Plex.
+[INFO] [PlexAdapterService] Successfully deleted Plex item 30 from disk
+[INFO] [CollectionsService] Removing 1 media items from collection..
+[INFO] [PlexApiService] Removed collection from Plex
+[INFO] [CollectionHandler] Couldn't utilize *arr to find and remove the media with id 26. Attempting to remove from the filesystem via media server. No unmonitor action was taken.
+[ERROR] [PlexApiService] Something went wrong while removing media 26 from Plex.
+[INFO] [PlexAdapterService] Successfully deleted Plex item 26 from disk
+[INFO] [CollectionWorkerService] Handling collection 'Watched episodes' finished
+[INFO] [CollectionWorkerService] Updating collection size cache...
+[INFO] [CollectionWorkerService] Collection size cache updated

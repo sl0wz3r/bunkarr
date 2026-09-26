@@ -486,13 +486,13 @@ func (f *fakeTiers) set(rel string, t Tier) {
 	f.tiers[rel] = t
 }
 
-func (f *fakeTiers) Decide(ctx context.Context, q Queryer, destinationID, sourceID int64) (func(int64) Decision, error) {
+func (f *fakeTiers) Decide(ctx context.Context, r TierRead, destinationID, sourceID int64) (func(int64) Decision, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	byID := map[int64]Tier{}
 	for rel, t := range f.tiers {
 		var id int64
-		err := q.QueryRowContext(ctx, `SELECT id FROM catalog_files WHERE source_id = ? AND rel_path = ?`, sourceID, rel).Scan(&id)
+		err := r.Q.QueryRowContext(ctx, `SELECT id FROM catalog_files WHERE source_id = ? AND rel_path = ?`, sourceID, rel).Scan(&id)
 		if err == nil {
 			byID[id] = t
 		}

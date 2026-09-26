@@ -162,9 +162,19 @@ func newHarness(t *testing.T) *harness {
 	return h
 }
 
+// envTiersAllFull, when set, gives every harness the real tier engine with no rules (every file
+// full): the whole Phase 1 and 2 suite then runs through the tier hook (design phase2-3.md §15,
+// acceptance 8). Tests that install their own Tiers (withTiers) are unaffected.
+//
+//	BUNKARR_TEST_TIERS_ALL_FULL=1 go test ./internal/syncer/
+const envTiersAllFull = "BUNKARR_TEST_TIERS_ALL_FULL"
+
 // newRunners (re)creates the job runners over the harness's stores.
 func (h *harness) newRunners() {
 	o := Options{DB: h.db, Store: h.store, Catalog: h.cat, Scanner: h.scanner, Destinations: h.dests, Now: h.now}
+	if os.Getenv(envTiersAllFull) != "" {
+		o.Tiers = realEngine(h.t, h)
+	}
 	h.sync = NewSyncRunner(o)
 	h.sync.planBatch = 3
 	h.sync.recheckEvery = 4

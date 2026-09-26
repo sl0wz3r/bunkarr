@@ -375,7 +375,7 @@ type renameTiers struct {
 	done bool
 }
 
-func (r *renameTiers) Decide(ctx context.Context, q Queryer, destinationID, sourceID int64) (func(int64) Decision, error) {
+func (r *renameTiers) Decide(ctx context.Context, tr TierRead, destinationID, sourceID int64) (func(int64) Decision, error) {
 	if !r.done {
 		r.done = true
 		local := filepath.Join(r.e.root, filepath.FromSlash(r.to))
@@ -390,7 +390,7 @@ func (r *renameTiers) Decide(ctx context.Context, q Queryer, destinationID, sour
 			return nil, err
 		}
 	}
-	return AllFull{}.Decide(ctx, q, destinationID, sourceID)
+	return AllFull{}.Decide(ctx, tr, destinationID, sourceID)
 }
 
 func TestBuildReadsOneSnapshot(t *testing.T) {

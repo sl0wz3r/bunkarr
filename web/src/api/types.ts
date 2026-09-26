@@ -65,6 +65,12 @@ export interface JobParams {
   arrItemIds?: number[];
   /** A refresh queues follow-up syncs of the changed items' folders when it ends. */
   syncAfter?: boolean;
+  /** A sync that releases the kept files no longer full at the destination (tiers, S15). */
+  releaseDemoted?: boolean;
+  /** A real release: the release preview (dry run) it applies. */
+  releaseOf?: number;
+  /** A real release: the tier rule revision that preview evaluated. */
+  releaseRevision?: number;
 }
 
 export interface JobProgress {
@@ -161,6 +167,10 @@ export interface JobListQuery {
 export interface ItemListQuery {
   action?: ItemAction | '';
   status?: ItemStatus | '';
+  /** The tier decision an item records (an item that records none is full). */
+  tier?: 'full' | 'manifest' | 'skip' | '';
+  /** The deciding tier rule an item records (0: a built-in); undefined for every rule. */
+  ruleId?: number;
   page: number;
   pageSize: number;
 }
@@ -170,6 +180,11 @@ export interface ItemCount {
   status: ItemStatus;
   files: number;
   bytes: number;
+}
+
+/** TierItemCount is a row of GET /jobs/{id}/items/summary?by=tier. */
+export interface TierItemCount extends ItemCount {
+  tier: 'full' | 'manifest' | 'skip';
 }
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -218,10 +233,20 @@ export interface PlexBackupSettings {
   enabled: boolean;
 }
 
+/** PlexIndexSettings configures a Plex integration's library index (design phase2-3 §6.3). */
+export interface PlexIndexSettings {
+  enabled: boolean;
+  cron: string;
+  /** 1–720: the index's facts are unknown this long after its last complete refresh. */
+  staleAfterHours: number;
+}
+
 export interface PlexSettings {
   dataPath: string;
   pathMappings: PathMapping[];
   backup: PlexBackupSettings;
+  /** Absent: the library index is off. */
+  index?: PlexIndexSettings;
 }
 
 export interface Integration {

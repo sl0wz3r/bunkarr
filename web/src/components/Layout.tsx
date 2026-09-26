@@ -32,6 +32,7 @@ export const NAV: NavItem[] = [
       { label: 'General', to: '/settings/general' },
       { label: 'Plex', to: '/settings/plex' },
       { label: 'Connect', to: '/settings/connect' },
+      { label: 'Tiers', to: '/settings/tiers' },
     ],
   },
   {

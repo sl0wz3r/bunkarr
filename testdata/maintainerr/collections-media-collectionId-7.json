@@ -1,0 +1,42 @@
+[
+  {
+    "id": 25,
+    "collectionId": 7,
+    "mediaServerId": "33",
+    "tmdbId": 6357,
+    "tvdbId": 73587,
+    "addDate": "2026-09-26T00:00:00.000Z",
+    "image_path": "https://image.tmdb.org/t/p/w500/7uY4pCOxbEdv4M8jTE4uMPVoSIW.jpg",
+    "isManual": false
+  },
+  {
+    "id": 26,
+    "collectionId": 7,
+    "mediaServerId": "29",
+    "tmdbId": 6357,
+    "tvdbId": 73587,
+    "addDate": "2026-09-26T00:00:00.000Z",
+    "image_path": "https://image.tmdb.org/t/p/w500/7uY4pCOxbEdv4M8jTE4uMPVoSIW.jpg",
+    "isManual": false
+  },
+  {
+    "id": 27,
+    "collectionId": 7,
+    "mediaServerId": "25",
+    "tmdbId": 5273,
+    "tvdbId": 73614,
+    "addDate": "2026-09-26T00:00:00.000Z",
+    "image_path": "https://image.tmdb.org/t/p/w500/lmbBSG3jRVjxdovpdhOf2LF1voZ.jpg",
+    "isManual": false
+  },
+  {
+    "id": 28,
+    "collectionId": 7,
+    "mediaServerId": "18",
+    "tmdbId": 5273,
+    "tvdbId": 73614,
+    "addDate": "2026-09-26T00:00:00.000Z",
+    "image_path": "https://image.tmdb.org/t/p/w500/lmbBSG3jRVjxdovpdhOf2LF1voZ.jpg",
+    "isManual": false
+  }
+]

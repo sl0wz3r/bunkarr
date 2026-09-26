@@ -272,6 +272,12 @@ func (s *Server) deleteDestination(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, "delete destination", err)
 		return
 	}
+	// Its id leaves every tier rule's "Applies at" (an emptied list applies nowhere, never
+	// everywhere; phase2-3.md §8.7).
+	if err := s.app.Tiers.Store().RemoveDestination(ctx, d.ID); err != nil {
+		s.fail(w, r, "delete destination", err)
+		return
+	}
 	n, err := s.app.Jobs.Store().DeleteSchedulesFor(ctx, jobs.Params{DestinationID: d.ID})
 	if err != nil {
 		s.fail(w, r, "delete destination", errScheduleSync("the deletion", err))
@@ -376,13 +382,20 @@ func (s *Server) syncDestination(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		DryRun       bool `json:"dryRun"`
 		AllowChanges bool `json:"allowChanges"`
+		releaseParams
 	}
 	if err := decodeOptionalBody(w, r, &body); err != nil {
 		s.fail(w, r, "start sync", err)
 		return
 	}
+	// A release (phase2-3.md S15) must apply the preview the user confirmed (409 otherwise).
+	if err := s.checkRelease(r.Context(), d.ID, body.DryRun, body.releaseParams); err != nil {
+		s.fail(w, r, "start sync", err)
+		return
+	}
 	job, err := s.app.Jobs.Enqueue(r.Context(), jobs.Spec{Type: jobs.TypeSync, Trigger: jobs.TriggerManual, DryRun: body.DryRun,
-		Params: jobs.Params{DestinationID: d.ID, AllowChanges: body.AllowChanges}})
+		Params: jobs.Params{DestinationID: d.ID, AllowChanges: body.AllowChanges, ReleaseDemoted: body.ReleaseDemoted,
+			ReleaseOf: body.ReleaseOf, ReleaseRevision: body.ReleaseRevision}})
 	if err != nil {
 		s.fail(w, r, "start sync", err)
 		return

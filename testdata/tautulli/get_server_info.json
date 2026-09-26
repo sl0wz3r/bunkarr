@@ -1,0 +1,18 @@
+{
+  "response": {
+    "result": "success",
+    "message": null,
+    "data": {
+      "pms_name": "bunkarr-fixture-plex",
+      "pms_version": "",
+      "pms_platform": "Linux",
+      "pms_ip": "172.29.9.10",
+      "pms_port": 32400,
+      "pms_ssl": 0,
+      "pms_url": "http://172.29.9.10:32400",
+      "pms_url_manual": 0,
+      "pms_identifier": "fc20cdf3f0f79321f15b0a4d85d1f8dd73200b0e",
+      "pms_plexpass": 0
+    }
+  }
+}

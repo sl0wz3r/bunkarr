@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "collectionId": 1,
+    "mediaServerId": "4",
+    "tmdbId": 653,
+    "tvdbId": 5097,
+    "addDate": "2026-09-26T00:00:00.000Z",
+    "image_path": "https://image.tmdb.org/t/p/w500/zv7J85D8CC9qYagAEhPM63CIG6j.jpg",
+    "isManual": false
+  },
+  {
+    "id": 2,
+    "collectionId": 1,
+    "mediaServerId": "9",
+    "tmdbId": 961,
+    "tvdbId": 5343,
+    "addDate": "2026-09-26T00:00:00.000Z",
+    "image_path": "https://image.tmdb.org/t/p/w500/4NmV1Wei4LxT2lpjViCAScgCZLq.jpg",
+    "isManual": false
+  },
+  {
+    "id": 33,
+    "collectionId": 1,
+    "mediaServerId": "3",
+    "tmdbId": 10331,
+    "tvdbId": 1831,
+    "addDate": "2026-09-26T00:00:00.000Z",
+    "image_path": "https://image.tmdb.org/t/p/w500/rb2NWyb008u1EcKCOyXs2Nmj0ra.jpg",
+    "isManual": true
+  }
+]

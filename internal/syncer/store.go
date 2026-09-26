@@ -376,6 +376,21 @@ func repoint(ctx context.Context, tx *sql.Tx, from, to int64) error {
 	return nil
 }
 
+// loseLinks marks the recorded-only links ids of the missing record primary missing, with no
+// primary: kept (not full) names whose content went with the primary's damaged file, which the
+// primary's repair does not restore and which get no copy of their own (S15). Nothing is deleted;
+// such a name is copied again once it is full. A link that changed since planning is left alone.
+func loseLinks(ctx context.Context, tx *sql.Tx, primary int64, ids []int64) error {
+	for _, id := range ids {
+		_, err := tx.ExecContext(ctx, `UPDATE destination_files SET state = 'missing', link_of = NULL
+			WHERE id = ? AND link_of = ? AND state = 'link_recorded'`, id, primary)
+		if err != nil {
+			return fmt.Errorf("mark the lost link %d missing: %w", id, err)
+		}
+	}
+	return nil
+}
+
 // deleteRecord deletes a row that nothing links to any more.
 func deleteRecord(ctx context.Context, tx *sql.Tx, id int64) error {
 	if _, err := tx.ExecContext(ctx, `UPDATE destination_files SET link_of = NULL WHERE link_of = ? AND state = 'retained'`, id); err != nil {

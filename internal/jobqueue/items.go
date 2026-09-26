@@ -234,10 +234,61 @@ func (s *Store) Counts(ctx context.Context, jobID int64) ([]jobs.ItemCount, erro
 	return out, nil
 }
 
+// TierItemCount is an ItemCount with the tier dimension (phase2-3.md §13): Tier is the tier
+// decision an item's detail records (detail.tier.tier), full for a file copy that records none.
+type TierItemCount struct {
+	jobs.ItemCount
+	Tier string `json:"tier"`
+}
+
+// itemTierExpr is an item's tier: the decision its detail records. Without one, a file copy
+// (copy, update, move, link, adopt) is full: a sync without tier rules copies every file in
+// full. Any other item without one (a vanished file's retain, a promote, an expire, a verify, a
+// job type that does not tier) has no tier (NULL): it is not a tier decision, so neither a tier
+// filter nor the tier dimension counts it. Details are valid JSON (detailText).
+const itemTierExpr = `COALESCE(json_extract(detail, '$.tier.tier'),
+	CASE WHEN action IN ('copy', 'update', 'move', 'link', 'adopt') THEN 'full' END)`
+
+// validItemTier reports whether t is a tier (full, manifest or skip).
+func validItemTier(t string) bool { return t == "full" || t == "manifest" || t == "skip" }
+
+// TierCounts is Counts with the tier dimension: items and bytes by action, status and tier,
+// ordered by action, status, then tier. Items without a tier (itemTierExpr) are left out.
+func (s *Store) TierCounts(ctx context.Context, jobID int64) ([]TierItemCount, error) {
+	rows, err := s.db.Reader().QueryContext(ctx, `SELECT action, status, tier, COUNT(*), COALESCE(SUM(bytes), 0)
+		FROM (SELECT action, status, bytes, `+itemTierExpr+` AS tier FROM job_items WHERE job_id = ?)
+		WHERE tier IS NOT NULL GROUP BY action, status, tier ORDER BY action, status, tier`, jobID)
+	if err != nil {
+		return nil, fmt.Errorf("count items of job %d by tier: %w", jobID, err)
+	}
+	defer rows.Close()
+	out := []TierItemCount{}
+	for rows.Next() {
+		var c TierItemCount
+		var action, status string
+		if err := rows.Scan(&action, &status, &c.Tier, &c.Files, &c.Bytes); err != nil {
+			return nil, fmt.Errorf("count items of job %d by tier: %w", jobID, err)
+		}
+		c.Action, c.Status = jobs.ItemAction(action), jobs.ItemStatus(status)
+		out = append(out, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("count items of job %d by tier: %w", jobID, err)
+	}
+	return out, nil
+}
+
 // ItemQuery filters ListItems. Zero values do not filter.
 type ItemQuery struct {
 	Action jobs.ItemAction
 	Status jobs.ItemStatus
+	// Tier filters by the tier decision the item's detail records (full, manifest or skip; a
+	// file copy that records none is full, and any other item that records none matches no
+	// tier: itemTierExpr).
+	Tier string
+	// RuleID filters by the deciding rule the item's detail records (detail.tier.ruleId; 0 is a
+	// built-in: no rule matched, or the irreplaceable override); nil does not filter.
+	RuleID *int64
 	// Page is 1-based; PageSize defaults to DefaultPageSize and is capped at MaxPageSize.
 	Page     int
 	PageSize int
@@ -261,6 +312,17 @@ func (s *Store) ListItems(ctx context.Context, jobID int64, q ItemQuery) (Page[j
 		}
 		where = append(where, "status = ?")
 		args = append(args, string(q.Status))
+	}
+	if q.Tier != "" {
+		if !validItemTier(q.Tier) {
+			return Page[jobs.Item]{}, ValidationError(fmt.Sprintf("unknown tier %q (full, manifest or skip)", q.Tier))
+		}
+		where = append(where, itemTierExpr+" = ?")
+		args = append(args, q.Tier)
+	}
+	if q.RuleID != nil {
+		where = append(where, "json_extract(detail, '$.tier.ruleId') = ?")
+		args = append(args, *q.RuleID)
 	}
 	cond := " WHERE " + strings.Join(where, " AND ")
 	page, size := normalizePage(q.Page, q.PageSize)

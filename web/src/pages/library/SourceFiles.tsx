@@ -93,7 +93,15 @@ export function SourceFiles() {
       key: 'path',
       header: 'Path',
       className: 'w-[55%]',
-      cell: (f) => <span className={`break-all font-mono text-xs ${f.deleted ? 'text-ink-muted line-through' : ''}`}>{f.relPath}</span>,
+      // A live file links to its item view (facts, tier per destination, flags); a deleted one has none.
+      cell: (f) =>
+        f.deleted ? (
+          <span className="break-all font-mono text-xs text-ink-muted line-through">{f.relPath}</span>
+        ) : (
+          <Link to={`/library/files/${f.id}`} className="break-all font-mono text-xs hover:text-accent hover:underline">
+            {f.relPath}
+          </Link>
+        ),
     },
     { key: 'size', header: 'Size', className: 'whitespace-nowrap text-right', cell: (f) => formatBytes(f.size) },
     { key: 'mtime', header: 'Modified', className: 'whitespace-nowrap', cell: (f) => <span title={formatDateTime(f.mtime)}>{formatRelative(f.mtime)}</span> },

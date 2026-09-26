@@ -25,6 +25,7 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/plexdb"
 	"github.com/sl0wz3r/bunkarr/internal/snapshots"
 	"github.com/sl0wz3r/bunkarr/internal/syncer"
+	"github.com/sl0wz3r/bunkarr/internal/tiers"
 )
 
 // Setting keys of the job system (settings table, plain values).
@@ -96,6 +97,8 @@ type App struct {
 	Index *mediaindex.Store
 	// Manifests runs manifest_export jobs and serves the manifest downloads and exports (§11).
 	Manifests *manifest.Runner
+	// Tiers is the tier engine (phase2-3.md §8): rules, flags, decisions and the preview.
+	Tiers *tiers.Engine
 	// Notifications stores the Apprise targets; Notifier sends to them when jobs finish.
 	Notifications *notify.Store
 	Notifier      *notify.Dispatcher
@@ -215,8 +218,10 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 		ProgressEvery: o.ProgressEvery,
 		ShutdownGrace: o.ShutdownGrace,
 	})
+	a.Tiers = a.newTierEngine(o)
 	so := syncer.Options{DB: o.DB, Store: a.Files, Catalog: a.Catalog, Scanner: a.Scanner, Destinations: a.Destinations,
-		Logger: log.With("component", "syncer"), Enqueuer: a.Jobs, ManifestAfterSync: a.manifestAfterSync, ExpectedFiles: a.expectedFiles}
+		Logger: log.With("component", "syncer"), Enqueuer: a.Jobs, ManifestAfterSync: a.manifestAfterSync, ExpectedFiles: a.expectedFiles,
+		Tiers: a.Tiers}
 	a.webhooks = a.newWebhooks(o)
 	a.Jobs.OnFinish(a.webhooks.proc.OnJobFinish)
 	a.Jobs.Register(jobs.TypeScan, catalog.NewScanRunner(a.Scanner))
@@ -282,6 +287,9 @@ func (a *App) Start(ctx context.Context) error {
 	}
 	if err := a.ensureArrRefreshSchedules(ctx); err != nil {
 		a.log.Warn("Could not create the refresh schedules of the *arr integrations", "error", err)
+	}
+	if err := a.ensureProviderRefreshSchedules(ctx); err != nil {
+		a.log.Warn("Could not create the refresh schedules of Tautulli, Seerr, Maintainerr and the Plex library index", "error", err)
 	}
 	if err := a.Jobs.Start(ctx); err != nil {
 		return fmt.Errorf("start the job manager: %w", err)

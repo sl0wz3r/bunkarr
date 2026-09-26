@@ -1,0 +1,246 @@
+{
+  "MediaContainer": {
+    "size": 2,
+    "totalSize": 10,
+    "offset": 8,
+    "allowSync": true,
+    "art": "/:/resources/show-fanart.jpg",
+    "identifier": "com.plexapp.plugins.library",
+    "librarySectionID": 2,
+    "librarySectionTitle": "TV Shows",
+    "librarySectionUUID": "33a7d582-55fe-451d-b495-3da798305b14",
+    "mediaTagPrefix": "/system/bundle/media/flags/",
+    "mediaTagVersion": 1786914513,
+    "nocache": true,
+    "thumb": "/:/resources/show.png",
+    "title1": "TV Shows",
+    "title2": "All Shows",
+    "viewGroup": "show",
+    "viewMode": 65592,
+    "Metadata": [
+      {
+        "ratingKey": "34",
+        "key": "/library/metadata/34",
+        "parentRatingKey": "33",
+        "grandparentRatingKey": "28",
+        "guid": "plex://episode/5d9c13beba6eb9001fc24fd9",
+        "parentGuid": "plex://season/602e698fb2c087002d0cc569",
+        "grandparentGuid": "plex://show/5d9c08732df347001e3b32d0",
+        "grandparentSlug": "the-twilight-zone",
+        "type": "episode",
+        "title": "King Nine Will Not Return",
+        "grandparentKey": "/library/metadata/28",
+        "parentKey": "/library/metadata/33",
+        "grandparentTitle": "The Twilight Zone",
+        "parentTitle": "Season 2",
+        "contentRating": "TV-14",
+        "summary": "The pilot of a downed B-25, Capt. James Embry, awakens in the desert, with no memory of how he got there. More worrisome, his crew is nowhere to be found. He begins to wonder if he's hallucinating, especially after he sees one of his men sitting in the cockpit. When he awakens in hospital, he thinks it might have all been a dream, but wonders: did any of this really happen?",
+        "index": 1,
+        "parentIndex": 2,
+        "audienceRating": 5.8,
+        "year": 1960,
+        "thumb": "/library/metadata/34/thumb/1790411104",
+        "art": "/library/metadata/28/art/1790411104",
+        "parentThumb": "/library/metadata/33/thumb/1790411104",
+        "grandparentThumb": "/library/metadata/28/thumb/1790411104",
+        "grandparentArt": "/library/metadata/28/art/1790411104",
+        "grandparentTheme": "/library/metadata/28/theme/1790411104",
+        "duration": 1560000,
+        "originallyAvailableAt": "1960-09-30",
+        "addedAt": 1790411047,
+        "updatedAt": 1790411104,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 40,
+            "Part": [
+              {
+                "id": 40,
+                "key": "/library/parts/40/1790411047/file.mkv",
+                "file": "/data/tv/The Twilight Zone (1959)/Season 02/The Twilight Zone (1959) - S02E01.mkv",
+                "size": 4096
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "King Nine Will Not Return",
+            "type": "coverPoster",
+            "url": "/library/metadata/28/thumb/1790411104"
+          },
+          {
+            "alt": "King Nine Will Not Return",
+            "type": "snapshot",
+            "url": "/library/metadata/34/thumb/1790411104"
+          },
+          {
+            "alt": "King Nine Will Not Return",
+            "type": "background",
+            "url": "/library/metadata/28/art/1790411104"
+          },
+          {
+            "alt": "King Nine Will Not Return",
+            "type": "clearLogo",
+            "url": "/library/metadata/28/clearLogo/1790411104"
+          },
+          {
+            "alt": "King Nine Will Not Return",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/28/squareArt/1790411104"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "171818",
+          "topRight": "030403",
+          "bottomRight": "5b5b5b",
+          "bottomLeft": "404040"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0734584"
+          },
+          {
+            "id": "tmdb://375050"
+          },
+          {
+            "id": "tvdb://119285"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Buzz Kulik"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Rod Serling"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Rod Serling"
+          },
+          {
+            "tag": "Robert Cummings"
+          },
+          {
+            "tag": "Paul Lambert"
+          }
+        ]
+      },
+      {
+        "ratingKey": "35",
+        "key": "/library/metadata/35",
+        "parentRatingKey": "33",
+        "grandparentRatingKey": "28",
+        "guid": "plex://episode/5d9c13beba6eb9001fc24fe1",
+        "parentGuid": "plex://season/602e698fb2c087002d0cc569",
+        "grandparentGuid": "plex://show/5d9c08732df347001e3b32d0",
+        "grandparentSlug": "the-twilight-zone",
+        "type": "episode",
+        "title": "The Man in the Bottle",
+        "titleSort": "Man in the Bottle",
+        "grandparentKey": "/library/metadata/28",
+        "parentKey": "/library/metadata/33",
+        "grandparentTitle": "The Twilight Zone",
+        "parentTitle": "Season 2",
+        "contentRating": "TV-14",
+        "summary": "A luckless couple stumbles upon fortune when a genie materializes from a bottle in their antique shop. The genie grants them four wishes but warns them, prophetically, to be careful what you wish for.",
+        "index": 2,
+        "parentIndex": 2,
+        "audienceRating": 6.9,
+        "year": 1960,
+        "thumb": "/library/metadata/35/thumb/1790411105",
+        "art": "/library/metadata/28/art/1790411104",
+        "parentThumb": "/library/metadata/33/thumb/1790411104",
+        "grandparentThumb": "/library/metadata/28/thumb/1790411104",
+        "grandparentArt": "/library/metadata/28/art/1790411104",
+        "grandparentTheme": "/library/metadata/28/theme/1790411104",
+        "duration": 1560000,
+        "originallyAvailableAt": "1960-10-07",
+        "addedAt": 1790411047,
+        "updatedAt": 1790411105,
+        "audienceRatingImage": "themoviedb://image.rating",
+        "Media": [
+          {
+            "id": 41,
+            "Part": [
+              {
+                "id": 41,
+                "key": "/library/parts/41/1790411047/file.mkv",
+                "file": "/data/tv/The Twilight Zone (1959)/Season 02/The Twilight Zone (1959) - S02E02.mkv",
+                "size": 4096
+              }
+            ]
+          }
+        ],
+        "Image": [
+          {
+            "alt": "The Man in the Bottle",
+            "type": "coverPoster",
+            "url": "/library/metadata/28/thumb/1790411104"
+          },
+          {
+            "alt": "The Man in the Bottle",
+            "type": "snapshot",
+            "url": "/library/metadata/35/thumb/1790411105"
+          },
+          {
+            "alt": "The Man in the Bottle",
+            "type": "background",
+            "url": "/library/metadata/28/art/1790411104"
+          },
+          {
+            "alt": "The Man in the Bottle",
+            "type": "clearLogo",
+            "url": "/library/metadata/28/clearLogo/1790411104"
+          },
+          {
+            "alt": "The Man in the Bottle",
+            "type": "backgroundSquare",
+            "url": "/library/metadata/28/squareArt/1790411104"
+          }
+        ],
+        "UltraBlurColors": {
+          "topLeft": "141314",
+          "topRight": "0b0b0b",
+          "bottomRight": "3e3f3e",
+          "bottomLeft": "2b2b2b"
+        },
+        "Guid": [
+          {
+            "id": "imdb://tt0734658"
+          },
+          {
+            "id": "tmdb://375093"
+          },
+          {
+            "id": "tvdb://119286"
+          }
+        ],
+        "Director": [
+          {
+            "tag": "Don Medford"
+          }
+        ],
+        "Writer": [
+          {
+            "tag": "Rod Serling"
+          }
+        ],
+        "Role": [
+          {
+            "tag": "Rod Serling"
+          },
+          {
+            "tag": "Olan Soule"
+          },
+          {
+            "tag": "Luther Adler"
+          }
+        ]
+      }
+    ]
+  }
+}

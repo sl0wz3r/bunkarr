@@ -1,0 +1,22 @@
+{
+  "response": {
+    "result": "success",
+    "message": null,
+    "data": {
+      "row_id": 3,
+      "server_id": "fc20cdf3f0f79321f15b0a4d85d1f8dd73200b0e",
+      "section_id": 3,
+      "section_name": "Music",
+      "section_type": "artist",
+      "library_thumb": "interfaces/default/images/cover.png",
+      "library_art": "",
+      "count": 2,
+      "parent_count": 2,
+      "child_count": 6,
+      "is_active": 1,
+      "keep_history": 1,
+      "deleted_section": 0,
+      "last_accessed": null
+    }
+  }
+}

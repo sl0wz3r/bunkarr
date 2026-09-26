@@ -1,0 +1,29 @@
+{
+  "response": {
+    "result": "success",
+    "message": null,
+    "data": [
+      {
+        "row_id": 1,
+        "user_id": 0,
+        "username": "Local",
+        "friendly_name": "Local & <Fixture> \"Owner\"",
+        "thumb": null,
+        "email": null,
+        "is_active": 1,
+        "is_admin": 0,
+        "is_home_user": null,
+        "is_allow_sync": null,
+        "is_restricted": null,
+        "keep_history": 1,
+        "allow_guest": 0,
+        "shared_libraries": [],
+        "filter_all": null,
+        "filter_movies": null,
+        "filter_tv": null,
+        "filter_music": null,
+        "filter_photos": null
+      }
+    ]
+  }
+}
