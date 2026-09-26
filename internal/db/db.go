@@ -35,9 +35,13 @@ type DB struct {
 	w    *sql.DB
 	r    *sql.DB
 	log  *slog.Logger
+	// now names pre-migration copies (nil: time.Now).
+	now func() time.Time
 }
 
 // Open opens (creating if needed) the database at path and migrates it to the latest schema.
+// Before it migrates a database that already has a schema, it copies it into
+// <dir of path>/backups (see BackupsDir) and refuses to migrate when the copy fails.
 func Open(ctx context.Context, path string, log *slog.Logger) (*DB, error) {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)

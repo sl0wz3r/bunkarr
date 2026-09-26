@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, Eye, FlaskConical, HardDrive, Pencil, Play, Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
+import { Archive, Eye, FileText, FlaskConical, HardDrive, Pencil, Play, Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { errorMessage } from '@/api/client';
@@ -17,6 +17,7 @@ import { formatBytes, formatDateTime, formatRelative } from '@/lib/format';
 import { JOB_TYPE_LABELS } from '@/lib/labels';
 import { keys, useDestinations, useIntegrations, useSources } from '@/lib/lookups';
 import { DestinationForm } from './DestinationForm';
+import { ManifestsDialog } from './ManifestsDialog';
 import { CapabilityBadges, TestResultView } from './TestResultView';
 
 type Dialog =
@@ -24,6 +25,7 @@ type Dialog =
   | { kind: 'delete'; destination: Destination }
   | { kind: 'test'; destination: Destination }
   | { kind: 'snapshots'; destination: Destination }
+  | { kind: 'manifests'; destination: Destination }
   | null;
 
 /** Destinations: where backups go (mounted shares), their schedules and the actions that run jobs. */
@@ -141,7 +143,8 @@ export function Destinations() {
           <Button small variant="ghost" icon={ShieldCheck} busy={busy === `verify:${d.id}`} onClick={() => void start(d, 'verify')} aria-label={`Verify ${d.name}`}>
             Verify
           </Button>
-          <IconButton label={`Plex DB snapshots on ${d.name}`} icon={Archive} onClick={() => setDialog({ kind: 'snapshots', destination: d })} />
+          <IconButton label={`Snapshots on ${d.name}`} icon={Archive} onClick={() => setDialog({ kind: 'snapshots', destination: d })} />
+          <IconButton label={`Manifests on ${d.name}`} icon={FileText} onClick={() => setDialog({ kind: 'manifests', destination: d })} />
           <IconButton label={`Edit ${d.name}`} icon={Pencil} onClick={() => setDialog({ kind: 'edit', destination: d })} />
           <IconButton label={`Delete ${d.name}`} icon={Trash2} className="hover:text-danger" onClick={() => setDialog({ kind: 'delete', destination: d })} />
         </div>
@@ -182,6 +185,7 @@ export function Destinations() {
       {dialog?.kind === 'edit' && <DestinationForm destination={dialog.destination} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'test' && <TestDialog destination={dialog.destination} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'snapshots' && <SnapshotsDialog destination={dialog.destination} onClose={() => setDialog(null)} />}
+      {dialog?.kind === 'manifests' && <ManifestsDialog destination={dialog.destination} onClose={() => setDialog(null)} />}
       {dialog?.kind === 'delete' && (
         <ConfirmDialog
           title="Delete destination"
@@ -243,11 +247,12 @@ function TestDialog({ destination, onClose }: { destination: Destination; onClos
 function SnapshotsDialog({ destination, onClose }: { destination: Destination; onClose: () => void }) {
   const snapshots = useQuery({ queryKey: ['destination', destination.id, 'snapshots'], queryFn: () => listSnapshots(destination.id) });
   const integrations = useIntegrations();
-  // integrationId is 0 once the Plex server was deleted from Bunkarr (the backup stays).
-  const serverName = (id: number) => (id > 0 ? (integrations.data?.find((i) => i.id === id)?.name ?? `Plex server #${id}`) : 'Deleted server');
+  // integrationId is 0 once the Plex server or *arr was deleted from Bunkarr (the backup stays).
+  const serverName = (id: number) => (id > 0 ? (integrations.data?.find((i) => i.id === id)?.name ?? `integration #${id}`) : 'Deleted server');
   const columns: Column<NonNullable<typeof snapshots.data>[number]>[] = [
     { key: 'created', header: 'Created', className: 'whitespace-nowrap', cell: (s) => <span title={formatRelative(s.createdAt)}>{formatDateTime(s.createdAt)}</span> },
-    { key: 'server', header: 'Plex server', cell: (s) => serverName(s.integrationId) },
+    { key: 'kind', header: 'Kind', cell: (s) => (s.kind === 'arr' ? '*arr backup' : 'Plex DB') },
+    { key: 'server', header: 'Backed up', cell: (s) => serverName(s.integrationId) },
     { key: 'size', header: 'Size', className: 'whitespace-nowrap text-right', cell: (s) => formatBytes(s.size) },
     {
       key: 'integrity',
@@ -273,7 +278,7 @@ function SnapshotsDialog({ destination, onClose }: { destination: Destination; o
   ];
   return (
     <Modal
-      title={`Plex DB snapshots · ${destination.name}`}
+      title={`Snapshots · ${destination.name}`}
       size="xl"
       onClose={onClose}
       footer={
@@ -283,11 +288,12 @@ function SnapshotsDialog({ destination, onClose }: { destination: Destination; o
       }
     >
       <p className="mb-3 text-xs text-ink-muted">
-        Verified copies of the Plex database, blobs database and Preferences.xml, stored under <code>.bunkarr/plex/</code> on this destination. Preferences.xml
-        contains the server's Plex token: protect the share accordingly.
+        Verified copies of the Plex database, blobs database and Preferences.xml (under <code>.bunkarr/plex/</code>), and of the *arr apps&apos; backup zips
+        (under <code>.bunkarr/arr/</code>). Preferences.xml contains the server&apos;s Plex token and an *arr zip its API key and passwords: protect the share
+        accordingly. Neither is offered for download.
       </p>
       <ErrorNotice error={snapshots.error} />
-      <DataTable columns={columns} rows={snapshots.data} rowKey={(s) => s.id} loading={snapshots.isPending} empty="No Plex database backups on this destination yet." caption="Snapshots" />
+      <DataTable columns={columns} rows={snapshots.data} rowKey={(s) => s.id} loading={snapshots.isPending} empty="No Plex database or *arr backups on this destination yet." caption="Snapshots" />
     </Modal>
   );
 }

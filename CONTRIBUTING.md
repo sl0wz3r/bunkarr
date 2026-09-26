@@ -28,8 +28,24 @@ make docker-test # image smoke test (needs Docker)
 make test-docker # image smoke, container kill, Plex backup/restore and share tests (Docker and Go)
 make test-plex   # the Plex backup/restore test only (slow; pulls plexinc/pms-docker once)
 make test-shares # sync and kill tests on Samba (CIFS) and NFS shares (privileged containers)
+make test-arr    # real Sonarr, Radarr and Lidarr containers (Docker, Go and internet; slow)
 make help        # every target
 ```
+
+`make test-arr` (`docker/test-arr.sh`) builds the image and runs the *arr acceptance tests
+against real Sonarr, Radarr and Lidarr containers of pinned versions (`SONARR_IMAGE`,
+`RADARR_IMAGE`, `LIDARR_IMAGE` override them): imports and upgrades posted as webhooks with the
+integration's webhook key must reach the destination by a targeted sync within 60 s, a manifest
+must round-trip against the *arr's own API state, and `internal/arrbackup`'s backup tests run
+with the Backups folder mounted read-only and a login required. It needs internet (the *arrs'
+metadata lookups); without it the tests skip. It removes its containers, volumes and network. It
+is not in CI yet ([DEFERRED.md](DEFERRED.md)): run it before merging a change to webhooks,
+*arr backups, manifests, the metadata index, targeted syncs or the *arr client.
+
+The *arr client's tests use `internal/integrations/arr/arrtest`, a fake that serves responses
+recorded from the real apps under `testdata/arr/<app>/` (`testdata/arr/record_slice2.py`
+records more). Add a recording rather than a hand-written response when the client learns a new
+request.
 
 The Go binary embeds `web/dist`; a Go-only build works (the UI then answers with a notice). Build
 the UI with `make web`: `npm run build` empties `web/dist`, including the tracked `.gitkeep`,
@@ -44,25 +60,47 @@ against it. The GitHub and Gitea workflows are kept identical below their header
 
 ```
 cmd/bunkarr/               main: serve, version, healthcheck, reset-auth
-internal/api/              HTTP handlers, router, openapi.json, SPA serving; App (app.go) wires
-                           the Phase 1 services for main and the tests
+internal/api/              HTTP handlers, router, openapi.json, SPA serving, Plex sign-in, the
+                           webhook routes' auth; App (app.go) wires the services for main and the
+                           tests
 internal/auth/             users, sessions, API key, login limiter, middleware
 internal/config/           bootstrap env, master key + secret sealing, settings store
-internal/db/               SQLite (modernc), embedded migrations
+internal/db/               SQLite (modernc), embedded migrations, pre-migration copies
 internal/logging/          slog setup, rotation, redaction (key names and secret values)
 internal/lock/             single instance per config directory
 internal/jobs/             the job contract shared by runners (types and interfaces only)
 internal/jobqueue/         job manager, scheduler (robfig/cron), jobs/items/logs/schedules store
 internal/faultinject/      named fault points for the crash matrix and kill tests
-internal/integrations/     integrations store, Plex settings and path mappings
-internal/integrations/plex/ Plex client; plextest/ fake server; testdata/ recorded responses
+internal/integrations/     integrations store, Plex and *arr settings, path mappings, webhook keys,
+                           the *arr connection test
+internal/integrations/plex/ Plex client, plex.tv sign-in (PINs, resources), connection probe;
+                           plextest/ fake server; testdata/ recorded responses
+internal/integrations/arr/ read-only Sonarr/Radarr/Lidarr client (fixed request allow-list);
+                           arrtest/ fake *arr serving testdata/arr/ recordings
+internal/netguard/         dialer for every outbound client: refuses link-local and cloud metadata
+                           addresses
+internal/mediaindex/       metadata index of the *arrs' items and files; refresh runner, reconcile,
+                           follow-up syncs
+internal/webhooks/         *arr webhook intake (webhook_events), parsing, the coalescing processor
+internal/arrbackup/        *arr config backup runner: fetch (folder or HTTP), zip verification,
+                           versions (snapshots kind arr)
+internal/manifest/         manifest build (JSON + CSV, streamed), export runner, parse, re-import
+                           plan and compare; manifesttest/ independent *arr state decoder
+internal/snapshots/        snapshots table and the versioned-backup rules shared by plexdb and
+                           arrbackup (partial recovery, keep daily/weekly, prune)
+internal/testhooks/        values an e2e build (-tags e2e) may override: webhook windows, plex.tv
+                           URLs, clock skew; constants in production builds
+internal/version/          build information set at link time
 internal/catalog/          sources, read-only scanner, hardlink groups, catalog queries, scan runner
 internal/destinations/     destinations store, marker, capability probe, Open (safety rule S3)
 internal/engines/filecopy/ filesystem primitives over os.Root: atomic copy, link, retain, expire, hashes
-internal/syncer/           planner and the sync, verify and retention runners (destination_files)
+internal/syncer/           planner and the sync, verify and retention runners (destination_files);
+                           targeted syncs (Params.Paths)
 internal/plexdb/           Plex DB backup runner, verification, version pruning (snapshots)
 internal/notify/           Apprise targets and the notification dispatcher
-internal/e2e/              acceptance suite (build tag e2e): binary and Docker tests
+internal/e2e/              acceptance suite (build tag e2e): binary and Docker tests, including the
+                           *arr suite (TestDockerArr*)
+testdata/arr/, testdata/webhooks/  recorded *arr API responses and webhook payloads
 web/                       React + TypeScript + Vite + Tailwind UI
 deploy/                    docker-compose example
 docker/                    entrypoint; image smoke, container kill, Plex restore and share test wrappers
@@ -72,7 +110,10 @@ docs/spikes/               spike reports
 ```
 
 Each package owns its tables' SQL; other packages use its exported API
-(`docs/design/phase1.md` §8).
+(`docs/design/phase1.md` §8, `docs/design/phase2-3.md` §14.2). The one exception is
+`internal/manifest/queries.go`, which reads the catalog, syncer and destinations tables directly
+and read-only, inside the manifest's single read transaction, until those packages expose
+manifest queries.
 
 ## Conventions
 
@@ -96,6 +137,15 @@ Each package owns its tables' SQL; other packages use its exported API
   row, released when the row changes); a secret Bunkarr reads but does not store with
   `logging.RegisterSecret`; a value held for one request (a Test form) is redacted with
   `logging.RedactValues` and never registered.
+- **Outbound HTTP:** every client that calls another service (Plex, plex.tv, the *arrs,
+  Apprise) uses `netguard.NewTransport()`. The *arr client has no general request method: a new
+  request is a new method on the allow-list in `internal/integrations/arr`, read-only unless the
+  design says otherwise (the Backup command is the only write).
+- **Webhooks are hints:** a webhook payload only chooses which *arr items to refresh; paths and
+  files always come from the *arr's API and a scan (design S12).
+- **Test hooks:** values an end-to-end test must change in a real binary (timings, plex.tv URLs)
+  go through `internal/testhooks`, honoured only with `-tags e2e`; never read such an override
+  from the environment in production code.
 - **Dependencies:** prefer the standard library. Justify each new dependency in the commit
   message. Current Go dependencies:
   - `github.com/go-chi/chi/v5` — router (spec'd stack; route groups and middleware).
@@ -118,11 +168,12 @@ Crash safety is tested by stopping the program at named step boundaries.
 
 - Code that changes the destination or the job state calls `faultinject.Point("<step>.<when>")`
   at each boundary (`copy.afterWrite`, `update.afterRenameOld`, `plexdb.beforeRecord`, …).
-  Document each point where it is defined (exported `Point…` constants in syncer, plexdb and
-  jobqueue; the package comment in filecopy). In production `Point` is one atomic load;
+  Document each point where it is defined (exported `Point…` constants in syncer, plexdb,
+  jobqueue, db, integrations, mediaindex, webhooks, arrbackup and manifest; the package comment
+  in filecopy). In production `Point` is one atomic load;
   injection is always compiled in and armed only by a test hook or the environment.
-- **Go crash matrix** (`internal/syncer` `TestCrashMatrix`, `TestCrashMatrixResumePaths`, and
-  plexdb's matrices): a clean run counts how often each listed point is reached; then, for every
+- **Go crash matrix** (`internal/syncer` `TestCrashMatrix`, `TestCrashMatrixResumePaths` and the
+  targeted-sync matrix, and the matrices of plexdb, arrbackup, manifest and mediaindex): a clean run counts how often each listed point is reached; then, for every
   occurrence, `faultinject.SetHook(faultinject.CrashAt(point, n))` makes the run panic with
   `faultinject.Crash`, the harness recovers it, discards in-memory state and resumes the same job
   (attempt 2, trigger `resume`). The result must converge: the destination verifies, no temp or

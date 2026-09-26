@@ -13,7 +13,7 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/jobqueue"
 	"github.com/sl0wz3r/bunkarr/internal/logging"
 	"github.com/sl0wz3r/bunkarr/internal/notify"
-	"github.com/sl0wz3r/bunkarr/internal/plexdb"
+	"github.com/sl0wz3r/bunkarr/internal/snapshots"
 	"github.com/sl0wz3r/bunkarr/internal/syncer"
 )
 
@@ -55,7 +55,7 @@ func statusOf(err error) int {
 		errors.Is(err, destinations.ErrLocalFilesystem):
 		return http.StatusBadRequest
 	case errors.Is(err, integrations.ErrNotFound), errors.Is(err, catalog.ErrNotFound), errors.Is(err, destinations.ErrNotFound),
-		errors.Is(err, jobqueue.ErrNotFound), errors.Is(err, notify.ErrNotFound), errors.Is(err, plexdb.ErrNotFound),
+		errors.Is(err, jobqueue.ErrNotFound), errors.Is(err, notify.ErrNotFound), errors.Is(err, snapshots.ErrNotFound),
 		errors.Is(err, syncer.ErrNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, catalog.ErrConflict), errors.Is(err, destinations.ErrNameTaken), errors.Is(err, destinations.ErrMarkerExists),

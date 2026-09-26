@@ -1,0 +1,24 @@
+{
+  "name": "Backup",
+  "commandName": "Backup",
+  "body": {
+    "type": "manual",
+    "sendUpdatesToClient": true,
+    "updateScheduledTask": false,
+    "requiresDiskAccess": false,
+    "isExclusive": false,
+    "isTypeExclusive": false,
+    "isLongRunning": false,
+    "name": "Backup",
+    "trigger": "manual",
+    "suppressMessages": false
+  },
+  "priority": "normal",
+  "status": "queued",
+  "result": "unknown",
+  "queued": "2026-09-25T12:39:28Z",
+  "trigger": "manual",
+  "sendUpdatesToClient": true,
+  "updateScheduledTask": false,
+  "id": 40
+}

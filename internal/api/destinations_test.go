@@ -10,7 +10,7 @@ import (
 
 	"github.com/sl0wz3r/bunkarr/internal/destinations"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
-	"github.com/sl0wz3r/bunkarr/internal/plexdb"
+	"github.com/sl0wz3r/bunkarr/internal/snapshots"
 )
 
 // schedulesOf returns the schedules of one job type for a destination.
@@ -293,7 +293,7 @@ func TestDestinationOverlapWithSources(t *testing.T) {
 func TestDestinationSnapshots(t *testing.T) {
 	e := newEnv(t, nil)
 	id := e.createDestination(t, "NAS", e.mkdir(t, "nas"), nil, nil)
-	var list []plexdb.Snapshot
+	var list []snapshots.Snapshot
 	e.call(t, 200, "GET", fmt.Sprintf("/destinations/%d/snapshots", id), nil, &list)
 	if list == nil || len(list) != 0 {
 		t.Fatalf("snapshots: %#v", list)

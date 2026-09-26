@@ -94,7 +94,7 @@ func (s *Store) GetSchedule(ctx context.Context, id int64) (Schedule, error) {
 // enabled flag. Params are compared in canonical form. The cron expression is validated with
 // ValidateCron. Call Scheduler.Reload afterwards.
 func (s *Store) UpsertSchedule(ctx context.Context, jobType jobs.Type, params jobs.Params, cron string, enabled bool) (Schedule, error) {
-	if err := validateParams(jobType, params); err != nil {
+	if err := validateParams(jobType, params, false); err != nil {
 		return Schedule{}, err
 	}
 	cron = strings.TrimSpace(cron)

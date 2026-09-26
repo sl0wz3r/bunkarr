@@ -1,0 +1,140 @@
+{
+  "title": "One Step Beyond",
+  "alternateTitles": [],
+  "sortTitle": "one step beyond",
+  "status": "ended",
+  "ended": true,
+  "overview": "During the era of The Twilight Zone, One Step Beyond is a show that told real stories about supernatural encounters. Host John Newland narrated stories of ghosts, monsters, mysterious disappearances, and supernatural circumstances in which no logical answer to explain the events was found. Along with dramatic and eerie re-enactments, viewers couldn't help but wonder if the paranormal truly exists.",
+  "previousAiring": "1961-07-04T04:00:00Z",
+  "network": "ABC (US)",
+  "images": [
+    {
+      "coverType": "banner",
+      "url": "/MediaCover/2/banner.jpg?lastWrite=639259360083982411",
+      "remoteUrl": "https://artworks.thetvdb.com/banners/graphical/76479-g2.jpg"
+    },
+    {
+      "coverType": "poster",
+      "url": "/MediaCover/2/poster.jpg?lastWrite=639259360084413912",
+      "remoteUrl": "https://artworks.thetvdb.com/banners/posters/76479-3.jpg"
+    },
+    {
+      "coverType": "fanart",
+      "url": "/MediaCover/2/fanart.jpg?lastWrite=639259360084804842",
+      "remoteUrl": "https://artworks.thetvdb.com/banners/fanart/original/76479-1.jpg"
+    },
+    {
+      "coverType": "clearlogo",
+      "url": "/MediaCover/2/clearlogo.png?lastWrite=639259360085213822",
+      "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/76479/clearlogo/64ff0ccff1164.png"
+    }
+  ],
+  "originalLanguage": {
+    "id": 1,
+    "name": "English"
+  },
+  "seasons": [
+    {
+      "seasonNumber": 0,
+      "monitored": false,
+      "statistics": {
+        "episodeFileCount": 0,
+        "episodeCount": 0,
+        "totalEpisodeCount": 5,
+        "sizeOnDisk": 0,
+        "releaseGroups": [],
+        "percentOfEpisodes": 0
+      }
+    },
+    {
+      "seasonNumber": 1,
+      "monitored": true,
+      "statistics": {
+        "previousAiring": "1959-06-16T04:00:00Z",
+        "episodeFileCount": 1,
+        "episodeCount": 22,
+        "totalEpisodeCount": 22,
+        "sizeOnDisk": 941725,
+        "releaseGroups": [
+          "PDGRP"
+        ],
+        "percentOfEpisodes": 4.545454545454546
+      }
+    },
+    {
+      "seasonNumber": 2,
+      "monitored": true,
+      "statistics": {
+        "previousAiring": "1960-06-21T04:00:00Z",
+        "episodeFileCount": 0,
+        "episodeCount": 39,
+        "totalEpisodeCount": 39,
+        "sizeOnDisk": 0,
+        "releaseGroups": [],
+        "percentOfEpisodes": 0
+      }
+    },
+    {
+      "seasonNumber": 3,
+      "monitored": true,
+      "statistics": {
+        "previousAiring": "1961-07-04T04:00:00Z",
+        "episodeFileCount": 0,
+        "episodeCount": 36,
+        "totalEpisodeCount": 36,
+        "sizeOnDisk": 0,
+        "releaseGroups": [],
+        "percentOfEpisodes": 0
+      }
+    }
+  ],
+  "year": 1959,
+  "path": "/tv/One Step Beyond",
+  "qualityProfileId": 6,
+  "seasonFolder": true,
+  "monitored": true,
+  "monitorNewItems": "all",
+  "useSceneNumbering": false,
+  "runtime": 25,
+  "tvdbId": 76479,
+  "tvRageId": 4723,
+  "tvMazeId": 18552,
+  "tmdbId": 10377,
+  "firstAired": "1959-01-20T00:00:00Z",
+  "lastAired": "1961-07-04T00:00:00Z",
+  "seriesType": "standard",
+  "cleanTitle": "onestepbeyond",
+  "imdbId": "tt0052442",
+  "titleSlug": "one-step-beyond",
+  "rootFolderPath": "/tv",
+  "certification": "TV-G",
+  "genres": [
+    "Drama",
+    "Fantasy",
+    "Mystery",
+    "Science Fiction",
+    "Suspense",
+    "Thriller"
+  ],
+  "tags": [
+    2
+  ],
+  "added": "2026-09-25T12:26:48Z",
+  "ratings": {
+    "votes": 2182,
+    "value": 7.8
+  },
+  "statistics": {
+    "seasonCount": 3,
+    "episodeFileCount": 1,
+    "episodeCount": 97,
+    "totalEpisodeCount": 102,
+    "sizeOnDisk": 941725,
+    "releaseGroups": [
+      "PDGRP"
+    ],
+    "percentOfEpisodes": 1.0309278350515463
+  },
+  "languageProfileId": 1,
+  "id": 2
+}

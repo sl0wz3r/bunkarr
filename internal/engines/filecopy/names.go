@@ -32,6 +32,13 @@ type Capabilities struct {
 	TrailingDotSpace bool `json:"trailingDotSpace"`
 	// MtimeGranularityNs is the resolution of stored modification times (1 = nanoseconds).
 	MtimeGranularityNs int64 `json:"mtimeGranularityNs"`
+	// EnforcesModes reports whether the destination stores the permission bits a file is given:
+	// the probe creates a file with mode 0600 and reads it back, then changes it to 0640 and reads
+	// it back (docs/design/phase2-3.md S17, §13). SMB without POSIX extensions shows every file
+	// with the mount's file_mode instead. Capabilities from a probe older than this field read
+	// false until the destination is probed again. *arr backups (which hold the *arr's secrets)
+	// go only to a destination where it is true, unless the integration accepts insecure modes.
+	EnforcesModes bool `json:"enforcesModes"`
 	// FSType is the filesystem type (FSStat.Type).
 	FSType string `json:"fsType"`
 	// CheckedAt is when the probe ran.

@@ -1,0 +1,383 @@
+{
+  "title": "Nosferatu",
+  "originalTitle": "Nosferatu, eine Symphonie des Grauens",
+  "originalLanguage": {
+    "id": 4,
+    "name": "German"
+  },
+  "alternateTitles": [
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu the Vampire",
+      "id": 48
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Die zwölfte Stunde - Eine Nacht des Grauens",
+      "id": 49
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu el vampiro",
+      "id": 50
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu, o Vampiro",
+      "id": 51
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu, una simfonia del terror",
+      "id": 52
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu: Kino Ultimate Edition",
+      "id": 53
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Schatten der Nacht",
+      "id": 54
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Das kostbare Blut",
+      "id": 55
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "吸血鬼",
+      "id": 56
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Носферату, Симфонія жаху",
+      "id": 57
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu: A Symphony of Horrors",
+      "id": 58
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Носферату: Симфонија ужаса",
+      "id": 59
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Носферату, симфония ужаса",
+      "id": 60
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu: Uma Sinfonia de Terror",
+      "id": 61
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu, una sinfonía de terror",
+      "id": 62
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu, Samphony e Vahshat",
+      "id": 63
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Léleklátó",
+      "id": 64
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu - Drakula",
+      "id": 65
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu: Mia Symfonia Tromou",
+      "id": 66
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu - kauhun sinfonia",
+      "id": 67
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Upír Nosferatu",
+      "id": 68
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Носферату - симфония на ужаса",
+      "id": 69
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu – Eine Symphonie des Grauens",
+      "id": 70
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Terror of Dracula",
+      "id": 71
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu, šausmu simfonija",
+      "id": 72
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "노스페라투",
+      "id": 73
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Νοσφεράτου: Μια Συμφωνία Τρόμου",
+      "id": 74
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Dracula",
+      "id": 75
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "F. W. Murnau's Nosferatu",
+      "id": 76
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Νοσφεράτου",
+      "id": 77
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu: A Symphony of Horror",
+      "id": 78
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu: A Symphony of Terror",
+      "id": 79
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 8,
+      "title": "Nosferatu, Bir Dehşet Senfonisi",
+      "id": 80
+    }
+  ],
+  "secondaryYearSourceId": 0,
+  "sortTitle": "nosferatu",
+  "sizeOnDisk": 3346400,
+  "status": "released",
+  "overview": "The mysterious Count Orlok summons a happily married real estate agent to his castle, located up in the Transylvanian mountains, to finalise a terrifying deal.",
+  "inCinemas": "1922-02-16T00:00:00Z",
+  "physicalRelease": "1995-08-12T00:00:00Z",
+  "digitalRelease": "1962-09-24T00:00:00Z",
+  "releaseDate": "1962-09-24T00:00:00Z",
+  "images": [
+    {
+      "coverType": "poster",
+      "url": "/MediaCover/5/poster.jpg?h=380b3ecf76b905e00dc9",
+      "remoteUrl": "https://image.tmdb.org/t/p/original/zv7J85D8CC9qYagAEhPM63CIG6j.jpg"
+    },
+    {
+      "coverType": "fanart",
+      "url": "/MediaCover/5/fanart.jpg?h=9d13724fafb441cb6ab0",
+      "remoteUrl": "https://image.tmdb.org/t/p/original/cA9iGtvjRGJHzDBfrq48l0eyCvA.jpg"
+    }
+  ],
+  "website": "",
+  "year": 1922,
+  "youTubeTrailerId": "npxhdRMYHy0",
+  "studio": "Prana-Film",
+  "path": "/movies-4k/Nosferatu (1922)",
+  "qualityProfileId": 5,
+  "hasFile": true,
+  "movieFileId": 5,
+  "monitored": true,
+  "minimumAvailability": "released",
+  "isAvailable": true,
+  "folderName": "/movies-4k/Nosferatu (1922)",
+  "runtime": 94,
+  "cleanTitle": "nosferatu",
+  "imdbId": "tt0013442",
+  "tmdbId": 653,
+  "titleSlug": "653",
+  "rootFolderPath": "/movies-4k",
+  "certification": "NR",
+  "genres": [
+    "Horror",
+    "Fantasy"
+  ],
+  "keywords": [
+    "admiring",
+    "based on novel or book",
+    "black and white",
+    "black death",
+    "castle",
+    "coffin",
+    "corpse in coffin",
+    "depressing",
+    "dracula",
+    "expressionism",
+    "german expressionism",
+    "germany",
+    "ghost ship",
+    "ghoul",
+    "gothic",
+    "gothic horror",
+    "gothic romance",
+    "grimdark",
+    "halloween",
+    "locket",
+    "loss of loved one",
+    "mountain country",
+    "nosferatu",
+    "psychotronic",
+    "rat",
+    "real estate",
+    "real estate agent",
+    "romania",
+    "sailing ship",
+    "seashore",
+    "self sacrifice",
+    "sentimental",
+    "shapeshifting",
+    "silent film",
+    "sleepwalking",
+    "supernatural",
+    "suspicious",
+    "transylvania",
+    "vampire",
+    "vampire bat",
+    "wonder"
+  ],
+  "tags": [],
+  "added": "2026-09-25T14:16:54Z",
+  "ratings": {
+    "imdb": {
+      "votes": 124458,
+      "value": 7.8,
+      "type": "user"
+    },
+    "tmdb": {
+      "votes": 2536,
+      "value": 7.652,
+      "type": "user"
+    },
+    "rottenTomatoes": {
+      "votes": 0,
+      "value": 97,
+      "type": "user"
+    },
+    "trakt": {
+      "votes": 3173,
+      "value": 7.39269,
+      "type": "user"
+    }
+  },
+  "movieFile": {
+    "movieId": 5,
+    "relativePath": "Nosferatu (1922) [Bluray-2160p].mkv",
+    "path": "/movies-4k/Nosferatu (1922)/Nosferatu (1922) [Bluray-2160p].mkv",
+    "size": 3346400,
+    "dateAdded": "2026-09-25T14:16:56Z",
+    "edition": "",
+    "languages": [
+      {
+        "id": 4,
+        "name": "German"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 19,
+        "name": "Bluray-2160p",
+        "source": "bluray",
+        "resolution": 2160,
+        "modifier": "none"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioBitrate": 0,
+      "audioChannels": 1,
+      "audioCodec": "Opus",
+      "audioLanguages": "",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "x264",
+      "videoFps": 0.1,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "3840x2160",
+      "runTime": "1:30:00",
+      "scanType": "Progressive",
+      "subtitles": ""
+    },
+    "qualityCutoffNotMet": false,
+    "id": 5
+  },
+  "popularity": 9.687,
+  "statistics": {
+    "movieFileCount": 1,
+    "sizeOnDisk": 3346400,
+    "releaseGroups": [],
+    "movieFileQualities": [
+      {
+        "id": 19,
+        "name": "Bluray-2160p",
+        "source": "bluray",
+        "resolution": 2160,
+        "modifier": "none"
+      }
+    ]
+  },
+  "id": 5
+}

@@ -1,7 +1,10 @@
 import { vi } from 'vitest';
 
-/** Handler answers one mocked route; url carries the query string of the request. */
-export type Handler = (init: RequestInit | undefined, url: URL) => { status?: number; body?: unknown };
+/**
+ * Handler answers one mocked route; url carries the query string of the request. body is sent as
+ * JSON, text (when given) as is; headers are added to the response.
+ */
+export type Handler = (init: RequestInit | undefined, url: URL) => { status?: number; body?: unknown; text?: string; headers?: Record<string, string> };
 
 /** Call is one recorded fetch: key is "METHOD /api/v1/path?query", body the parsed JSON body. */
 export interface Call {
@@ -26,8 +29,8 @@ export function mockFetch(routes: Record<string, Handler>) {
     if (!h) {
       return new Response(JSON.stringify({ message: 'not found' }), { status: 404 });
     }
-    const { status = 200, body } = h(init, url);
-    return new Response(status === 204 ? null : JSON.stringify(body ?? {}), { status });
+    const { status = 200, body, text, headers } = h(init, url);
+    return new Response(status === 204 ? null : (text ?? JSON.stringify(body ?? {})), { status, headers });
   });
   vi.stubGlobal('fetch', fn);
   return calls;

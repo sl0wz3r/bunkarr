@@ -262,6 +262,11 @@ describe('validateDestination', () => {
     ['plexDbDaily 366', { plexDbDaily: 366 }, /1–365 daily/],
     ['plexDbWeekly 0', { plexDbWeekly: 0 }, /1–520 weekly/],
     ['plexDbWeekly 521', { plexDbWeekly: 521 }, /1–520 weekly/],
+    ['arrDaily 0', { arrDaily: 0 }, /1–365 daily \*arr/],
+    ['arrWeekly 521', { arrWeekly: 521 }, /1–520 weekly \*arr/],
+    ['manifestDays 0', { manifestDays: 0 }, /1–3650 daily manifest/],
+    ['manifestWeeks -1', { manifestWeeks: -1 }, /0–520 weekly manifest/],
+    ['manifestWeeks 521', { manifestWeeks: 521 }, /0–520 weekly manifest/],
   ])('rejects %s', (_, patch, message) => {
     expect(validateDestination({ ...valid, retention: { ...DEFAULT_RETENTION, ...patch } })).toMatch(message);
   });
@@ -278,6 +283,9 @@ describe('validateDestination', () => {
   it('accepts the defaults and the range limits', () => {
     expect(validateDestination(valid)).toBeNull();
     expect(validateDestination({ ...valid, retention: { deletedDays: 3650, plexDbDaily: 365, plexDbWeekly: 520 } })).toBeNull();
+    // manifestWeeks 0 keeps no weekly manifest versions (the server keeps a sent 0).
+    expect(validateDestination({ ...valid, retention: { ...DEFAULT_RETENTION, manifestDays: 3650, manifestWeeks: 0 } })).toBeNull();
+    expect(validateDestination({ ...valid, retention: { ...DEFAULT_RETENTION, manifestDays: 1, manifestWeeks: 520 } })).toBeNull();
   });
 });
 
@@ -351,10 +359,42 @@ describe('Destination dialogs', () => {
         }),
       }),
     );
-    await user.click(await screen.findByRole('button', { name: 'Plex DB snapshots on UNAS' }));
-    const dialog = within(await screen.findByRole('dialog', { name: 'Plex DB snapshots · UNAS' }));
+    await user.click(await screen.findByRole('button', { name: 'Snapshots on UNAS' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Snapshots · UNAS' }));
     expect(await dialog.findByText('Deleted server')).toBeInTheDocument();
     expect(dialog.queryByText('#0')).not.toBeInTheDocument();
+  });
+
+  it('lists *arr backups with their kind next to Plex DB versions', async () => {
+    const { user } = renderApp(
+      '/destinations',
+      base({
+        'GET /api/v1/destinations': () => ({ body: [destination()] }),
+        'GET /api/v1/integrations': () => ({ body: [{ id: 7, type: 'radarr', name: 'Radarr 4K', url: 'http://radarr:7878', enabled: true, hasApiKey: true, settings: {} }] }),
+        'GET /api/v1/destinations/1/snapshots': () => ({
+          body: [
+            {
+              id: 2,
+              destinationId: 1,
+              kind: 'arr',
+              integrationId: 7,
+              jobId: 4,
+              path: '.bunkarr/arr/radarr-4k-7/20260925T063000Z',
+              createdAt: new Date().toISOString(),
+              size: 26388,
+              method: 'arr_api_folder',
+              integrity: 'ok',
+              manifest: { sensitive: true },
+            },
+          ],
+        }),
+      }),
+    );
+    await user.click(await screen.findByRole('button', { name: 'Snapshots on UNAS' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Snapshots · UNAS' }));
+    expect(await dialog.findByText('*arr backup')).toBeInTheDocument();
+    expect(dialog.getByText('Radarr 4K')).toBeInTheDocument();
+    expect(dialog.queryByRole('link', { name: /download/i })).not.toBeInTheDocument();
   });
 });
 

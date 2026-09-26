@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/sl0wz3r/bunkarr/internal/db"
+	"github.com/sl0wz3r/bunkarr/internal/faultinject"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
 	"github.com/sl0wz3r/bunkarr/internal/logging"
 )
@@ -93,43 +95,82 @@ func nullString(s string) sql.NullString { return sql.NullString{String: s, Vali
 
 func nullInt(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: v != 0} }
 
-// CreateJob inserts a queued job for spec. When an identical job (type, canonical params, dry
-// run) is still queued, that job is returned instead and created is false. The check and the
-// insert are one transaction. Params.DestinationID is also stored in jobs.destination_id.
+// CreateJob queues a job for spec and reports whether it inserted a new one. In one transaction
+// it:
+//   - returns the identical queued job (type, canonical params, dry run) when there is one, except,
+//     for a sync, verify or retention spec that is not a dry run, a re-queued job whose plan is
+//     already complete (it resumes that plan without scanning again, so what changed since would
+//     be lost; see resumesStoredPlan);
+//   - otherwise, for a targeted spec that is not a dry run, coalesces it with queued jobs that are
+//     not dry runs and never started (phase2-3.md §12.2, see coalesce): it returns a queued
+//     untargeted job that covers it, or merges its paths or item ids into a queued targeted job
+//     with equal other params (which keeps its place in the queue), or makes that job untargeted
+//     when the merge exceeds jobs.MaxTargetPaths or jobs.MaxTargetItems;
+//   - otherwise inserts a queued job.
+//
+// created is false whenever an existing job is returned; its QueuedAt is then earlier than the
+// call. Params.DestinationID is also stored in jobs.destination_id and Params.IntegrationID in
+// jobs.integration_id.
 func (s *Store) CreateJob(ctx context.Context, spec jobs.Spec) (job jobs.Job, created bool, err error) {
+	job, outcome, err := s.createJob(ctx, spec)
+	return job, outcome == outcomeCreated, err
+}
+
+// createJob is CreateJob, reporting what it did.
+func (s *Store) createJob(ctx context.Context, spec jobs.Spec) (job jobs.Job, outcome enqueueOutcome, err error) {
 	spec, err = normalizeSpec(spec)
 	if err != nil {
-		return jobs.Job{}, false, err
+		return jobs.Job{}, 0, err
 	}
 	params, err := canonicalParams(spec.Params)
 	if err != nil {
-		return jobs.Job{}, false, err
+		return jobs.Job{}, 0, err
 	}
 	err = s.db.Write(ctx, func(tx *sql.Tx) error {
-		created = false
+		now := s.now()
+		// A queued sync, verify or retention job whose plan is already complete (re-queued after a
+		// crash or a shutdown) resumes that plan without scanning again, so it would not do what
+		// changed since: it is not the answer to an identical request that is not a dry run. Other
+		// types that set planned_at (plexdb_backup, arr_backup) never resume a stored plan and keep
+		// the exact dedupe.
+		skipPlanned := !spec.DryRun && resumesStoredPlan(spec.Type)
 		existing, err := scanJob(tx.QueryRowContext(ctx, `SELECT `+jobColumns+` FROM jobs
-			WHERE status = 'queued' AND type = ? AND params = ? AND dry_run = ? ORDER BY id LIMIT 1`,
-			string(spec.Type), params, spec.DryRun))
+			WHERE status = 'queued' AND type = ? AND params = ? AND dry_run = ? AND (? = 0 OR planned_at IS NULL)
+			ORDER BY id LIMIT 1`,
+			string(spec.Type), params, spec.DryRun, skipPlanned))
 		if err == nil {
-			job = existing
+			job, outcome = existing, outcomeExisting
 			return nil
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("find queued job: %w", err)
 		}
-		job, err = scanJob(tx.QueryRowContext(ctx, `INSERT INTO jobs (type, status, trigger, dry_run, params, destination_id, queued_at)
-			VALUES (?, 'queued', ?, ?, ?, ?, ?) RETURNING `+jobColumns,
-			string(spec.Type), string(spec.Trigger), spec.DryRun, params, nullInt(spec.Params.DestinationID), db.FormatTime(s.now())))
+		if !spec.DryRun && spec.Params.Targeted() {
+			j, out, err := coalesce(ctx, tx, spec, now)
+			if err != nil {
+				return err
+			}
+			if out != outcomeCreated {
+				job, outcome = j, out
+				faultinject.Point(PointEnqueueBeforeCommit)
+				return nil
+			}
+		}
+		job, err = scanJob(tx.QueryRowContext(ctx, `INSERT INTO jobs (type, status, trigger, dry_run, params, destination_id, integration_id, queued_at)
+			VALUES (?, 'queued', ?, ?, ?, ?, ?, ?) RETURNING `+jobColumns,
+			string(spec.Type), string(spec.Trigger), spec.DryRun, params, nullInt(spec.Params.DestinationID),
+			nullInt(spec.Params.IntegrationID), db.FormatTime(now)))
 		if err != nil {
 			return fmt.Errorf("insert job: %w", err)
 		}
-		created = true
+		outcome = outcomeCreated
+		faultinject.Point(PointEnqueueBeforeCommit)
 		return nil
 	})
 	if err != nil {
-		return jobs.Job{}, false, fmt.Errorf("create %s job: %w", spec.Type, err)
+		return jobs.Job{}, 0, fmt.Errorf("create %s job: %w", spec.Type, err)
 	}
-	return job, created, nil
+	return job, outcome, nil
 }
 
 // GetJob returns job id as stored (without the live progress the Manager merges in).
@@ -161,6 +202,9 @@ type JobQuery struct {
 	Status jobs.Status
 	// DestinationID selects the jobs of one destination (jobs.destination_id).
 	DestinationID int64
+	// IntegrationID selects the jobs of one integration (jobs.integration_id: refresh,
+	// plexdb_backup, arr_backup).
+	IntegrationID int64
 	// Page is 1-based; PageSize defaults to DefaultPageSize and is capped at MaxPageSize.
 	Page     int
 	PageSize int
@@ -203,6 +247,10 @@ func (s *Store) ListJobs(ctx context.Context, q JobQuery) (Page[jobs.Job], error
 		where = append(where, "destination_id = ?")
 		args = append(args, q.DestinationID)
 	}
+	if q.IntegrationID != 0 {
+		where = append(where, "integration_id = ?")
+		args = append(args, q.IntegrationID)
+	}
 	cond := ""
 	if len(where) > 0 {
 		cond = " WHERE " + strings.Join(where, " AND ")
@@ -242,14 +290,16 @@ func (s *Store) ActiveForSource(ctx context.Context, id int64) (bool, error) {
 }
 
 // ActiveForIntegration reports whether a queued or running job (dry runs included) has
-// integration id in its params (integrationId), for the integration delete guard.
+// integration id in its params (integrationId, denormalized into jobs.integration_id), for the
+// integration delete guard.
 func (s *Store) ActiveForIntegration(ctx context.Context, id int64) (bool, error) {
 	return s.activeFor(ctx, "integration", `SELECT EXISTS (SELECT 1 FROM jobs
-		WHERE status IN ('queued', 'running') AND json_extract(params, '$.integrationId') = ?)`, id)
+		WHERE status IN ('queued', 'running') AND integration_id = ?)`, id)
 }
 
 // ActiveForDestination reports whether a queued or running job (dry runs included) works on
-// destination id (sync, verify, retention, or a Plex database backup to it).
+// destination id (sync, verify, retention, manifest_export, or a Plex database or *arr backup to
+// it).
 func (s *Store) ActiveForDestination(ctx context.Context, id int64) (bool, error) {
 	return s.activeFor(ctx, "destination", `SELECT EXISTS (SELECT 1 FROM jobs
 		WHERE status IN ('queued', 'running') AND destination_id = ?)`, id)
@@ -500,31 +550,74 @@ func scanIDs(rows *sql.Rows) ([]int64, error) {
 	return ids, rows.Err()
 }
 
-// hasRunning reports whether a non-dry-run job of type t for the same work as p is running: for
-// a sync or verify, any one of the same destination (design §6.2: "a scheduled sync for a
-// destination whose sync is already running is skipped"); otherwise the same canonical params,
-// so a Plex DB backup is never skipped for another server's backup to the same destination.
+// hasRunning reports whether a non-dry-run job of type t for the same work as p is running
+// (the scheduler's skip rule, phase1.md §6.2 as amended by phase2-3.md §12.1): for a sync or
+// verify, one of the same destination that runs without paths and covers p's sources (it runs
+// for all sources, or for every source p names), so a running targeted (webhook) sync, or an
+// untargeted follow-up sync of one source, never makes a scheduled full sync skip its turn (the
+// full sync is queued and waits for dest:<id>); otherwise one with the same canonical params, so
+// a Plex DB backup is never skipped for another server's backup to the same destination, and a
+// running targeted refresh never skips a scheduled full one.
 func (s *Store) hasRunning(ctx context.Context, t jobs.Type, p jobs.Params) (bool, error) {
-	var (
-		q    string
-		args []any
-	)
 	if (t == jobs.TypeSync || t == jobs.TypeVerify) && p.DestinationID != 0 {
-		q = `SELECT EXISTS (SELECT 1 FROM jobs WHERE status = 'running' AND dry_run = 0 AND type = ? AND destination_id = ?)`
-		args = []any{string(t), p.DestinationID}
-	} else {
-		params, err := canonicalParams(p)
-		if err != nil {
-			return false, err
-		}
-		q = `SELECT EXISTS (SELECT 1 FROM jobs WHERE status = 'running' AND dry_run = 0 AND type = ? AND params = ?)`
-		args = []any{string(t), params}
+		return s.hasRunningCovering(ctx, t, p)
+	}
+	params, err := canonicalParams(p)
+	if err != nil {
+		return false, err
 	}
 	var running bool
-	if err := s.db.Reader().QueryRowContext(ctx, q, args...).Scan(&running); err != nil {
+	if err := s.db.Reader().QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM jobs
+		WHERE status = 'running' AND dry_run = 0 AND type = ? AND params = ?)`, string(t), params).Scan(&running); err != nil {
 		return false, fmt.Errorf("check running %s jobs: %w", t, err)
 	}
 	return running, nil
+}
+
+// hasRunningCovering is hasRunning for a sync or verify of a destination: whether a non-dry-run
+// job of type t and p's destination runs without paths for sources that include all of p's.
+func (s *Store) hasRunningCovering(ctx context.Context, t jobs.Type, p jobs.Params) (bool, error) {
+	rows, err := s.db.Reader().QueryContext(ctx, `SELECT params FROM jobs WHERE status = 'running' AND dry_run = 0 AND type = ?
+		AND destination_id = ? AND json_extract(params, '$.paths') IS NULL`, string(t), p.DestinationID)
+	if err != nil {
+		return false, fmt.Errorf("check running %s jobs: %w", t, err)
+	}
+	defer rows.Close()
+	want := sortedIDs(p.SourceIDs)
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return false, fmt.Errorf("check running %s jobs: %w", t, err)
+		}
+		rp, err := parseParams(raw)
+		if err != nil {
+			return false, fmt.Errorf("check running %s jobs: %w", t, err)
+		}
+		if coversSources(rp.SourceIDs, want) {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("check running %s jobs: %w", t, err)
+	}
+	return false, nil
+}
+
+// coversSources reports whether a job for the sources have (empty: all sources) does every
+// source of want (empty: all sources).
+func coversSources(have, want []int64) bool {
+	if len(have) == 0 {
+		return true
+	}
+	if len(want) == 0 {
+		return false
+	}
+	for _, id := range want {
+		if !slices.Contains(have, id) {
+			return false
+		}
+	}
+	return true
 }
 
 // redactText is logging.RedactSecrets; named for readability at the call sites.

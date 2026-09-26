@@ -1,0 +1,32 @@
+[
+  {
+    "label": "bunkarr-full",
+    "delayProfileIds": [],
+    "importListIds": [],
+    "notificationIds": [],
+    "releaseProfileIds": [],
+    "indexerIds": [],
+    "downloadClientIds": [],
+    "autoTagIds": [],
+    "movieIds": [
+      1,
+      4
+    ],
+    "id": 1
+  },
+  {
+    "label": "irreplaceable",
+    "delayProfileIds": [],
+    "importListIds": [],
+    "notificationIds": [],
+    "releaseProfileIds": [],
+    "indexerIds": [],
+    "downloadClientIds": [],
+    "autoTagIds": [],
+    "movieIds": [
+      2,
+      4
+    ],
+    "id": 2
+  }
+]

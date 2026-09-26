@@ -1,0 +1,53 @@
+[
+  {
+    "seriesId": 2,
+    "seasonNumber": 1,
+    "relativePath": "Season 1/One Step Beyond - S01E01 - The Bride Possessed HDTV-720p.mkv",
+    "path": "/tv/One Step Beyond/Season 1/One Step Beyond - S01E01 - The Bride Possessed HDTV-720p.mkv",
+    "size": 941725,
+    "dateAdded": "2026-09-25T12:26:48Z",
+    "releaseGroup": "PDGRP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 4,
+        "name": "HDTV-720p",
+        "source": "television",
+        "resolution": 720
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "releaseType": "singleEpisode",
+    "mediaInfo": {
+      "audioBitrate": 0,
+      "audioChannels": 1,
+      "audioCodec": "Opus",
+      "audioLanguages": "",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "h264",
+      "videoFps": 1000,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "1280x720",
+      "runTime": "25:00",
+      "scanType": "Progressive",
+      "subtitles": ""
+    },
+    "qualityCutoffNotMet": true,
+    "id": 3
+  }
+]

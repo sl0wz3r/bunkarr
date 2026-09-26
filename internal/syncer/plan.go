@@ -77,6 +77,11 @@ type sourcePlanner struct {
 
 	files []*planFile // sorted by rel
 	recs  []*Record   // live records of the source, sorted by SourceRelPath
+	// targeted: the files and records are those of a targeted sync's paths. A vanished name is
+	// then retained only when its folder gets new content in this plan (D14); deferred counts the
+	// others, which stay live and recorded.
+	targeted bool
+	deferred int64
 
 	byRel    map[string]*planFile
 	recBySrc map[string]*Record
@@ -154,10 +159,25 @@ func (p *sourcePlanner) plan(ctx context.Context) error {
 		return err
 	}
 
+	// D14: in a targeted sync only a folder that gets a copy, update, move or link (an upgrade or
+	// a rename) may lose a name; a file with no record, or whose record differs, gets one of them.
+	var fresh map[string]bool
+	if p.targeted {
+		fresh = map[string]bool{}
+		for _, f := range p.files {
+			if f.rec == nil || !f.unchanged {
+				fresh[path.Dir(f.rel)] = true
+			}
+		}
+	}
 	promoteTarget := map[int64]bool{}
 	needRepair := map[int64]bool{}
 	for _, v := range vanished {
-		if !moved[v.ID] {
+		switch {
+		case moved[v.ID]:
+		case p.targeted && !fresh[path.Dir(v.SourceRelPath)]:
+			p.deferred++
+		default:
 			p.planVanished(v, promoteTarget, needRepair)
 		}
 	}

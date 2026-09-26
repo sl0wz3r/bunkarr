@@ -22,6 +22,7 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/integrations"
 	"github.com/sl0wz3r/bunkarr/internal/integrations/plex"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
+	"github.com/sl0wz3r/bunkarr/internal/snapshots"
 )
 
 const (
@@ -124,7 +125,7 @@ type Options struct {
 // Runner runs jobs.TypePlexDBBackup jobs. It is safe for concurrent use (the job manager runs at
 // most one job per integration: lock key "plexdb:<integrationId>").
 type Runner struct {
-	store        *Store
+	store        *snapshots.Store
 	integrations *integrations.Store
 	destinations *destinations.Store
 	configDir    string
@@ -152,7 +153,7 @@ func NewRunner(o Options) (*Runner, error) {
 		return nil, fmt.Errorf("plexdb: the config directory %q is not an absolute path", o.ConfigDir)
 	}
 	r := &Runner{
-		store: NewStore(o.DB), integrations: o.Integrations, destinations: o.Destinations,
+		store: snapshots.NewStore(o.DB), integrations: o.Integrations, destinations: o.Destinations,
 		configDir: o.ConfigDir, log: o.Log, now: o.Now, loc: o.Location, plexOpts: o.Plex,
 		busyTimeout: o.BusyTimeout, attempts: o.Attempts,
 	}
@@ -171,8 +172,9 @@ func NewRunner(o Options) (*Runner, error) {
 	return r, nil
 }
 
-// Store returns the runner's snapshots store.
-func (r *Runner) Store() *Store { return r.store }
+// Store returns the runner's snapshots store (every kind; the runner itself only reads and writes
+// kind plexdb).
+func (r *Runner) Store() *snapshots.Store { return r.store }
 
 // StagingDir is the staging directory of job jobID.
 func (r *Runner) StagingDir(jobID int64) string {
@@ -214,7 +216,7 @@ type run struct {
 //     staged copy, re-read unless the destination's verify mode is off, rename) into
 //     .bunkarr/plex/<folder>/.partial-job<id>/; manifest.json is written; the directory is
 //     renamed to the version's timestamp; the snapshot row is inserted; staging is removed.
-//  6. When the version's integrity is ok, older versions are pruned (selectPrune); otherwise the
+//  6. When the version's integrity is ok, older versions are pruned (snapshots.Prune); otherwise the
 //     version is kept (7 days) and the job fails with ErrIntegrity.
 //
 // A dry run checks the same preconditions and reports, without staging or writing anything, what
@@ -399,23 +401,23 @@ func (w *run) backup(ctx context.Context) (res jobs.Result, err error) {
 	}
 
 	faultinject.Point(PointBeforeRename)
-	versionRel, err := renameVersion(w.h.Root, partial, w.folder, versionName, w.job.ID)
+	versionRel, err := snapshots.RenameVersion(w.h.Root, partial, w.folder, versionName, w.job.ID)
 	if err != nil {
 		return jobs.Result{}, err
 	}
 	faultinject.Point(PointAfterRename)
 	faultinject.Point(PointBeforeRecord)
 	// The version is complete at its final name: record it even if the job is being cancelled.
-	rec := Snapshot{DestinationID: w.h.Destination.ID, IntegrationID: w.it.ID, JobID: w.job.ID, Path: versionRel,
+	rec := snapshots.Snapshot{DestinationID: w.h.Destination.ID, Kind: snapshots.KindPlexDB, IntegrationID: w.it.ID, JobID: w.job.ID, Path: versionRel,
 		CreatedAt: created, Size: br.Size(), Method: br.Method, Integrity: integrity, Manifest: manifest}
-	snap, err := w.r.store.insert(context.WithoutCancel(ctx), rec)
+	snap, err := w.r.store.Insert(context.WithoutCancel(ctx), rec)
 	if err != nil {
 		if _, gerr := w.r.integrations.Get(context.WithoutCancel(ctx), w.it.ID); errors.Is(gerr, integrations.ErrNotFound) {
 			// The integration was deleted during the backup: no later job would record or prune
 			// the version, so it is recorded without the link, like the integration's other
 			// versions.
 			rec.IntegrationID = 0
-			if snap, err = w.r.store.insert(context.WithoutCancel(ctx), rec); err == nil {
+			if snap, err = w.r.store.Insert(context.WithoutCancel(ctx), rec); err == nil {
 				w.warn("The Plex integration was deleted during the backup; its version was recorded without it", "path", versionRel)
 			}
 		}
@@ -586,21 +588,6 @@ func (w *run) copyFiles(ctx context.Context, br BackupResult, staging, partial s
 	return nil
 }
 
-// renameVersion renames the partial directory to the version's name ("<timestamp>", or
-// "<timestamp>-job<id>" when a version of the same second exists) and returns its path.
-func renameVersion(root *os.Root, partial, folder, versionName string, jobID int64) (string, error) {
-	rel := folder + "/" + versionName
-	err := filecopy.RenameDir(root, partial, rel)
-	if errors.Is(err, filecopy.ErrExists) {
-		rel = folder + "/" + versionName + "-job" + strconv.FormatInt(jobID, 10)
-		err = filecopy.RenameDir(root, partial, rel)
-	}
-	if err != nil {
-		return "", fmt.Errorf("rename the version directory: %w", err)
-	}
-	return rel, nil
-}
-
 // checkSpace fails the job before anything is written when the destination or the staging
 // filesystem cannot hold the backup (the databases plus their WAL, an upper bound of a copy).
 func (w *run) checkSpace() error {
@@ -674,7 +661,7 @@ func (w *run) plexInfo(ctx context.Context) (version string) {
 
 // recover cleans up after interrupted jobs of this integration (see Run step 2). It returns this
 // job's own version when an earlier attempt had written it completely (ownVersion).
-func (w *run) recover(ctx context.Context) (*Snapshot, error) {
+func (w *run) recover(ctx context.Context) (*snapshots.Snapshot, error) {
 	root := w.h.Root
 	folders, err := readDirNames(root, PlexRoot)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -701,18 +688,18 @@ func (w *run) recover(ctx context.Context) (*Snapshot, error) {
 		for _, name := range names {
 			rel := fdir + "/" + name
 			switch {
-			case partialNameRe.MatchString(name):
+			case snapshots.IsPartialName(name):
 				// A version an interrupted job of this integration was writing; jobs of one
 				// integration never run at the same time, so no job is writing it now.
 				if err := removeTree(root, rel); err != nil {
 					return nil, err
 				}
 				w.rep.Log(slog.LevelInfo, "Removed the unfinished version of an interrupted backup", "path", rel)
-			case pruneNameRe.MatchString(name):
+			case isPruned(name):
 				// A version a prune was deleting. While its row exists, the next prune deletes it
 				// or restores it; without one, the prune had deleted the row and stopped before
 				// the files.
-				recorded, err := w.r.store.recorded(ctx, w.h.Destination.ID, fdir+"/"+pruneNameRe.FindStringSubmatch(name)[1])
+				recorded, err := w.r.store.Recorded(ctx, w.h.Destination.ID, fdir+"/"+prunedVersion(name))
 				if err != nil {
 					return nil, err
 				}
@@ -724,8 +711,8 @@ func (w *run) recover(ctx context.Context) (*Snapshot, error) {
 					continue
 				}
 				w.rep.Log(slog.LevelInfo, "Removed the rest of a Plex DB version an interrupted prune was deleting", "path", rel)
-			case versionNameRe.MatchString(name):
-				recorded, err := w.r.store.recorded(ctx, w.h.Destination.ID, rel)
+			case snapshots.IsVersionName(name):
+				recorded, err := w.r.store.Recorded(ctx, w.h.Destination.ID, rel)
 				if err != nil {
 					return nil, err
 				}
@@ -754,11 +741,11 @@ func (w *run) recover(ctx context.Context) (*Snapshot, error) {
 // this job (ownManifest) and its directory exists. It returns nil for a job that is not resumed,
 // when there is none, or when the version's files did not match its manifest (then the backup
 // starts over).
-func (w *run) ownVersion(ctx context.Context) (*Snapshot, error) {
+func (w *run) ownVersion(ctx context.Context) (*snapshots.Snapshot, error) {
 	if w.job.Trigger != jobs.TriggerResume && w.job.Attempt <= 1 {
 		return nil, nil // only a resumed job had an earlier attempt
 	}
-	snaps, err := w.r.store.ListFor(ctx, w.h.Destination.ID, w.it.ID)
+	snaps, err := w.r.store.ListFor(ctx, snapshots.KindPlexDB, w.h.Destination.ID, w.it.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -780,7 +767,7 @@ func (w *run) ownVersion(ctx context.Context) (*Snapshot, error) {
 
 // ownManifest reports whether a recorded version's manifest names job as its writer: its id and
 // its queue time (a version made under an earlier Bunkarr database can name the same id).
-func ownManifest(s Snapshot, job jobs.Job) bool {
+func ownManifest(s snapshots.Snapshot, job jobs.Job) bool {
 	var m struct {
 		JobID       int64     `json:"jobId"`
 		JobQueuedAt time.Time `json:"jobQueuedAt"`
@@ -796,17 +783,17 @@ func validFileName(name string) bool {
 // adopt verifies an unrecorded, complete version directory against its manifest and records it:
 // integrity ok only when the manifest says ok and every file has its recorded size and sha256.
 // The row names this job (the manifest keeps the job that wrote the version).
-func (w *run) adopt(ctx context.Context, rel string) (Snapshot, error) {
+func (w *run) adopt(ctx context.Context, rel string) (snapshots.Snapshot, error) {
 	raw, err := readSmallFile(w.h.Root, rel+"/"+ManifestName, maxManifestBytes)
 	if err != nil {
-		return Snapshot{}, fmt.Errorf("no readable manifest: %w", err)
+		return snapshots.Snapshot{}, fmt.Errorf("no readable manifest: %w", err)
 	}
 	var m Manifest
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return Snapshot{}, fmt.Errorf("the manifest is not valid: %w", err)
+		return snapshots.Snapshot{}, fmt.Errorf("the manifest is not valid: %w", err)
 	}
 	if m.IntegrationID != w.it.ID {
-		return Snapshot{}, fmt.Errorf("the manifest names integration %d", m.IntegrationID)
+		return snapshots.Snapshot{}, fmt.Errorf("the manifest names integration %d", m.IntegrationID)
 	}
 	integrity := m.Result
 	if integrity != IntegrityOK {
@@ -816,13 +803,13 @@ func (w *run) adopt(ctx context.Context, rel string) (Snapshot, error) {
 	hasLibrary := false
 	for _, f := range m.Files {
 		if !validFileName(f.Name) {
-			return Snapshot{}, fmt.Errorf("the manifest names an unexpected file %q", f.Name)
+			return snapshots.Snapshot{}, fmt.Errorf("the manifest names an unexpected file %q", f.Name)
 		}
 		hasLibrary = hasLibrary || f.Name == LibraryDB
 		size += f.Size
 		if _, err := filecopy.VerifyFile(ctx, w.h.Root, rel+"/"+f.Name, f.Size, filecopy.HashPrefix+f.SHA256, nil); err != nil {
 			if ctx.Err() != nil {
-				return Snapshot{}, ctx.Err()
+				return snapshots.Snapshot{}, ctx.Err()
 			}
 			integrity = IntegrityFailed
 			w.rep.Log(slog.LevelWarn, "A file of an unrecorded Plex DB version does not match its manifest", "path", rel, "file", f.Name, "error", err.Error())
@@ -835,11 +822,11 @@ func (w *run) adopt(ctx context.Context, rel string) (Snapshot, error) {
 	if createdAt.IsZero() {
 		createdAt = w.r.now()
 	}
-	snap, err := w.r.store.insert(context.WithoutCancel(ctx), Snapshot{DestinationID: w.h.Destination.ID,
+	snap, err := w.r.store.Insert(context.WithoutCancel(ctx), snapshots.Snapshot{DestinationID: w.h.Destination.ID, Kind: snapshots.KindPlexDB,
 		IntegrationID: w.it.ID, JobID: w.job.ID, Path: rel, CreatedAt: createdAt, Size: size, Method: m.Method,
 		Integrity: integrity, Manifest: raw})
 	if err != nil {
-		return Snapshot{}, err
+		return snapshots.Snapshot{}, err
 	}
 	w.stats.Recovered++
 	w.rep.Log(slog.LevelInfo, "Recorded a Plex DB version an interrupted backup had written", "path", rel,
@@ -850,7 +837,7 @@ func (w *run) adopt(ctx context.Context, rel string) (Snapshot, error) {
 // finishRecovered completes a job whose version an earlier attempt had written completely, as
 // that attempt would have: with its warnings; a version that failed verification fails the job
 // with ErrIntegrity, an ok one is followed by pruning.
-func (w *run) finishRecovered(ctx context.Context, snap Snapshot) (jobs.Result, error) {
+func (w *run) finishRecovered(ctx context.Context, snap snapshots.Snapshot) (jobs.Result, error) {
 	w.rep.Log(slog.LevelInfo, "An earlier attempt of this job wrote its Plex DB version; finishing with it", "path", snap.Path,
 		"integrity", snap.Integrity)
 	var m Manifest
@@ -883,23 +870,23 @@ func (w *run) prune(ctx context.Context) {
 		w.warn("Old Plex DB versions were not pruned", "error", err.Error())
 		return
 	}
-	snaps, err := w.r.store.ListFor(ctx, w.h.Destination.ID, w.it.ID)
+	snaps, err := w.r.store.ListFor(ctx, snapshots.KindPlexDB, w.h.Destination.ID, w.it.ID)
 	if err != nil {
 		w.warn("Old Plex DB versions were not pruned", "error", err.Error())
 		return
 	}
-	cands := make([]pruneCandidate, 0, len(snaps))
-	byID := map[int64]Snapshot{}
-	present := make([]Snapshot, 0, len(snaps))
+	cands := make([]snapshots.Version, 0, len(snaps))
+	byID := map[int64]snapshots.Snapshot{}
+	present := make([]snapshots.Snapshot, 0, len(snaps))
 	for _, s := range snaps {
 		if w.dropLost(ctx, s) {
 			continue
 		}
-		cands = append(cands, pruneCandidate{ID: s.ID, CreatedAt: s.CreatedAt, OK: s.Integrity == IntegrityOK})
+		cands = append(cands, s.Version())
 		byID[s.ID] = s
 		present = append(present, s)
 	}
-	remove := selectPrune(cands, w.h.Retention.PlexDBDaily, w.h.Retention.PlexDBWeekly, w.r.now(), w.r.loc)
+	remove := snapshots.Prune(cands, w.h.Retention.PlexDBDaily, w.h.Retention.PlexDBWeekly, w.r.now(), w.r.loc)
 	removeSet := map[int64]bool{}
 	for _, id := range remove {
 		removeSet[id] = true
@@ -927,7 +914,7 @@ func (w *run) prune(ctx context.Context) {
 		}
 		faultinject.Point(PointPruneAfterTrash)
 		// The version has left its name: drop its row even if the job is being cancelled.
-		if err := w.r.store.remove(context.WithoutCancel(ctx), id); err != nil {
+		if err := w.r.store.Remove(context.WithoutCancel(ctx), id); err != nil {
 			// The next prune deletes it, or restores it when it is kept after all.
 			w.warn("An old Plex DB version was not deleted: its record could not be removed", "path", s.Path, "error", err.Error())
 			continue
@@ -946,11 +933,11 @@ func (w *run) prune(ctx context.Context) {
 // dropLost removes the row of a version that is gone from the destination (versionLost), so it
 // takes no retention slot, then what is left of its ".prune-*" directory, as a prune does. It
 // reports whether it removed the row.
-func (w *run) dropLost(ctx context.Context, s Snapshot) bool {
+func (w *run) dropLost(ctx context.Context, s snapshots.Snapshot) bool {
 	if lost, err := versionLost(w.h.Root, s.Path, s.Integrity, s.Manifest); err != nil || !lost {
 		return false // when it cannot tell, the restore or the deletion below reports the problem
 	}
-	if err := w.r.store.remove(ctx, s.ID); err != nil {
+	if err := w.r.store.Remove(ctx, s.ID); err != nil {
 		w.warn("A Plex DB version missing at the destination is still recorded: its record could not be removed", "path", s.Path, "error", err.Error())
 		return false
 	}

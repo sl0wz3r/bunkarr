@@ -158,7 +158,8 @@ func serve(ctx context.Context, env config.Env, stdout io.Writer, ready func(net
 		log.Warn("No user exists yet: open the web UI to create one. Until then only the API key can use the API.")
 	}
 
-	app, err := api.NewApp(ctx, api.AppOptions{DB: database, Keyring: kr, Settings: settings, ConfigDir: env.ConfigDir, Log: log})
+	app, err := api.NewApp(ctx, api.AppOptions{DB: database, Keyring: kr, Settings: settings, ConfigDir: env.ConfigDir, Log: log,
+		Plex: api.PlexOptions(env.Docker)})
 	if err != nil {
 		return err
 	}

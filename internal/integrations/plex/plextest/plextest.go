@@ -11,6 +11,9 @@
 //
 // Hooks (SetSections, SetIdentity, SetPref, Handle, ...) customise the answers; Requests returns
 // what the server received.
+//
+// NewPlexTV starts a fake plex.tv (PINs, account, resources) for "Sign in with Plex"; together
+// with NewServer it runs the whole sign-in flow without the internet.
 package plextest
 
 import (
@@ -75,6 +78,22 @@ type Server struct {
 // closed when the test ends.
 func NewServer(t testing.TB, token string) *Server {
 	t.Helper()
+	return newServer(t, token, false)
+}
+
+// NewTLSServer is NewServer over HTTPS with httptest's self-signed certificate (for 127.0.0.1).
+// Client returns an HTTP client that trusts it.
+func NewTLSServer(t testing.TB, token string) *Server {
+	t.Helper()
+	return newServer(t, token, true)
+}
+
+// Client returns an HTTP client for the server (for a TLS server, one that trusts its
+// certificate).
+func (s *Server) Client() *http.Client { return s.srv.Client() }
+
+func newServer(t testing.TB, token string, useTLS bool) *Server {
+	t.Helper()
 	s := &Server{
 		Token:    token,
 		t:        t,
@@ -86,7 +105,11 @@ func NewServer(t testing.TB, token string) *Server {
 	if s.identity == nil || s.sections == nil || s.prefs == nil {
 		t.Fatal("plextest: recorded responses are missing from the embedded testdata")
 	}
-	s.srv = httptest.NewServer(http.HandlerFunc(s.serve))
+	if useTLS {
+		s.srv = httptest.NewTLSServer(http.HandlerFunc(s.serve))
+	} else {
+		s.srv = httptest.NewServer(http.HandlerFunc(s.serve))
+	}
 	s.URL = s.srv.URL
 	t.Cleanup(s.srv.Close)
 	return s

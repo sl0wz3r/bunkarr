@@ -1,0 +1,469 @@
+{
+  "_note": "command RenameArtist after enabling renameTracks (renamedTrackFiles carry previousPath and path, with no relativePath).",
+  "_observedAtReceipt": [
+    {
+      "field": "artist.path",
+      "path": "/music/Scott Joplin",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[0].previousPath",
+      "path": "/music/Scott Joplin/01 - Maple Leaf Rag.mp3",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[0].path",
+      "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 01 - Maple Leaf Rag.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 191579
+    },
+    {
+      "field": "renamedTrackFiles[1].previousPath",
+      "path": "/music/Scott Joplin/02 - The Entertainer - A Ragtime Two-Step.mp3",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[1].path",
+      "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 02 - The Entertainer - A Ragtime Two-Step.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 320625
+    },
+    {
+      "field": "renamedTrackFiles[2].previousPath",
+      "path": "/music/Scott Joplin/03 - The Easy Winners - The Ragtime Dance.mp3",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[2].path",
+      "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 03 - The Easy Winners - The Ragtime Dance.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 250641
+    },
+    {
+      "field": "renamedTrackFiles[3].previousPath",
+      "path": "/music/Scott Joplin/04 - Gladiolus Rag.mp3",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[3].path",
+      "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 04 - Gladiolus Rag.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 275602
+    },
+    {
+      "field": "renamedTrackFiles[4].previousPath",
+      "path": "/music/Scott Joplin/05 - Pine Apple Rag.mp3",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[4].path",
+      "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 05 - Pine Apple Rag.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 206627
+    },
+    {
+      "field": "renamedTrackFiles[5].previousPath",
+      "path": "/music/Scott Joplin/06 - Heliotrope Bouquet - A Slow Drag Two-Step.mp3",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[5].path",
+      "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 06 - Heliotrope Bouquet - A Slow Drag Two-Step.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 355622
+    },
+    {
+      "field": "renamedTrackFiles[6].previousPath",
+      "path": "/music/Scott Joplin/07 - Paragon Rag.mp3",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[6].path",
+      "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 07 - Paragon Rag.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 230600
+    },
+    {
+      "field": "renamedTrackFiles[7].previousPath",
+      "path": "/music/Scott Joplin/08 - Solace - A Mexican Serenade.mp3",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[7].path",
+      "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 08 - Solace - A Mexican Serenade.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 430632
+    },
+    {
+      "field": "renamedTrackFiles[8].previousPath",
+      "path": "/music/Scott Joplin/09 - Magnetic Rag.mp3",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[8].path",
+      "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 09 - Magnetic Rag.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 300585
+    },
+    {
+      "field": "renamedTrackFiles[9].previousPath",
+      "path": "/music/Scott Joplin/01 - Swipesy Cake Walk.flac",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[9].path",
+      "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 01 - Swipesy Cake Walk.flac",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 37738
+    },
+    {
+      "field": "renamedTrackFiles[10].previousPath",
+      "path": "/music/Scott Joplin/02 - Lily Queen.flac",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[10].path",
+      "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 02 - Lily Queen.flac",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 48829
+    },
+    {
+      "field": "renamedTrackFiles[11].previousPath",
+      "path": "/music/Scott Joplin/03 - Sunflower Slow Drag.flac",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[11].path",
+      "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 03 - Sunflower Slow Drag.flac",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 41798
+    },
+    {
+      "field": "renamedTrackFiles[12].previousPath",
+      "path": "/music/Scott Joplin/04 - Something Doing.flac",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[12].path",
+      "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 04 - Something Doing.flac",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 43474
+    },
+    {
+      "field": "renamedTrackFiles[13].previousPath",
+      "path": "/music/Scott Joplin/05 - Felicity Rag.flac",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[13].path",
+      "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 05 - Felicity Rag.flac",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 40255
+    },
+    {
+      "field": "renamedTrackFiles[14].previousPath",
+      "path": "/music/Scott Joplin/06 - Mule-Walk Stomp.flac",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[14].path",
+      "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 06 - Mule-Walk Stomp.flac",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 29846
+    },
+    {
+      "field": "renamedTrackFiles[15].previousPath",
+      "path": "/music/Scott Joplin/07 - Eccentricity-Syncopated Waltz.flac",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[15].path",
+      "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 07 - Eccentricity-Syncopated Waltz.flac",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 54368
+    },
+    {
+      "field": "renamedTrackFiles[16].previousPath",
+      "path": "/music/Scott Joplin/08 - Modernistic (You've Got to Be).flac",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[16].path",
+      "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 08 - Modernistic (You've Got to Be).flac",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 35321
+    },
+    {
+      "field": "renamedTrackFiles[17].previousPath",
+      "path": "/music/Scott Joplin/09 - Snowy Morning Blues.flac",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[17].path",
+      "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 09 - Snowy Morning Blues.flac",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 35160
+    },
+    {
+      "field": "renamedTrackFiles[18].previousPath",
+      "path": "/music/Scott Joplin/10 - Carolina Shout.flac",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedTrackFiles[18].path",
+      "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 10 - Carolina Shout.flac",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 37886
+    }
+  ],
+  "receivedAt": "2026-09-25T12:38:52.400315+00:00",
+  "method": "POST",
+  "path": "/lidarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Lidarr/3.1.0.4875 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "7762"
+  },
+  "body": {
+    "artist": {
+      "id": 1,
+      "name": "Scott Joplin",
+      "disambiguation": "composer and pianist",
+      "path": "/music/Scott Joplin",
+      "mbId": "aec8a328-d2e8-4780-b2ea-318c7f8d6f75",
+      "type": "Person",
+      "genres": [
+        "Ragtime",
+        "Contemporary Classical",
+        "Jazz",
+        "Modern Classical"
+      ],
+      "images": [
+        {
+          "coverType": "poster",
+          "url": "/MediaCover/1/poster.jpg?lastWrite=639259360447767938",
+          "remoteUrl": "/config/MediaCover/1/poster.jpg"
+        },
+        {
+          "coverType": "fanart",
+          "url": "/MediaCover/1/fanart.jpg?lastWrite=639259360446771807",
+          "remoteUrl": "/config/MediaCover/1/fanart.jpg"
+        },
+        {
+          "coverType": "clearlogo",
+          "url": "/MediaCover/1/clearlogo.png?lastWrite=639259360446020559",
+          "remoteUrl": "/config/MediaCover/1/clearlogo.png"
+        }
+      ],
+      "tags": [
+        "bunkarr-full"
+      ]
+    },
+    "renamedTrackFiles": [
+      {
+        "previousPath": "/music/Scott Joplin/01 - Maple Leaf Rag.mp3",
+        "id": 1,
+        "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 01 - Maple Leaf Rag.mp3",
+        "quality": "MP3-24",
+        "qualityVersion": 1,
+        "size": 191579,
+        "dateAdded": "2026-09-25T12:36:04.8896925Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/02 - The Entertainer - A Ragtime Two-Step.mp3",
+        "id": 2,
+        "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 02 - The Entertainer - A Ragtime Two-Step.mp3",
+        "quality": "MP3-24",
+        "qualityVersion": 1,
+        "size": 320625,
+        "dateAdded": "2026-09-25T12:36:04.9093643Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/03 - The Easy Winners - The Ragtime Dance.mp3",
+        "id": 3,
+        "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 03 - The Easy Winners - The Ragtime Dance.mp3",
+        "quality": "MP3-24",
+        "qualityVersion": 1,
+        "size": 250641,
+        "dateAdded": "2026-09-25T12:36:04.913751Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/04 - Gladiolus Rag.mp3",
+        "id": 4,
+        "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 04 - Gladiolus Rag.mp3",
+        "quality": "MP3-24",
+        "qualityVersion": 1,
+        "size": 275602,
+        "dateAdded": "2026-09-25T12:36:04.9166978Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/05 - Pine Apple Rag.mp3",
+        "id": 5,
+        "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 05 - Pine Apple Rag.mp3",
+        "quality": "MP3-24",
+        "qualityVersion": 1,
+        "size": 206627,
+        "dateAdded": "2026-09-25T12:36:04.920315Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/06 - Heliotrope Bouquet - A Slow Drag Two-Step.mp3",
+        "id": 6,
+        "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 06 - Heliotrope Bouquet - A Slow Drag Two-Step.mp3",
+        "quality": "MP3-24",
+        "qualityVersion": 1,
+        "size": 355622,
+        "dateAdded": "2026-09-25T12:36:04.9233726Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/07 - Paragon Rag.mp3",
+        "id": 7,
+        "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 07 - Paragon Rag.mp3",
+        "quality": "MP3-24",
+        "qualityVersion": 1,
+        "size": 230600,
+        "dateAdded": "2026-09-25T12:36:04.9261719Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/08 - Solace - A Mexican Serenade.mp3",
+        "id": 8,
+        "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 08 - Solace - A Mexican Serenade.mp3",
+        "quality": "MP3-24",
+        "qualityVersion": 1,
+        "size": 430632,
+        "dateAdded": "2026-09-25T12:36:04.9293837Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/09 - Magnetic Rag.mp3",
+        "id": 9,
+        "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 09 - Magnetic Rag.mp3",
+        "quality": "MP3-24",
+        "qualityVersion": 1,
+        "size": 300585,
+        "dateAdded": "2026-09-25T12:36:04.9324306Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/01 - Swipesy Cake Walk.flac",
+        "id": 20,
+        "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 01 - Swipesy Cake Walk.flac",
+        "quality": "FLAC",
+        "qualityVersion": 1,
+        "size": 37738,
+        "dateAdded": "2026-09-25T12:38:23.1751525Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/02 - Lily Queen.flac",
+        "id": 21,
+        "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 02 - Lily Queen.flac",
+        "quality": "FLAC",
+        "qualityVersion": 1,
+        "size": 48829,
+        "dateAdded": "2026-09-25T12:38:23.1785252Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/03 - Sunflower Slow Drag.flac",
+        "id": 22,
+        "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 03 - Sunflower Slow Drag.flac",
+        "quality": "FLAC",
+        "qualityVersion": 1,
+        "size": 41798,
+        "dateAdded": "2026-09-25T12:38:23.181515Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/04 - Something Doing.flac",
+        "id": 23,
+        "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 04 - Something Doing.flac",
+        "quality": "FLAC",
+        "qualityVersion": 1,
+        "size": 43474,
+        "dateAdded": "2026-09-25T12:38:23.1844725Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/05 - Felicity Rag.flac",
+        "id": 24,
+        "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 05 - Felicity Rag.flac",
+        "quality": "FLAC",
+        "qualityVersion": 1,
+        "size": 40255,
+        "dateAdded": "2026-09-25T12:38:23.1878615Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/06 - Mule-Walk Stomp.flac",
+        "id": 25,
+        "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 06 - Mule-Walk Stomp.flac",
+        "quality": "FLAC",
+        "qualityVersion": 1,
+        "size": 29846,
+        "dateAdded": "2026-09-25T12:38:23.1907692Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/07 - Eccentricity-Syncopated Waltz.flac",
+        "id": 26,
+        "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 07 - Eccentricity-Syncopated Waltz.flac",
+        "quality": "FLAC",
+        "qualityVersion": 1,
+        "size": 54368,
+        "dateAdded": "2026-09-25T12:38:23.1934476Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/08 - Modernistic (You've Got to Be).flac",
+        "id": 27,
+        "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 08 - Modernistic (You've Got to Be).flac",
+        "quality": "FLAC",
+        "qualityVersion": 1,
+        "size": 35321,
+        "dateAdded": "2026-09-25T12:38:23.1967432Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/09 - Snowy Morning Blues.flac",
+        "id": 28,
+        "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 09 - Snowy Morning Blues.flac",
+        "quality": "FLAC",
+        "qualityVersion": 1,
+        "size": 35160,
+        "dateAdded": "2026-09-25T12:38:23.1995406Z"
+      },
+      {
+        "previousPath": "/music/Scott Joplin/10 - Carolina Shout.flac",
+        "id": 29,
+        "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 10 - Carolina Shout.flac",
+        "quality": "FLAC",
+        "qualityVersion": 1,
+        "size": 37886,
+        "dateAdded": "2026-09-25T12:38:23.2033162Z"
+      }
+    ],
+    "eventType": "Rename",
+    "instanceName": "Lidarr",
+    "applicationUrl": ""
+  }
+}

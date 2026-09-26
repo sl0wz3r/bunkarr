@@ -35,11 +35,17 @@ func (s *Server) listJobs(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, "list jobs", err)
 		return
 	}
+	integID, err := int64Param(q, "integrationId")
+	if err != nil {
+		s.fail(w, r, "list jobs", err)
+		return
+	}
 	res, err := s.app.Jobs.List(r.Context(), jobqueue.JobQuery{
 		State:         q.Get("state"),
 		Type:          jobs.Type(q.Get("type")),
 		Status:        jobs.Status(q.Get("status")),
 		DestinationID: destID,
+		IntegrationID: integID,
 		Page:          page,
 		PageSize:      size,
 	})

@@ -1,0 +1,13 @@
+{
+  "renameTracks": true,
+  "replaceIllegalCharacters": true,
+  "colonReplacementFormat": 4,
+  "standardTrackFormat": "{Album Title} ({Release Year})/{Artist Name} - {Album Title} - {track:00} - {Track Title}",
+  "multiDiscTrackFormat": "{Album Title} ({Release Year})/{Medium Format} {medium:00}/{Artist Name} - {Album Title} - {track:00} - {Track Title}",
+  "artistFolderFormat": "{Artist Name}",
+  "includeArtistName": false,
+  "includeAlbumTitle": false,
+  "includeQuality": false,
+  "replaceSpaces": false,
+  "id": 1
+}

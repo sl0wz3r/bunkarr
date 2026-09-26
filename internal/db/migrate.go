@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -59,7 +60,9 @@ func loadMigrations(fsys fs.FS) ([]migration, error) {
 
 // migrate applies every embedded migration not yet recorded in schema_migrations, each in its own
 // transaction together with its schema_migrations row. A database carrying a migration this build
-// does not know (written by a newer Bunkarr) is refused.
+// does not know (written by a newer Bunkarr) is refused. Before the first pending migration is
+// applied to a database that already has a schema, the database is copied (preMigrationCopy); a
+// copy that fails refuses the migration.
 func (d *DB) migrate(ctx context.Context) error {
 	return d.migrateFS(ctx, migrationsFS)
 }
@@ -87,10 +90,20 @@ func (d *DB) migrateFS(ctx context.Context, fsys fs.FS) error {
 		known[m.version] = true
 		latest = max(latest, m.version)
 	}
+	current := 0
 	for v := range applied {
 		if !known[v] {
 			return fmt.Errorf("database schema version %d is newer than this build of Bunkarr supports (latest %d); upgrade Bunkarr or restore a backup", v, latest)
 		}
+		current = max(current, v)
+	}
+	pending := slices.ContainsFunc(migrations, func(m migration) bool { return !applied[m.version] })
+	if pending && current > 0 {
+		path, err := d.preMigrationCopy(ctx, current)
+		if err != nil {
+			return fmt.Errorf("refusing to migrate the database: the copy made before migrating failed (it is the only way back to this version): %w", err)
+		}
+		d.log.Info("Copied the database before migrating it", "path", path, "schemaVersion", current)
 	}
 
 	for _, m := range migrations {

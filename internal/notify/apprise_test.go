@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"reflect"
@@ -160,6 +161,88 @@ func TestSendTimeout(t *testing.T) {
 	if DefaultTimeout != 15*time.Second || NewClient().timeout != DefaultTimeout {
 		t.Fatal("default timeout is not 15s")
 	}
+}
+
+// TestSendMaybeDelivered checks which failures may still have reached some services (the
+// dispatcher keeps the §12.5 slot for them): a 424, and a failure after the request went out, also
+// when the retry is then refused. Only failures that prove nothing was sent are false.
+func TestSendMaybeDelivered(t *testing.T) {
+	send := func(c *Client, api string) error {
+		return c.Send(context.Background(), Target{APIURL: api, ConfigKey: "k"}, Message{Body: "b", Type: TypeInfo})
+	}
+	check := func(t *testing.T, err error, want bool) {
+		t.Helper()
+		var serr *SendError
+		if !errors.As(err, &serr) {
+			t.Fatalf("err = %v (%T), want *SendError", err, err)
+		}
+		if got := maybeDelivered(err); got != want {
+			t.Fatalf("maybeDelivered(%v) = %v, want %v", err, got, want)
+		}
+	}
+	for _, tc := range []struct {
+		statuses []int
+		want     bool
+	}{
+		{[]int{424}, true},
+		{[]int{500, 424}, true},
+		{[]int{500, 502}, false},
+		{[]int{204}, false},
+		{[]int{307}, false},
+		{[]int{400}, false},
+		{[]int{401}, false},
+		{[]int{404}, false},
+	} {
+		t.Run(fmt.Sprint(tc.statuses), func(t *testing.T) {
+			f := newFakeApprise(t, fakeOpts{statuses: tc.statuses})
+			check(t, send(testClient(), f.URL()), tc.want)
+		})
+	}
+	t.Run("timeout after sending", func(t *testing.T) {
+		f := newFakeApprise(t, fakeOpts{block: make(chan struct{})})
+		c := testClient()
+		c.timeout = 50 * time.Millisecond
+		check(t, send(c, f.URL()), true)
+	})
+	t.Run("timeout, then refused", func(t *testing.T) {
+		// The first connection gets the request and never answers; the listener then closes, so
+		// the retry is refused.
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		hold := make(chan struct{})
+		t.Cleanup(func() { close(hold) })
+		go func() {
+			conn, err := ln.Accept()
+			_ = ln.Close()
+			if err != nil {
+				return
+			}
+			defer conn.Close()
+			go func() { _, _ = io.Copy(io.Discard, conn) }()
+			<-hold
+		}()
+		c := testClient()
+		c.timeout = 100 * time.Millisecond
+		err = send(c, "http://"+ln.Addr().String())
+		if !strings.Contains(err.Error(), "cannot reach the Apprise API") || !strings.Contains(err.Error(), "after one retry") {
+			t.Fatalf("err = %v, want the retry refused", err)
+		}
+		check(t, err, true)
+	})
+	t.Run("refused", func(t *testing.T) {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		addr := ln.Addr().String()
+		_ = ln.Close()
+		check(t, send(testClient(), "http://"+addr), false)
+	})
+	t.Run("netguard", func(t *testing.T) {
+		check(t, send(testClient(), "http://169.254.169.254"), false)
+	})
 }
 
 func TestSendCancelledIsNotRetried(t *testing.T) {

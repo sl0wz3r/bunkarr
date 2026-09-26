@@ -13,6 +13,8 @@ import { Modal } from '@/components/Modal';
 import { ErrorNotice, Notice } from '@/components/Notice';
 import { EmptyState, Page } from '@/components/Page';
 import { PathField, PathPicker } from '@/components/PathPicker';
+import { PlexSignInPanel, usePlexSignIn } from '@/components/plex/PlexSignIn';
+import type { PlexSignInSelection } from '@/components/plex/plexSignInMachine';
 import { Badge } from '@/components/StatusBadge';
 import { DEFAULT_PLEX_BACKUP_CRON, PLEX_BACKUP_PRESETS, describeCron, overlapsWindow, validateCron } from '@/lib/cron';
 import { keys, useDestinations, useIntegrations } from '@/lib/lookups';
@@ -205,10 +207,25 @@ function MappingsEditor({ value, onChange }: { value: PathMapping[]; onChange: (
   );
 }
 
-/** PlexForm adds or edits a Plex server. The token is write-only: it is never shown again. */
+/** selectionKey identifies a sign-in selection for comparing test results. */
+function selectionKey(s: PlexSignInSelection | null): string {
+  return s ? `${s.signInId}/${s.serverId}/${s.useAccountToken ? 'account' : 'server'}` : '';
+}
+
+/**
+ * PlexForm adds or edits a Plex server. The token is write-only: it is never shown again. "Sign in
+ * with Plex" picks a server and a tested connection; the token then stays on Bunkarr's server
+ * (plexSignIn), and closing the form without saving forgets the sign-in there.
+ */
 function PlexForm({ integration, onClose }: { integration: Integration | null; onClose: () => void }) {
   const qc = useQueryClient();
   const destinations = useDestinations();
+  const signIn = usePlexSignIn();
+  const [picked, setPicked] = useState<PlexSignInSelection | null>(null);
+  // A selection speaks only for the sign-in and the server it came from (Start over, expiry, a
+  // typed token, another server or the account-token box changing end it).
+  const selection =
+    picked && signIn.state.step === 'serverChosen' && signIn.state.signInId === picked.signInId && signIn.state.serverId === picked.serverId ? picked : null;
   const initial = withDefaults(integration?.settings);
   const [name, setName] = useState(integration?.name ?? 'Plex');
   const [url, setUrl] = useState(integration?.url ?? '');
@@ -218,28 +235,41 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
   const [mappings, setMappings] = useState<PathMapping[]>(initial.pathMappings);
   const [destinationId, setDestinationId] = useState(initial.backup.destinationId);
   const [schedule, setSchedule] = useState<CronSchedule>({ cron: initial.backup.cron, enabled: initial.backup.enabled });
-  // The last test and the URL and token it tested.
-  const [test, setTest] = useState<{ url: string; token: string; result: IntegrationTestResult } | null>(null);
+  // The last test and the URL and token (or sign-in selection) it tested.
+  const [test, setTest] = useState<{ url: string; token: string; signIn: string; result: IntegrationTestResult } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   // Counts Save clicks, so a repeated form error is shown (scrolled into view) again.
   const [attempt, setAttempt] = useState(0);
 
   const tester = useMutation({
-    mutationFn: (v: { url: string; token: string }) => testIntegration({ type: 'plex', url: v.url, apiKey: v.token || undefined, id: integration?.id }),
+    mutationFn: (v: { url: string; token: string; signIn: string; ref: PlexSignInSelection | null }) =>
+      testIntegration({
+        type: 'plex',
+        url: v.url,
+        apiKey: v.ref ? undefined : v.token || undefined,
+        id: integration?.id,
+        plexSignIn: v.ref ? { id: v.ref.signInId, serverId: v.ref.serverId, useAccountToken: v.ref.useAccountToken || undefined } : undefined,
+      }),
     onMutate: () => setTest(null),
-    onSuccess: (result, v) => setTest({ ...v, result }),
+    onSuccess: (result, v) => setTest({ url: v.url, token: v.token, signIn: v.signIn, result }),
   });
   const saver = useMutation({
     mutationFn: (body: IntegrationInput) => (integration ? updateIntegration(integration.id, body) : createIntegration(body)),
-    onSuccess: async () => {
+    onSuccess: async (_, body) => {
+      if (body.plexSignIn) {
+        // The server consumed the sign-in with the save: nothing to forget on close.
+        signIn.markSaved();
+      }
       await qc.invalidateQueries({ queryKey: keys.integrations });
       await qc.invalidateQueries({ queryKey: keys.schedules });
       onClose();
     },
   });
 
-  // A result, or an error, speaks only for the URL and token it tested (and a new test replaces it).
-  const tested = (v: { url: string; token: string } | undefined) => v?.url === url.trim() && v.token === token.trim();
+  // A result, or an error, speaks only for the URL and token (or sign-in selection) it tested, and
+  // a new test replaces it.
+  const tested = (v: { url: string; token: string; signIn: string } | undefined) =>
+    v?.url === url.trim() && v.token === token.trim() && v.signIn === selectionKey(selection);
   const current = test && tested(test) ? test.result : null;
   const testError = tested(tester.variables) ? tester.error : null;
   const butler = {
@@ -256,7 +286,7 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
       setFormError('Enter a name and the server URL.');
       return;
     }
-    if (!integration && !token.trim()) {
+    if (!integration && !token.trim() && !selection) {
       setFormError('Enter the Plex token.');
       return;
     }
@@ -289,10 +319,30 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
         backup: { destinationId, cron, enabled: destinationId > 0 && schedule.enabled },
       },
     };
-    if (token.trim()) {
+    if (selection) {
+      body.plexSignIn = { id: selection.signInId, serverId: selection.serverId, useAccountToken: selection.useAccountToken || undefined };
+    } else if (token.trim()) {
       body.apiKey = token.trim();
     }
     saver.mutate(body);
+  }
+
+  function takeSelection(sel: PlexSignInSelection) {
+    setPicked(sel);
+    setUrl(sel.uri);
+    setToken('');
+    if (!integration && (!name.trim() || name.trim() === 'Plex')) {
+      setName(sel.serverName);
+    }
+  }
+
+  // Typing a token (or "Use a token instead") ends the sign-in: the typed token is what is saved.
+  function tokenInstead(v: string) {
+    if (selection) {
+      setPicked(null);
+      signIn.reset();
+    }
+    setToken(v);
   }
 
   const destOptions = [{ value: '0', label: 'None (no database backup)' }, ...(destinations.data ?? []).map((d) => ({ value: String(d.id), label: d.name }))];
@@ -303,7 +353,12 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
       onClose={onClose}
       footer={
         <>
-          <Button icon={FlaskConical} busy={tester.isPending} disabled={!url.trim()} onClick={() => tester.mutate({ url: url.trim(), token: token.trim() })}>
+          <Button
+            icon={FlaskConical}
+            busy={tester.isPending}
+            disabled={!url.trim()}
+            onClick={() => tester.mutate({ url: url.trim(), token: token.trim(), signIn: selectionKey(selection), ref: selection })}
+          >
             Test
           </Button>
           <span className="flex-1" />
@@ -332,17 +387,39 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
             )}
           </Notice>
         )}
-        <FormSection title="Server">
+        <FormSection
+          title="Sign in with Plex"
+          description={
+            integration
+              ? 'Sign in to replace the stored token with a new one for this server, or to pick another of its connections.'
+              : 'Bunkarr lists your servers from plex.tv and tests their connections from where it runs.'
+          }
+        >
+          <PlexSignInPanel controller={signIn} onSelect={takeSelection} onClear={() => setPicked(null)} selection={selection} disabled={saver.isPending} />
+        </FormSection>
+        <FormSection title="Server" description={selection ? undefined : 'Or enter the details manually.'}>
           <TextField label="Name" value={name} onChange={setName} autoFocus={!integration} />
           <TextField label="URL" type="url" value={url} onChange={setUrl} mono placeholder="http://plex:32400" help="How Bunkarr reaches Plex, for example http://192.168.1.10:32400." />
           <SecretField
             label="Token"
             value={token}
-            onChange={setToken}
-            stored={!!integration?.hasApiKey}
+            onChange={tokenInstead}
+            stored={!!integration?.hasApiKey && !selection}
             reenter={!!integration && url.trim() !== integration.url}
-            placeholder="X-Plex-Token"
-            help="Your Plex token (X-Plex-Token). It is stored encrypted and never shown again; Bunkarr sends it only in a request header."
+            placeholder={selection ? `From Plex sign-in — ${selection.serverName} (${selection.owned ? 'owner' : 'shared'})` : 'X-Plex-Token'}
+            help={
+              selection ? (
+                <span className="inline-flex flex-wrap items-center gap-2">
+                  Token: from Plex sign-in — {selection.serverName} ({selection.owned ? 'owner' : 'shared'}
+                  {selection.useAccountToken ? ', your account token' : ''}). It stays on Bunkarr&apos;s server.
+                  <Button small variant="ghost" onClick={() => tokenInstead('')}>
+                    Use a token instead
+                  </Button>
+                </span>
+              ) : (
+                'Your Plex token (X-Plex-Token). It is stored encrypted and never shown again; Bunkarr sends it only in a request header.'
+              )
+            }
           />
           <CheckboxField label="Enabled" checked={enabled} onChange={setEnabled} text="Use this server" />
         </FormSection>

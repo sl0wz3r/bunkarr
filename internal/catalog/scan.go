@@ -100,6 +100,8 @@ type Scanner struct {
 	batchSize     int // catalog rows per write transaction
 	progressEvery int64
 	maxWarnings   int
+	// estaleWait is how long a targeted scan waits before its one retry after ESTALE (§9.1).
+	estaleWait time.Duration
 
 	// Test hooks.
 	beforeReadDir func(rel string) error          // error injected before reading a directory
@@ -120,6 +122,7 @@ func NewScanner(store *Store, o ScannerOptions) *Scanner {
 		batchSize:     1000,
 		progressEvery: 500,
 		maxWarnings:   100,
+		estaleWait:    estaleRetryWait,
 		hashFile:      headTailHash,
 	}
 }
@@ -312,6 +315,9 @@ type scan struct {
 	groups     [][]linkCand
 	unreadable []string
 	progressAt int64
+	// names caches, per folder (relative path), the entry names it lists: a targeted scan reads
+	// them to resolve a path by its exact spelling (listedExactly).
+	names map[string]map[string]struct{}
 }
 
 func (s *scan) warn(format string, args ...any) {

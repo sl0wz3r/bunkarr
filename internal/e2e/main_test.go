@@ -30,7 +30,9 @@ func TestMain(m *testing.M) {
 }
 
 // bunkarrBinary returns the path of the binary under test: $BUNKARR_E2E_BINARY when set, else
-// `go build ./cmd/bunkarr` of this module into a temporary directory.
+// `go build -tags e2e ./cmd/bunkarr` of this module into a temporary directory. The e2e tag
+// compiles in internal/testhooks, so tests may shorten timings or point plex.tv at a fake through
+// the environment; without those variables the binary behaves exactly like a release build.
 func bunkarrBinary(t *testing.T) string {
 	t.Helper()
 	binary.once.Do(func() {
@@ -50,11 +52,11 @@ func bunkarrBinary(t *testing.T) string {
 		}
 		binary.dir = dir
 		out := filepath.Join(dir, "bunkarr")
-		cmd := exec.Command("go", "build", "-trimpath", "-o", out, "./cmd/bunkarr")
+		cmd := exec.Command("go", "build", "-trimpath", "-tags", "e2e", "-o", out, "./cmd/bunkarr")
 		cmd.Dir = root
 		cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 		if b, err := cmd.CombinedOutput(); err != nil {
-			binary.err = fmt.Errorf("go build ./cmd/bunkarr: %w\n%s", err, b)
+			binary.err = fmt.Errorf("go build -tags e2e ./cmd/bunkarr: %w\n%s", err, b)
 			return
 		}
 		binary.path = out

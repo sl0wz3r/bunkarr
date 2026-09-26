@@ -1,0 +1,52 @@
+{
+  "_note": "A completed blackhole download that matches no movie.",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:46:50.770047+00:00",
+  "method": "POST",
+  "path": "/radarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Radarr/6.4.4.10685 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "820"
+  },
+  "body": {
+    "downloadInfo": {
+      "quality": "Bluray-1080p",
+      "qualityVersion": 1,
+      "title": "Totally.Unknown.Film.2003.1080p.BluRay.x264-PDGRP",
+      "size": 3412521
+    },
+    "downloadClient": "blackhole",
+    "downloadClientType": "Torrent Blackhole",
+    "downloadId": "blackhole_Totally.Unknown.Film.2003.1080p.BluRay.x264-PDGRP_639259371706330899",
+    "downloadStatus": "Warning",
+    "downloadStatusMessages": [
+      {
+        "title": "Totally.Unknown.Film.2003.1080p.BluRay.x264-PDGRP",
+        "messages": [
+          "Movie title mismatch, automatic import is not possible. Manual Import required."
+        ]
+      }
+    ],
+    "customFormatInfo": {
+      "customFormats": [],
+      "customFormatScore": 0
+    },
+    "release": {
+      "size": 0
+    },
+    "eventType": "ManualInteractionRequired",
+    "instanceName": "Radarr",
+    "applicationUrl": ""
+  }
+}

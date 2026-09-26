@@ -13,6 +13,7 @@ import { ErrorNotice, Notice } from '@/components/Notice';
 import { EmptyState, Page } from '@/components/Page';
 import { Badge } from '@/components/StatusBadge';
 import { keys } from '@/lib/lookups';
+import { ArrConnections } from './ConnectArr';
 
 /** joinUrls turns one-per-line (or comma/space separated) Apprise URLs into Apprise's comma list. */
 export function joinUrls(text: string): string {
@@ -28,7 +29,7 @@ function events(n: Pick<Notification, 'onFailure' | 'onWarning' | 'onSuccess'>):
   return list.length ? list.join(', ') : 'none';
 }
 
-/** Settings → Connect: Apprise notification targets. */
+/** Settings → Connect: the Sonarr, Radarr and Lidarr connections, and the Apprise notification targets. */
 export function Connect() {
   const qc = useQueryClient();
   const notifications = useQuery({ queryKey: keys.notifications, queryFn: listNotifications });
@@ -107,6 +108,8 @@ export function Connect() {
         </Button>
       }
     >
+      <ArrConnections />
+      <h2 className="mb-3 max-w-5xl border-b border-line pb-2 text-lg">Notifications</h2>
       {notice && <Notice tone={notice.tone}>{notice.body}</Notice>}
       <ErrorNotice error={notifications.error} />
       {list && list.length === 0 ? (

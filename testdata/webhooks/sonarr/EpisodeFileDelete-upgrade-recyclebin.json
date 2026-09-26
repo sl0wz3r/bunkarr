@@ -1,0 +1,121 @@
+{
+  "_note": "Upgrade with recycle bin /tv/.recycle (the EpisodeFileDelete payload has no recycleBinPath).",
+  "_observedAtReceipt": [
+    {
+      "field": "series.path",
+      "path": "/tv/The Beverly Hillbillies",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "episodeFile.path",
+      "path": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E02.720p.HDTV.x264-PDGRP.mkv",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    }
+  ],
+  "receivedAt": "2026-09-25T12:33:57.340904+00:00",
+  "method": "POST",
+  "path": "/sonarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Sonarr/4.0.20.3014 (alpine 3.24.1)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "2362"
+  },
+  "body": {
+    "series": {
+      "id": 1,
+      "title": "The Beverly Hillbillies",
+      "titleSlug": "the-beverly-hillbillies",
+      "path": "/tv/The Beverly Hillbillies",
+      "tvdbId": 71471,
+      "tvMazeId": 2139,
+      "tmdbId": 1930,
+      "imdbId": "tt0055662",
+      "type": "standard",
+      "year": 1962,
+      "genres": [
+        "Comedy",
+        "Family"
+      ],
+      "images": [
+        {
+          "coverType": "banner",
+          "url": "/MediaCover/1/banner.jpg?lastWrite=639259360078222143",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/graphical/71471-g2.jpg"
+        },
+        {
+          "coverType": "poster",
+          "url": "/MediaCover/1/poster.jpg?lastWrite=639259360078856653",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/posters/71471-7.jpg"
+        },
+        {
+          "coverType": "fanart",
+          "url": "/MediaCover/1/fanart.jpg?lastWrite=639259360079497224",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/fanart/original/71471-1.jpg"
+        }
+      ],
+      "tags": [
+        "bunkarr-full"
+      ],
+      "originalLanguage": {
+        "id": 1,
+        "name": "English"
+      }
+    },
+    "episodes": [
+      {
+        "id": 14,
+        "episodeNumber": 2,
+        "seasonNumber": 1,
+        "title": "Getting Settled",
+        "overview": "When the Clampetts arrive at their new Mansion, they are mistaken by miss Hathaway for a staff of bumbling, insubordinate, backwoods servants.",
+        "airDate": "1962-10-03",
+        "airDateUtc": "1962-10-03T23:30:00Z",
+        "seriesId": 1,
+        "tvdbId": 46687
+      }
+    ],
+    "episodeFile": {
+      "id": 2,
+      "relativePath": "Season 1/The.Beverly.Hillbillies.S01E02.720p.HDTV.x264-PDGRP.mkv",
+      "path": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E02.720p.HDTV.x264-PDGRP.mkv",
+      "quality": "HDTV-720p",
+      "qualityVersion": 1,
+      "releaseGroup": "PDGRP",
+      "size": 941725,
+      "dateAdded": "2026-09-25T12:26:48.3252125Z",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "mediaInfo": {
+        "audioChannels": 1.0,
+        "audioCodec": "Opus",
+        "audioLanguages": [],
+        "height": 720,
+        "width": 1280,
+        "subtitles": [],
+        "videoCodec": "h264",
+        "videoDynamicRange": "",
+        "videoDynamicRangeType": ""
+      }
+    },
+    "deleteReason": "upgrade",
+    "eventType": "EpisodeFileDelete",
+    "instanceName": "Sonarr",
+    "applicationUrl": ""
+  }
+}

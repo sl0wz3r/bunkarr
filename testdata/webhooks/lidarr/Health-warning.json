@@ -1,0 +1,31 @@
+{
+  "_note": "Health warning (includeHealthWarnings=true).",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:40:18.796597+00:00",
+  "method": "POST",
+  "path": "/lidarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Lidarr/3.1.0.4875 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "269"
+  },
+  "body": {
+    "level": "warning",
+    "message": "No download client is available",
+    "type": "DownloadClientCheck",
+    "wikiUrl": "https://wiki.servarr.com/lidarr/system#no-download-client-is-available",
+    "eventType": "Health",
+    "instanceName": "Lidarr",
+    "applicationUrl": ""
+  }
+}

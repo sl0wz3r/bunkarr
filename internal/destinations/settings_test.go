@@ -1,7 +1,9 @@
 package destinations
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -49,8 +51,74 @@ func TestParseRetentionDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != (Retention{DeletedDays: 1, PlexDBDaily: 14, PlexDBWeekly: 520}) {
+	want := DefaultRetention()
+	want.DeletedDays, want.PlexDBWeekly = 1, 520
+	if got != want {
 		t.Errorf("partial retention = %+v", got)
+	}
+}
+
+func TestRetentionManifestVersions(t *testing.T) {
+	// manifestDays and manifestWeeks (phase2-3.md §11.2 step 6) are kept, so internal/manifest
+	// finds them in the stored JSON. manifestWeeks 0 keeps no weekly versions: only a missing
+	// manifestWeeks takes the default, whether it comes from the API or from the stored JSON.
+	var in Input
+	if err := json.Unmarshal([]byte(`{"retention":{"manifestDays":7,"manifestWeeks":0}}`), &in); err != nil {
+		t.Fatal(err)
+	}
+	r, err := in.Retention.Normalize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.ManifestDays != 7 || r.ManifestWeeks != 0 {
+		t.Fatalf("normalized %+v; want manifestDays 7, manifestWeeks 0", r)
+	}
+	if again, err := r.Normalize(); err != nil || again != r {
+		t.Fatalf("normalizing again = %+v, %v", again, err)
+	}
+	raw, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"manifestDays":7,"manifestWeeks":0`) {
+		t.Fatalf("stored retention %s", raw)
+	}
+	back, err := ParseRetention(string(raw))
+	if err != nil || back != r {
+		t.Fatalf("ParseRetention(%s) = %+v, %v; want %+v", raw, back, err, r)
+	}
+	for raw, want := range map[string][2]int{
+		`{}`: {DefaultManifestDays, DefaultManifestWeeks},
+		`{"manifestDays":0,"manifestWeeks":null}`:   {DefaultManifestDays, DefaultManifestWeeks},
+		`{"manifestWeeks":0}`:                       {DefaultManifestDays, 0},
+		`{"manifestDays":3650,"manifestWeeks":520}`: {3650, 520},
+		`{"manifestDays":1,"unknown":true}`:         {1, DefaultManifestWeeks},
+	} {
+		got, err := ParseRetention(raw)
+		if err != nil || got.ManifestDays != want[0] || got.ManifestWeeks != want[1] {
+			t.Errorf("ParseRetention(%s) = %+v, %v; want %v", raw, got, err, want)
+		}
+	}
+	for _, raw := range []string{`{"manifestDays":3651}`, `{"manifestDays":-1}`, `{"manifestWeeks":-1}`, `{"manifestWeeks":521}`} {
+		var ve ValidationError
+		if _, err := ParseRetention(raw); !errors.As(err, &ve) {
+			t.Errorf("ParseRetention(%s) = %v, want a ValidationError", raw, err)
+		}
+	}
+	// A Go literal's zero is missing, as for the other periods.
+	if r, _ := (Retention{DeletedDays: 3}).Normalize(); r.ManifestWeeks != DefaultManifestWeeks {
+		t.Errorf("literal zero manifestWeeks = %d", r.ManifestWeeks)
+	}
+	// The API decodes strictly: an unknown retention key is still refused, and so is trailing data.
+	for _, body := range []string{`{"retention":{"manifestDayz":7}}`} {
+		dec := json.NewDecoder(strings.NewReader(body))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&Input{}); err == nil {
+			t.Errorf("%s accepted", body)
+		}
+	}
+	if _, err := ParseRetention(`{"manifestDays":7} x`); err == nil {
+		t.Error("trailing data accepted")
 	}
 }
 
@@ -94,6 +162,10 @@ func TestRetentionValidation(t *testing.T) {
 		{PlexDBDaily: 366},
 		{PlexDBWeekly: -1},
 		{PlexDBWeekly: 521},
+		{ArrDaily: -1},
+		{ArrDaily: 366},
+		{ArrWeekly: -1},
+		{ArrWeekly: 521},
 	}
 	for _, r := range bad {
 		var ve ValidationError

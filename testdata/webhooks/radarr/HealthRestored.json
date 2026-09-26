@@ -1,0 +1,31 @@
+{
+  "_note": "Download client re-added. No applicationUrl key in this payload.",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:49:09.594174+00:00",
+  "method": "POST",
+  "path": "/radarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Radarr/6.4.4.10685 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "traceparent": "00-45ec2897a3888e845b0c1be3cf1232a3-90583fba90d11857-00",
+    "Content-Type": "application/json",
+    "Content-Length": "253"
+  },
+  "body": {
+    "level": "warning",
+    "message": "No download client is available",
+    "type": "DownloadClientCheck",
+    "wikiUrl": "https://wiki.servarr.com/radarr/system#no-download-client-is-available",
+    "eventType": "HealthRestored",
+    "instanceName": "Radarr"
+  }
+}

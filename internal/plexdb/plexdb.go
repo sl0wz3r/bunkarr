@@ -16,8 +16,11 @@
 //   - Runner is the jobs.TypePlexDBBackup job: staging under <config>/staging/plexdb-job<id>/,
 //     verification, the filecopy engine (safety rule S7) into
 //     .bunkarr/plex/<folder>/.partial-job<id>/, manifest.json, a rename to the version's
-//     timestamp, the snapshots row, and version pruning.
-//   - Store reads the snapshots table.
+//     timestamp, the snapshots row (kind plexdb), and version pruning. The snapshots table, the
+//     retention selection and the version-directory mechanics (recovery, trash, restore) are
+//     internal/snapshots', shared with the *arr backups.
+//   - QuickCheck runs PRAGMA quick_check on any SQLite file with the same private driver and
+//     collation stubs as Verify (internal/arrbackup checks an *arr's database with it).
 //
 // Plex's files are never written: the databases are opened read-only by SQLite and never copied
 // as raw files, Preferences.xml is opened O_RDONLY|O_NOFOLLOW. Preferences.xml holds the server's
@@ -32,12 +35,10 @@ package plexdb
 
 import (
 	"errors"
-	"regexp"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/sl0wz3r/bunkarr/internal/engines/filecopy"
+	"github.com/sl0wz3r/bunkarr/internal/snapshots"
 )
 
 // Names of Plex's files, relative to the Plex data path ("Plex Media Server" directory), and of
@@ -70,8 +71,8 @@ const (
 
 // Integrity results (snapshots.integrity, IntegrityReport fields).
 const (
-	IntegrityOK     = "ok"
-	IntegrityFailed = "failed"
+	IntegrityOK     = snapshots.IntegrityOK
+	IntegrityFailed = snapshots.IntegrityFailed
 )
 
 // Defaults.
@@ -82,7 +83,7 @@ const (
 	// immutable read, or a copy fails.
 	DefaultAttempts = 3
 	// FailedKeep is how long versions whose integrity check failed are kept for diagnosis.
-	FailedKeep = 7 * 24 * time.Hour
+	FailedKeep = snapshots.FailedKeep
 )
 
 // Fault-injection points (see the package documentation).
@@ -105,7 +106,10 @@ const (
 const PlexRoot = filecopy.MetaDir + "/plex"
 
 // VersionLayout formats a version directory's name from the backup time (UTC).
-const VersionLayout = "20060102T150405Z"
+const VersionLayout = snapshots.VersionLayout
+
+// layout is where Plex DB versions live: .bunkarr/plex/<slug>-<integrationId>/<version>.
+var layout = snapshots.Layout{Root: PlexRoot, DefaultSlug: "plex"}
 
 var (
 	// ErrNoDatabase means the data path holds no Plex library database.
@@ -116,92 +120,30 @@ var (
 	// ErrIntegrity means the backup did not pass verification. The version is still stored (with
 	// integrity "failed") for diagnosis.
 	ErrIntegrity = errors.New("the Plex database backup failed verification")
-	// ErrNotFound means no snapshot has the given id.
-	ErrNotFound = errors.New("snapshot not found")
 )
-
-// maxSlugLen bounds the name part of a snapshot folder.
-const maxSlugLen = 40
 
 // FolderName returns the directory, relative to the destination target, that holds the
 // snapshot versions of a Plex integration: ".bunkarr/plex/<slug of the name>-<id>". The id
 // keeps two integrations with similar names apart and lets a job recognise its integration's
 // folders after a rename.
 func FolderName(integrationName string, integrationID int64) string {
-	return PlexRoot + "/" + folderBase(integrationName, integrationID)
-}
-
-// folderBase is FolderName's last component.
-func folderBase(name string, id int64) string {
-	s := slug(name)
-	if s == "" {
-		s = "plex"
-	}
-	return s + "-" + strconv.FormatInt(id, 10)
-}
-
-// slug lowercases name and keeps [a-z0-9_]; every other run of characters becomes one "-".
-func slug(name string) string {
-	var b strings.Builder
-	dash := false
-	for _, r := range strings.ToLower(name) {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
-			b.WriteRune(r)
-			dash = false
-			continue
-		}
-		if !dash && b.Len() > 0 {
-			b.WriteByte('-')
-			dash = true
-		}
-	}
-	s := strings.Trim(b.String(), "-")
-	if len(s) > maxSlugLen {
-		s = strings.TrimRight(s[:maxSlugLen], "-")
-	}
-	return s
+	return layout.Folder(integrationName, integrationID)
 }
 
 // folderIntegrationID returns the integration id at the end of a folder base name ("plex-3" →
 // 3), or 0.
 func folderIntegrationID(base string) int64 {
-	i := strings.LastIndexByte(base, '-')
-	if i < 0 || strings.HasPrefix(base, ".") {
-		return 0
-	}
-	id, err := strconv.ParseInt(base[i+1:], 10, 64)
-	if err != nil || id <= 0 {
-		return 0
-	}
-	return id
+	return snapshots.FolderIntegrationID(base)
 }
-
-var (
-	// versionNameRe matches a version directory's name.
-	versionNameRe = regexp.MustCompile(`^\d{8}T\d{6}Z(?:-job\d+)?$`)
-	// partialNameRe matches a directory being written by a job.
-	partialNameRe = regexp.MustCompile(`^\.partial-job(\d+)$`)
-	// pruneNameRe matches a version directory being deleted.
-	pruneNameRe = regexp.MustCompile(`^\.prune-(\d{8}T\d{6}Z(?:-job\d+)?)$`)
-)
 
 // partialName is the directory a job writes its version into.
 func partialName(jobID int64) string {
-	return ".partial-job" + strconv.FormatInt(jobID, 10)
+	return snapshots.PartialName(jobID)
 }
 
 // splitVersionPath checks that rel is ".bunkarr/plex/<folder>/<version>" (a folder that does not
 // start with "." and a version name made by the runner) and returns folder and version. It is the
 // fence of every deletion this package makes.
 func splitVersionPath(rel string) (folder, version string, ok bool) {
-	rest, found := strings.CutPrefix(rel, PlexRoot+"/")
-	if !found {
-		return "", "", false
-	}
-	folder, version, found = strings.Cut(rest, "/")
-	if !found || folder == "" || strings.HasPrefix(folder, ".") || strings.Contains(version, "/") ||
-		!versionNameRe.MatchString(version) {
-		return "", "", false
-	}
-	return folder, version, true
+	return layout.SplitVersionPath(rel)
 }

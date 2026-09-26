@@ -1,0 +1,147 @@
+{
+  "_note": "One file covering S01E04-E05: episodes[] has two entries, one episodeFile.",
+  "_observedAtReceipt": [
+    {
+      "field": "series.path",
+      "path": "/tv/The Beverly Hillbillies",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "episodeFile.path",
+      "path": "/tv/The Beverly Hillbillies/Season 1/The Beverly Hillbillies - S01E04-E05 - The Clampetts Meet Mrs. Drysdale + Jed Buys Stock HDTV-720p.mkv",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 941725
+    },
+    {
+      "field": "episodeFile.sourcePath",
+      "path": "/downloads/sonarr/The.Beverly.Hillbillies.S01.720p.HDTV.x264-PDGRP/The.Beverly.Hillbillies.S01E04E05.720p.HDTV.x264-PDGRP.mkv",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    }
+  ],
+  "receivedAt": "2026-09-25T12:34:35.549796+00:00",
+  "method": "POST",
+  "path": "/sonarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Sonarr/4.0.20.3014 (alpine 3.24.1)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "3211"
+  },
+  "body": {
+    "series": {
+      "id": 1,
+      "title": "The Beverly Hillbillies",
+      "titleSlug": "the-beverly-hillbillies",
+      "path": "/tv/The Beverly Hillbillies",
+      "tvdbId": 71471,
+      "tvMazeId": 2139,
+      "tmdbId": 1930,
+      "imdbId": "tt0055662",
+      "type": "standard",
+      "year": 1962,
+      "genres": [
+        "Comedy",
+        "Family"
+      ],
+      "images": [
+        {
+          "coverType": "banner",
+          "url": "/MediaCover/1/banner.jpg?lastWrite=639259360078222143",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/graphical/71471-g2.jpg"
+        },
+        {
+          "coverType": "poster",
+          "url": "/MediaCover/1/poster.jpg?lastWrite=639259360078856653",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/posters/71471-7.jpg"
+        },
+        {
+          "coverType": "fanart",
+          "url": "/MediaCover/1/fanart.jpg?lastWrite=639259360079497224",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/fanart/original/71471-1.jpg"
+        }
+      ],
+      "tags": [
+        "bunkarr-full"
+      ],
+      "originalLanguage": {
+        "id": 1,
+        "name": "English"
+      }
+    },
+    "episodes": [
+      {
+        "id": 16,
+        "episodeNumber": 4,
+        "seasonNumber": 1,
+        "title": "The Clampetts Meet Mrs. Drysdale",
+        "overview": "When Mr. Drysdale describes Mrs. Drysdale as being a hypochondriac, the Clampets assume she must be a drunk.",
+        "airDate": "1962-10-17",
+        "airDateUtc": "1962-10-17T23:30:00Z",
+        "seriesId": 1,
+        "tvdbId": 46689
+      },
+      {
+        "id": 17,
+        "episodeNumber": 5,
+        "seasonNumber": 1,
+        "title": "Jed Buys Stock",
+        "overview": "Granny prepares her special mash to help cure Mrs. Drysdale of her drinking problem while Jed follows Mr. Drysdale’s suggestion to buy “stock” by buying cows, pigs, and chickens.",
+        "airDate": "1962-10-24",
+        "airDateUtc": "1962-10-24T23:30:00Z",
+        "seriesId": 1,
+        "tvdbId": 46690
+      }
+    ],
+    "episodeFile": {
+      "id": 7,
+      "relativePath": "Season 1/The Beverly Hillbillies - S01E04-E05 - The Clampetts Meet Mrs. Drysdale + Jed Buys Stock HDTV-720p.mkv",
+      "path": "/tv/The Beverly Hillbillies/Season 1/The Beverly Hillbillies - S01E04-E05 - The Clampetts Meet Mrs. Drysdale + Jed Buys Stock HDTV-720p.mkv",
+      "quality": "HDTV-720p",
+      "qualityVersion": 1,
+      "releaseGroup": "PDGRP",
+      "sceneName": "The.Beverly.Hillbillies.S01E04E05.720p.HDTV.x264-PDGRP",
+      "size": 941725,
+      "dateAdded": "2026-09-25T12:34:35.540615Z",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "mediaInfo": {
+        "audioChannels": 1.0,
+        "audioCodec": "Opus",
+        "audioLanguages": [],
+        "height": 720,
+        "width": 1280,
+        "subtitles": [],
+        "videoCodec": "x264",
+        "videoDynamicRange": "",
+        "videoDynamicRangeType": ""
+      },
+      "sourcePath": "/downloads/sonarr/The.Beverly.Hillbillies.S01.720p.HDTV.x264-PDGRP/The.Beverly.Hillbillies.S01E04E05.720p.HDTV.x264-PDGRP.mkv"
+    },
+    "isUpgrade": false,
+    "customFormatInfo": {
+      "customFormats": [],
+      "customFormatScore": 0
+    },
+    "release": {
+      "releaseType": "unknown"
+    },
+    "eventType": "Download",
+    "instanceName": "Sonarr",
+    "applicationUrl": ""
+  }
+}

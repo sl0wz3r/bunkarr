@@ -1,0 +1,69 @@
+{
+  "_note": "DELETE /api/v3/movie/{id}?deleteFiles=false (movieFolderSize is 0 when deleteFiles=false even though the folder had a file).",
+  "_observedAtReceipt": [
+    {
+      "field": "movie.folderPath",
+      "path": "/movies/Charade (1963)",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": null
+    }
+  ],
+  "receivedAt": "2026-09-25T12:33:01.063924+00:00",
+  "method": "POST",
+  "path": "/radarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Radarr/6.4.4.10685 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "traceparent": "00-f0ad57b4f203f0e66dcb2dcb84c23a0e-f26e9867173f4ac8-00",
+    "Content-Type": "application/json",
+    "Content-Length": "1314"
+  },
+  "body": {
+    "movie": {
+      "id": 3,
+      "title": "Charade",
+      "year": 1963,
+      "releaseDate": "1990-01-01",
+      "folderPath": "/movies/Charade (1963)",
+      "tmdbId": 4808,
+      "imdbId": "tt0056923",
+      "overview": "After Regina Lampert falls for the dashing Peter Joshua on a skiing holiday in the French Alps, she discovers upon her return to Paris that her husband has been murdered. Soon, she and Peter are giving chase to three of her late husband's World War II cronies, Tex, Scobie and Gideon, who are after a quarter of a million dollars the quartet stole while behind enemy lines.",
+      "genres": [
+        "Comedy",
+        "Mystery",
+        "Romance"
+      ],
+      "images": [
+        {
+          "coverType": "poster",
+          "url": "/MediaCover/3/poster.jpg?h=c331ba1640e6e96afee2",
+          "remoteUrl": "https://image.tmdb.org/t/p/original/qqaPjC5FQidtKY65jbAKZPiOTaS.jpg"
+        },
+        {
+          "coverType": "fanart",
+          "url": "/MediaCover/3/fanart.jpg?h=d447d83195dcf2311743",
+          "remoteUrl": "https://image.tmdb.org/t/p/original/gj2TBYmOIy4E2GjMIpnbAEZNCQx.jpg"
+        }
+      ],
+      "tags": [],
+      "originalLanguage": {
+        "id": 1,
+        "name": "English"
+      }
+    },
+    "deletedFiles": false,
+    "movieFolderSize": 0,
+    "eventType": "MovieDelete",
+    "instanceName": "Radarr",
+    "applicationUrl": ""
+  }
+}

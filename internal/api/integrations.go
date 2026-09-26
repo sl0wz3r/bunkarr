@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/sl0wz3r/bunkarr/internal/catalog"
 	"github.com/sl0wz3r/bunkarr/internal/integrations"
 	"github.com/sl0wz3r/bunkarr/internal/integrations/plex"
 	"github.com/sl0wz3r/bunkarr/internal/jobqueue"
@@ -34,6 +35,9 @@ func (s *Server) integrationRoutes(r chi.Router) {
 // integrationView returns it as the API shows it: a Plex integration's backup cron and enabled
 // flag come from its stored schedule.
 func integrationView(list []jobqueue.Schedule, it integrations.Integration) integrations.Integration {
+	if it.Type.IsArr() {
+		return arrBackupOverlay(list, arrRefreshOverlay(list, it))
+	}
 	if it.Type != integrations.TypePlex {
 		return it
 	}
@@ -96,24 +100,44 @@ func (s *Server) integration(r *http.Request) (integrations.Integration, error) 
 }
 
 func (s *Server) createIntegration(w http.ResponseWriter, r *http.Request) {
-	var in integrations.Input
-	if err := decodeBody(w, r, &in); err != nil {
+	var body integrationBody
+	if err := decodeBody(w, r, &body); err != nil {
 		s.fail(w, r, "create integration", err)
 		return
 	}
+	in := body.Input
 	settings, err := s.preparePlexSettings(r.Context(), in.Type, in.Settings)
+	if err == nil {
+		settings, err = s.prepareArrSettings(r.Context(), in.Type, settings)
+	}
 	if err != nil {
 		s.fail(w, r, "create integration", err)
 		return
 	}
 	in.Settings = settings
+	// "Sign in with Plex": the chosen server's token, checked against the URL (plexsignin.go).
+	signIn, err := s.useSignIn(r, body.PlexSignIn, in.Type, &in)
+	if err != nil {
+		s.fail(w, r, "create integration", err)
+		return
+	}
+	defer signIn.done()
 	it, err := s.app.Integrations.Create(r.Context(), in)
 	if err != nil {
 		s.fail(w, r, "create integration", err)
 		return
 	}
+	signIn.consume()
 	s.log.Info("Integration created", "id", it.ID, "type", string(it.Type), "name", it.Name)
 	if err := s.syncPlexSchedule(r.Context(), it); err != nil {
+		s.fail(w, r, "create integration", errScheduleSync("the integration", err))
+		return
+	}
+	if err := s.afterArrSave(r.Context(), nil, it, true); err != nil {
+		s.fail(w, r, "create integration", err)
+		return
+	}
+	if err := s.syncArrBackupSchedule(r.Context(), it); err != nil {
 		s.fail(w, r, "create integration", errScheduleSync("the integration", err))
 		return
 	}
@@ -132,24 +156,43 @@ func (s *Server) updateIntegration(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, "update integration", err)
 		return
 	}
-	var in integrations.Input
-	if err := decodeBody(w, r, &in); err != nil {
+	var body integrationBody
+	if err := decodeBody(w, r, &body); err != nil {
 		s.fail(w, r, "update integration", err)
 		return
 	}
+	in := body.Input
 	settings, err := s.preparePlexSettings(r.Context(), cur.Type, in.Settings)
+	if err == nil {
+		settings, err = s.prepareArrSettings(r.Context(), cur.Type, settings)
+	}
 	if err != nil {
 		s.fail(w, r, "update integration", err)
 		return
 	}
 	in.Settings = settings
+	signIn, err := s.useSignIn(r, body.PlexSignIn, cur.Type, &in)
+	if err != nil {
+		s.fail(w, r, "update integration", err)
+		return
+	}
+	defer signIn.done()
 	it, err := s.app.Integrations.Update(r.Context(), cur.ID, in)
 	if err != nil {
 		s.fail(w, r, "update integration", err)
 		return
 	}
+	signIn.consume()
 	s.log.Info("Integration updated", "id", it.ID, "type", string(it.Type), "name", it.Name)
 	if err := s.syncPlexSchedule(r.Context(), it); err != nil {
+		s.fail(w, r, "update integration", errScheduleSync("the integration", err))
+		return
+	}
+	if err := s.afterArrSave(r.Context(), &cur, it, strings.TrimSpace(in.APIKey) != "" || in.ClearAPIKey); err != nil {
+		s.fail(w, r, "update integration", err)
+		return
+	}
+	if err := s.syncArrBackupSchedule(r.Context(), it); err != nil {
 		s.fail(w, r, "update integration", errScheduleSync("the integration", err))
 		return
 	}
@@ -176,7 +219,7 @@ func (s *Server) deleteIntegration(w http.ResponseWriter, r *http.Request) {
 	}
 	if active {
 		s.fail(w, r, "delete integration", errorf(http.StatusConflict,
-			"integration %q has queued or running jobs (a Plex database backup); cancel them or wait until they finish", it.Name))
+			"integration %q has queued or running jobs (a backup or a refresh); cancel them or wait until they finish", it.Name))
 		return
 	}
 	n, err := s.app.Jobs.Store().DeleteSchedulesFor(ctx, jobs.Params{IntegrationID: it.ID})
@@ -217,6 +260,12 @@ func (s *Server) testIntegration(w http.ResponseWriter, r *http.Request) {
 		// ID lets the edit form test with the stored token when apiKey is empty, only against the
 		// stored URL.
 		ID int64 `json:"id"`
+		// PlexSignIn tests with the token of a server chosen in "Sign in with Plex" (the sign-in
+		// is not consumed).
+		PlexSignIn *plexSignInRef `json:"plexSignIn"`
+		// Settings are unsaved settings to test with (*arr: pathMappings, backupFolder), validated
+		// like a create and used only for this test (phase2-3.md §4.1).
+		Settings json.RawMessage `json:"settings"`
 	}
 	if err := decodeBody(w, r, &body); err != nil {
 		s.fail(w, r, "test integration", err)
@@ -246,6 +295,13 @@ func (s *Server) testIntegration(w http.ResponseWriter, r *http.Request) {
 	case !body.Type.Valid():
 		s.fail(w, r, "test integration", errorf(http.StatusBadRequest, "unknown integration type %q", body.Type))
 		return
+	case body.Type.IsArr():
+		if body.PlexSignIn != nil {
+			s.fail(w, r, "test integration", errorf(http.StatusBadRequest, "plexSignIn is only for Plex integrations"))
+			return
+		}
+		s.testArrIntegration(w, r, body.Type, body.URL, body.APIKey, body.Settings, cur)
+		return
 	case body.Type != integrations.TypePlex:
 		writeJSON(w, http.StatusOK, integrationTestResult{TestResult: plex.TestResult{
 			Message: fmt.Sprintf("Testing %s integrations is not available yet.", body.Type)}})
@@ -261,7 +317,12 @@ func (s *Server) testIntegration(w http.ResponseWriter, r *http.Request) {
 	// not know it cannot point it at a server of its choice. TokenFor compares u with the URL of
 	// the row it reads the token from, so a URL change during this request cannot pair them.
 	token := strings.TrimSpace(body.APIKey)
-	if token == "" && cur != nil && cur.HasAPIKey {
+	if body.PlexSignIn != nil {
+		if token, err = s.signInTestToken(r, body.PlexSignIn, body.Type, u, body.APIKey); err != nil {
+			s.fail(w, r, "test integration", err)
+			return
+		}
+	} else if token == "" && cur != nil && cur.HasAPIKey {
 		token, err = s.app.Integrations.TokenFor(ctx, cur.ID, u)
 		if errors.Is(err, integrations.ErrURLChanged) {
 			err = errorf(http.StatusBadRequest,
@@ -417,4 +478,60 @@ func (s *Server) plexBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeAccepted(w, job.ID, job)
+}
+
+// testArrIntegration answers POST /integrations/test for Sonarr, Radarr and Lidarr (phase2-3.md
+// §13): the URL must answer as the chosen application with the key accepted; the root folders,
+// the backup folder and the recycle bin are checked with the body's settings, else the stored
+// ones when id names an integration of the type. The stored key is only sent to the stored URL
+// (S8); a typed key is redacted from the answer.
+func (s *Server) testArrIntegration(w http.ResponseWriter, r *http.Request, typ integrations.Type, rawURL, apiKey string,
+	rawSettings json.RawMessage, cur *integrations.Integration) {
+	ctx := r.Context()
+	u, err := integrations.NormalizeURL(rawURL)
+	if err != nil {
+		s.fail(w, r, "test integration", err)
+		return
+	}
+	var settings *integrations.ArrSettings
+	if t := strings.TrimSpace(string(rawSettings)); t != "" && t != "null" {
+		as, err := integrations.ParseArrSettings(rawSettings)
+		if err == nil {
+			err = as.Validate(typ.AppName())
+		}
+		if err != nil {
+			s.fail(w, r, "test integration", err)
+			return
+		}
+		settings = &as
+	} else if cur != nil && cur.Type == typ {
+		if as, err := cur.ArrSettings(); err == nil {
+			settings = &as
+		}
+	}
+	token := strings.TrimSpace(apiKey)
+	if token == "" && cur != nil && cur.HasAPIKey {
+		token, err = s.app.Integrations.TokenFor(ctx, cur.ID, u)
+		if errors.Is(err, integrations.ErrURLChanged) {
+			err = errorf(http.StatusBadRequest,
+				"enter the API key to test a different URL: the saved key is only sent to the URL it was saved with")
+		}
+		if err != nil {
+			s.fail(w, r, "test integration", err)
+			return
+		}
+	}
+	sources, err := s.app.Catalog.List(ctx)
+	if err != nil {
+		s.fail(w, r, "test integration", err)
+		return
+	}
+	refs := make([]integrations.SourceRef, 0, len(sources))
+	for _, src := range sources {
+		refs = append(refs, integrations.SourceRef{ID: src.ID, Path: src.Path, Exclude: src.Exclude})
+	}
+	res := integrations.TestArr(ctx, typ, u, token, settings, integrations.ArrTestOptions{
+		Sources: refs, DefaultExcludes: catalog.DefaultExcludes()})
+	res.Message = logging.RedactValues(res.Message, token)
+	writeJSON(w, http.StatusOK, res)
 }

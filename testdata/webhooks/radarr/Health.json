@@ -1,0 +1,31 @@
+{
+  "_note": "Existing health errors re-sent by the scheduled check once the 15-minute startup grace period ended.",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:46:30.865970+00:00",
+  "method": "POST",
+  "path": "/radarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Radarr/6.4.4.10685 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "384"
+  },
+  "body": {
+    "level": "error",
+    "message": "No indexers available with RSS sync enabled, Radarr will not grab new releases automatically",
+    "type": "IndexerRssCheck",
+    "wikiUrl": "https://wiki.servarr.com/radarr/system#no-indexers-available-with-rss-sync-enabled-radarr-will-not-grab-new-releases-automatically",
+    "eventType": "Health",
+    "instanceName": "Radarr",
+    "applicationUrl": ""
+  }
+}

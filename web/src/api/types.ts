@@ -48,7 +48,7 @@ export interface Paged<T> {
 
 // ---- Jobs (internal/jobs/contract.go) ----
 
-export type JobType = 'scan' | 'sync' | 'plexdb_backup' | 'retention' | 'verify';
+export type JobType = 'scan' | 'sync' | 'plexdb_backup' | 'retention' | 'verify' | 'refresh' | 'arr_backup' | 'manifest_export';
 
 export type JobStatus = 'queued' | 'running' | 'completed' | 'completed_with_warnings' | 'failed' | 'cancelled';
 
@@ -59,6 +59,12 @@ export interface JobParams {
   sourceIds?: number[];
   integrationId?: number;
   allowChanges?: boolean;
+  /** A targeted sync: only these paths inside its one source. */
+  paths?: string[];
+  /** A targeted refresh: only these *arr items (the *arr's own ids). */
+  arrItemIds?: number[];
+  /** A refresh queues follow-up syncs of the changed items' folders when it ends. */
+  syncAfter?: boolean;
 }
 
 export interface JobProgress {
@@ -240,6 +246,8 @@ export interface IntegrationInput {
   /** Update only: remove the stored token. */
   clearApiKey?: boolean;
   settings: PlexSettings;
+  /** Plex only, in place of apiKey: the token of a server chosen in "Sign in with Plex". */
+  plexSignIn?: PlexSignInRef;
 }
 
 export interface IntegrationTestInput {
@@ -247,6 +255,78 @@ export interface IntegrationTestInput {
   url: string;
   apiKey?: string;
   id?: number;
+  /** Test with the token of a server chosen in "Sign in with Plex" (the sign-in is not used up). */
+  plexSignIn?: PlexSignInRef;
+}
+
+// ---- Plex sign-in (design §5): no response ever carries a token ----
+
+/** PlexSignInRef names a signed-in server whose token the server side uses. */
+export interface PlexSignInRef {
+  id: string;
+  serverId: string;
+  /** Owned servers without a token of their own: use the plex.tv account token. */
+  useAccountToken?: boolean;
+}
+
+/** POST /plex/signin: the PIN code appears only inside authUrl. */
+export interface PlexSignInCreated {
+  id: string;
+  authUrl: string;
+  expiresAt: string;
+}
+
+export type PlexSignInStatusValue = 'pending' | 'authenticated' | 'expired';
+
+/** GET /plex/signin/{id}. */
+export interface PlexSignInStatus {
+  status: PlexSignInStatusValue;
+  expiresAt: string;
+  username?: string;
+  warning?: string;
+}
+
+export interface PlexConnectionChoice {
+  uri: string;
+  protocol: string;
+  address: string;
+  port: number;
+  local: boolean;
+  relay: boolean;
+  ipv6: boolean;
+}
+
+/** GET /plex/signin/{id}/servers (owned first). */
+export interface PlexServerChoice {
+  id: string;
+  name: string;
+  owned: boolean;
+  productVersion: string;
+  platform: string;
+  hasAccessToken: boolean;
+  connections: PlexConnectionChoice[];
+}
+
+/** One tested connection of POST /plex/signin/{id}/servers/{serverId}/test. */
+export interface PlexProbeResult {
+  uri: string;
+  local: boolean;
+  relay: boolean;
+  derived: boolean;
+  protocol: string;
+  ok: boolean;
+  identityMatches: boolean;
+  tokenAccepted: boolean;
+  version?: string;
+  latencyMs: number;
+  message: string;
+}
+
+export interface PlexProbeAnswer {
+  /** A working https, non-relay connection; null when none. */
+  recommended: string | null;
+  /** Best first. */
+  results: PlexProbeResult[];
 }
 
 export interface IntegrationTestResult {
@@ -402,6 +482,12 @@ export interface Capabilities {
   checkedAt: string;
   /** The probe version that found these (0 or missing: an older one; the next job probes again). */
   probeVersion: number;
+  /**
+   * The destination keeps the permission bits a file is given (not an SMB share without POSIX
+   * extensions). Missing or false until a probe that checks it: *arr backups need it or their
+   * integration's acceptInsecureModes.
+   */
+  enforcesModes?: boolean;
 }
 
 export type VerifyMode = 'off' | 'sample' | 'full';
@@ -421,6 +507,14 @@ export interface Retention {
   deletedDays: number;
   plexDbDaily: number;
   plexDbWeekly: number;
+  /** *arr backup versions kept per integration (1–365; the server fills 14 when missing). */
+  arrDaily?: number;
+  /** ISO weeks that keep their newest *arr backup version (1–520; default 8). */
+  arrWeekly?: number;
+  /** Days that keep their newest manifest version (1–3650; the server fills 30 when missing). */
+  manifestDays?: number;
+  /** ISO weeks that keep their newest manifest version (0–520, 0 keeps none; missing is 12). */
+  manifestWeeks?: number;
 }
 
 export interface Destination {
@@ -481,7 +575,9 @@ export interface DestinationTestResult {
 export interface Snapshot {
   id: number;
   destinationId: number;
-  /** The Plex integration backed up; 0 once that integration was deleted. */
+  /** plexdb: a Plex DB version; arr: an *arr backup zip (never downloadable). */
+  kind?: 'plexdb' | 'arr';
+  /** The integration backed up; 0 once that integration was deleted. */
   integrationId: number;
   /** The job that recorded the version; 0 once that job's history was deleted. */
   jobId: number;

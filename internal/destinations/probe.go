@@ -53,6 +53,7 @@ func probeRoot(ctx context.Context, root *os.Root, now time.Time, lstat lstatFun
 			func() (err error) { caps.CaseInsensitive, unstableCase, err = probeCase(pr, lstat); return err },
 			func() (err error) { caps.InvalidChars, err = probeChars(pr); return err },
 			func() (err error) { caps.TrailingDotSpace, err = probeTrailing(pr); return err },
+			func() (err error) { caps.EnforcesModes, err = probeModes(pr); return err },
 			func() error {
 				g, exact, err := probeGranularity(pr)
 				if err != nil {
@@ -274,6 +275,33 @@ func roundTrip(r *os.Root, name string) (bool, error) {
 		return false, err
 	}
 	return slices.Contains(names, name), nil
+}
+
+// probeModes reports whether the destination stores permission bits (Capabilities.EnforcesModes,
+// phase2-3.md S17): a file created with mode 0600 must read back 0600, and after a chmod to 0640
+// read back 0640. The second step tells a server that stores modes from a mount that shows every
+// file with one fixed mode that happens to be 0600. A refused chmod means the modes are not
+// enforced; only errors that mean the storage itself failed are returned.
+func probeModes(r *os.Root) (bool, error) {
+	if err := createProbeFile(r, "mode", []byte("x")); err != nil {
+		return false, err
+	}
+	for _, mode := range []fs.FileMode{0o600, 0o640} {
+		if err := r.Chmod("mode", mode); err != nil {
+			if filecopy.Classify(err) == filecopy.Fatal {
+				return false, err
+			}
+			return false, nil
+		}
+		fi, err := r.Lstat("mode")
+		if err != nil {
+			return false, err
+		}
+		if fi.Mode().Perm() != mode {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // probeGranularity sets each of probeMtimes on a file and derives the mtime resolution from

@@ -1,0 +1,288 @@
+{
+  "_note": "Album import via command ManualImport with replaceExistingFiles=true. With replaceExistingFiles=false NO webhook is sent.",
+  "_observedAtReceipt": [
+    {
+      "field": "artist.path",
+      "path": "/music/Scott Joplin",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "trackFiles[0].path",
+      "path": "/music/Scott Joplin/01 - Swipesy Cake Walk.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 820615
+    },
+    {
+      "field": "trackFiles[1].path",
+      "path": "/music/Scott Joplin/02 - Lily Queen.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 1112657
+    },
+    {
+      "field": "trackFiles[2].path",
+      "path": "/music/Scott Joplin/03 - Sunflower Slow Drag.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 928659
+    },
+    {
+      "field": "trackFiles[3].path",
+      "path": "/music/Scott Joplin/04 - Something Doing.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 972646
+    },
+    {
+      "field": "trackFiles[4].path",
+      "path": "/music/Scott Joplin/05 - Felicity Rag.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 888633
+    },
+    {
+      "field": "trackFiles[5].path",
+      "path": "/music/Scott Joplin/06 - Mule-Walk Stomp.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 600662
+    },
+    {
+      "field": "trackFiles[6].path",
+      "path": "/music/Scott Joplin/07 - Eccentricity-Syncopated Waltz.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 1256663
+    },
+    {
+      "field": "trackFiles[7].path",
+      "path": "/music/Scott Joplin/08 - Modernistic (You've Got to Be).mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 752605
+    },
+    {
+      "field": "trackFiles[8].path",
+      "path": "/music/Scott Joplin/09 - Snowy Morning Blues.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 748623
+    },
+    {
+      "field": "trackFiles[9].path",
+      "path": "/music/Scott Joplin/10 - Carolina Shout.mp3",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 824584
+    }
+  ],
+  "receivedAt": "2026-09-25T12:38:00.452001+00:00",
+  "method": "POST",
+  "path": "/lidarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Lidarr/3.1.0.4875 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "4791"
+  },
+  "body": {
+    "artist": {
+      "id": 1,
+      "name": "Scott Joplin",
+      "disambiguation": "composer and pianist",
+      "path": "/music/Scott Joplin",
+      "mbId": "aec8a328-d2e8-4780-b2ea-318c7f8d6f75",
+      "type": "Person",
+      "genres": [
+        "Ragtime",
+        "Contemporary Classical",
+        "Jazz",
+        "Modern Classical"
+      ],
+      "images": [
+        {
+          "coverType": "poster",
+          "url": "/MediaCover/1/poster.jpg?lastWrite=639259360447767938",
+          "remoteUrl": "/config/MediaCover/1/poster.jpg"
+        },
+        {
+          "coverType": "fanart",
+          "url": "/MediaCover/1/fanart.jpg?lastWrite=639259360446771807",
+          "remoteUrl": "/config/MediaCover/1/fanart.jpg"
+        },
+        {
+          "coverType": "clearlogo",
+          "url": "/MediaCover/1/clearlogo.png?lastWrite=639259360446020559",
+          "remoteUrl": "/config/MediaCover/1/clearlogo.png"
+        }
+      ],
+      "tags": [
+        "bunkarr-full"
+      ]
+    },
+    "album": {
+      "id": 46,
+      "mbId": "bc350371-b6c2-46ab-86dd-57732fb052ee",
+      "title": "Ragtime",
+      "disambiguation": "",
+      "overview": "",
+      "albumType": "Album",
+      "secondaryAlbumTypes": [],
+      "releaseDate": "1994-01-01T00:00:00Z",
+      "genres": [
+        "Jazz",
+        "Ragtime"
+      ],
+      "images": []
+    },
+    "tracks": [
+      {
+        "id": 1169,
+        "title": "Swipesy Cake Walk",
+        "trackNumber": "1",
+        "qualityVersion": 0
+      },
+      {
+        "id": 1170,
+        "title": "Lily Queen",
+        "trackNumber": "2",
+        "qualityVersion": 0
+      },
+      {
+        "id": 1171,
+        "title": "Sunflower Slow Drag",
+        "trackNumber": "3",
+        "qualityVersion": 0
+      },
+      {
+        "id": 1172,
+        "title": "Something Doing",
+        "trackNumber": "4",
+        "qualityVersion": 0
+      },
+      {
+        "id": 1173,
+        "title": "Felicity Rag",
+        "trackNumber": "5",
+        "qualityVersion": 0
+      },
+      {
+        "id": 1174,
+        "title": "Mule-Walk Stomp",
+        "trackNumber": "6",
+        "qualityVersion": 0
+      },
+      {
+        "id": 1175,
+        "title": "Eccentricity-Syncopated Waltz",
+        "trackNumber": "7",
+        "qualityVersion": 0
+      },
+      {
+        "id": 1176,
+        "title": "Modernistic (You've Got to Be)",
+        "trackNumber": "8",
+        "qualityVersion": 0
+      },
+      {
+        "id": 1177,
+        "title": "Snowy Morning Blues",
+        "trackNumber": "9",
+        "qualityVersion": 0
+      },
+      {
+        "id": 1178,
+        "title": "Carolina Shout",
+        "trackNumber": "10",
+        "qualityVersion": 0
+      }
+    ],
+    "trackFiles": [
+      {
+        "id": 10,
+        "path": "/music/Scott Joplin/01 - Swipesy Cake Walk.mp3",
+        "quality": "MP3-56",
+        "qualityVersion": 1,
+        "size": 820615,
+        "dateAdded": "2026-09-25T12:38:00.3914559Z"
+      },
+      {
+        "id": 11,
+        "path": "/music/Scott Joplin/02 - Lily Queen.mp3",
+        "quality": "MP3-56",
+        "qualityVersion": 1,
+        "size": 1112657,
+        "dateAdded": "2026-09-25T12:38:00.3950453Z"
+      },
+      {
+        "id": 12,
+        "path": "/music/Scott Joplin/03 - Sunflower Slow Drag.mp3",
+        "quality": "MP3-56",
+        "qualityVersion": 1,
+        "size": 928659,
+        "dateAdded": "2026-09-25T12:38:00.3984595Z"
+      },
+      {
+        "id": 13,
+        "path": "/music/Scott Joplin/04 - Something Doing.mp3",
+        "quality": "MP3-56",
+        "qualityVersion": 1,
+        "size": 972646,
+        "dateAdded": "2026-09-25T12:38:00.4034646Z"
+      },
+      {
+        "id": 14,
+        "path": "/music/Scott Joplin/05 - Felicity Rag.mp3",
+        "quality": "MP3-56",
+        "qualityVersion": 1,
+        "size": 888633,
+        "dateAdded": "2026-09-25T12:38:00.4071812Z"
+      },
+      {
+        "id": 15,
+        "path": "/music/Scott Joplin/06 - Mule-Walk Stomp.mp3",
+        "quality": "MP3-56",
+        "qualityVersion": 1,
+        "size": 600662,
+        "dateAdded": "2026-09-25T12:38:00.4105408Z"
+      },
+      {
+        "id": 16,
+        "path": "/music/Scott Joplin/07 - Eccentricity-Syncopated Waltz.mp3",
+        "quality": "MP3-56",
+        "qualityVersion": 1,
+        "size": 1256663,
+        "dateAdded": "2026-09-25T12:38:00.41363Z"
+      },
+      {
+        "id": 17,
+        "path": "/music/Scott Joplin/08 - Modernistic (You've Got to Be).mp3",
+        "quality": "MP3-56",
+        "qualityVersion": 1,
+        "size": 752605,
+        "dateAdded": "2026-09-25T12:38:00.4175343Z"
+      },
+      {
+        "id": 18,
+        "path": "/music/Scott Joplin/09 - Snowy Morning Blues.mp3",
+        "quality": "MP3-56",
+        "qualityVersion": 1,
+        "size": 748623,
+        "dateAdded": "2026-09-25T12:38:00.4204015Z"
+      },
+      {
+        "id": 19,
+        "path": "/music/Scott Joplin/10 - Carolina Shout.mp3",
+        "quality": "MP3-56",
+        "qualityVersion": 1,
+        "size": 824584,
+        "dateAdded": "2026-09-25T12:38:00.4234125Z"
+      }
+    ],
+    "isUpgrade": false,
+    "eventType": "Download",
+    "instanceName": "Lidarr",
+    "applicationUrl": ""
+  }
+}

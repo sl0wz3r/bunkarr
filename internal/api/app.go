@@ -19,8 +19,11 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/integrations/plex"
 	"github.com/sl0wz3r/bunkarr/internal/jobqueue"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
+	"github.com/sl0wz3r/bunkarr/internal/manifest"
+	"github.com/sl0wz3r/bunkarr/internal/mediaindex"
 	"github.com/sl0wz3r/bunkarr/internal/notify"
 	"github.com/sl0wz3r/bunkarr/internal/plexdb"
+	"github.com/sl0wz3r/bunkarr/internal/snapshots"
 	"github.com/sl0wz3r/bunkarr/internal/syncer"
 )
 
@@ -87,8 +90,12 @@ type App struct {
 	Destinations *destinations.Store
 	// Files is what each destination holds (destination_files).
 	Files *syncer.Store
-	// Snapshots are the recorded Plex DB versions.
-	Snapshots *plexdb.Store
+	// Snapshots are the recorded versions: Plex DB versions and *arr config backups.
+	Snapshots *snapshots.Store
+	// Index is the metadata index (the *arr items and files, design §6), filled by refresh jobs.
+	Index *mediaindex.Store
+	// Manifests runs manifest_export jobs and serves the manifest downloads and exports (§11).
+	Manifests *manifest.Runner
 	// Notifications stores the Apprise targets; Notifier sends to them when jobs finish.
 	Notifications *notify.Store
 	Notifier      *notify.Dispatcher
@@ -99,7 +106,13 @@ type App struct {
 
 	settings *config.Settings
 	log      *slog.Logger
+	// plexOpts are the options of every Plex and plex.tv request: o.Plex plus this install's
+	// client identifier (setting plex.clientIdentifier) and the plex.tv URLs.
 	plexOpts plex.Options
+	// signIns holds the "Sign in with Plex" sessions (in memory only; cleared by Stop).
+	signIns *signInRegistry
+	// webhooks is the webhook intake, its event store and processor (webhooks.go).
+	webhooks *webhookService
 }
 
 // NewApp constructs every Phase 1 service and wires them together: the S4 path guards between
@@ -124,7 +137,11 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 	if r, err := filepath.EvalSymlinks(configDir); err == nil {
 		configDir = r
 	}
-	a := &App{settings: o.Settings, log: log, plexOpts: o.Plex}
+	plexOpts, err := appPlexOptions(ctx, o.Settings, o.Plex)
+	if err != nil {
+		return nil, fmt.Errorf("app: %w", err)
+	}
+	a := &App{settings: o.Settings, log: log, plexOpts: plexOpts, signIns: newSignInRegistry(log.With("component", "plexsignin"))}
 
 	guards := &pathGuards{configDir: configDir}
 	a.Files = syncer.NewStore(o.DB)
@@ -166,6 +183,22 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 	a.Scanner = catalog.NewScanner(a.Catalog, catalog.ScannerOptions{ForbiddenRoots: guards.forbiddenRoots, Logger: log.With("component", "scanner")})
 	a.Integrations = integrations.NewStore(o.DB, o.Keyring)
 	a.Notifications = notify.NewStore(o.DB, o.Keyring)
+	// Rows saved before Phase 2 are brought to its rules (phase2-3.md §4.1) before their keys are
+	// registered: invalid ones are disabled, *arr ones get a webhook key.
+	if rep, err := a.Integrations.NormalizeStored(ctx); err != nil {
+		log.Warn("Could not check the saved integrations against this version's rules", "error", err)
+	} else {
+		for _, inv := range rep.Invalid {
+			if inv.Disabled {
+				log.Warn("Integration disabled: its saved settings are not valid", "id", inv.ID, "name", inv.Name,
+					"type", string(inv.Type), "reason", inv.Reason)
+			}
+		}
+		if len(rep.Normalized) > 0 || len(rep.WebhookKeys) > 0 {
+			log.Info("Saved integrations updated to this version", "settingsNormalized", len(rep.Normalized),
+				"webhookKeysCreated", len(rep.WebhookKeys))
+		}
+	}
 	if err := a.Integrations.RegisterSecrets(ctx); err != nil {
 		log.Warn("Some integration tokens could not be decrypted", "error", err)
 	}
@@ -183,7 +216,9 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 		ShutdownGrace: o.ShutdownGrace,
 	})
 	so := syncer.Options{DB: o.DB, Store: a.Files, Catalog: a.Catalog, Scanner: a.Scanner, Destinations: a.Destinations,
-		Logger: log.With("component", "syncer")}
+		Logger: log.With("component", "syncer"), Enqueuer: a.Jobs, ManifestAfterSync: a.manifestAfterSync, ExpectedFiles: a.expectedFiles}
+	a.webhooks = a.newWebhooks(o)
+	a.Jobs.OnFinish(a.webhooks.proc.OnJobFinish)
 	a.Jobs.Register(jobs.TypeScan, catalog.NewScanRunner(a.Scanner))
 	a.Jobs.Register(jobs.TypeSync, syncer.NewSyncRunner(so))
 	a.Jobs.Register(jobs.TypeVerify, syncer.NewVerifyRunner(so))
@@ -202,13 +237,34 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 		ConfigDir:    configDir,
 		Log:          log.With("component", "plexdb"),
 		Location:     o.Location,
-		Plex:         o.Plex,
+		Plex:         a.plexOpts,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("app: %w", err)
 	}
 	a.Jobs.Register(jobs.TypePlexDBBackup, pr)
 	a.Snapshots = pr.Store()
+	ab, err := a.newArrBackupRunner(o, configDir)
+	if err != nil {
+		return nil, fmt.Errorf("app: %w", err)
+	}
+	a.Jobs.Register(jobs.TypeArrBackup, ab)
+	// A staged *arr zip holds the *arr's secrets (S17): removed when crash recovery fails its job
+	// for good, and stale ones at start-up.
+	a.Jobs.OnFinish(ab.OnJobFinish)
+	ab.SweepStaging()
+	rr, err := a.newRefreshRunner(o)
+	if err != nil {
+		return nil, fmt.Errorf("app: %w", err)
+	}
+	a.Jobs.Register(jobs.TypeRefresh, rr)
+	a.Index = rr.Store()
+	mr, err := a.newManifestRunner(o, configDir)
+	if err != nil {
+		return nil, fmt.Errorf("app: %w", err)
+	}
+	a.Jobs.Register(jobs.TypeManifestExport, mr)
+	a.Manifests = mr
 
 	no := o.Notify
 	no.Describe = func(ctx context.Context, job jobs.Job) string { return a.describe(ctx, job.Type, job.Params) }
@@ -224,9 +280,18 @@ func (a *App) Start(ctx context.Context) error {
 	if err := a.pruneOrphanSchedules(ctx); err != nil {
 		a.log.Warn("Could not check the schedules for deleted destinations and integrations", "error", err)
 	}
+	if err := a.ensureArrRefreshSchedules(ctx); err != nil {
+		a.log.Warn("Could not create the refresh schedules of the *arr integrations", "error", err)
+	}
 	if err := a.Jobs.Start(ctx); err != nil {
 		return fmt.Errorf("start the job manager: %w", err)
 	}
+	// Webhook events stored but not turned into refresh jobs before a stop are processed now.
+	if err := a.webhooks.proc.Start(ctx); err != nil {
+		return fmt.Errorf("start the webhook processor: %w", err)
+	}
+	// Events missed while Bunkarr was down are reconciled by a full refresh of each *arr (§6.1).
+	a.queueStartupRefreshes(ctx)
 	// The scheduler runs until Stop, not until ctx ends: shutdown stops it after the HTTP server.
 	if err := a.Scheduler.Start(context.WithoutCancel(ctx)); err != nil {
 		return fmt.Errorf("start the scheduler: %w", err)
@@ -240,7 +305,11 @@ func (a *App) Start(ctx context.Context) error {
 // afterwards.
 func (a *App) Stop(ctx context.Context) error {
 	a.Scheduler.Stop()
+	a.signIns.clear()
 	var errs []error
+	if err := a.webhooks.proc.Stop(ctx); err != nil {
+		errs = append(errs, fmt.Errorf("stop the webhook processor: %w", err))
+	}
 	if err := a.Jobs.Stop(ctx); err != nil {
 		errs = append(errs, fmt.Errorf("stop the job manager: %w", err))
 	}
@@ -407,6 +476,16 @@ func (a *App) describe(ctx context.Context, t jobs.Type, p jobs.Params) string {
 			return "Scan of all enabled sources"
 		}
 		return "Scan of " + sources()
+	case jobs.TypeRefresh:
+		name := "integration #" + strconv.FormatInt(p.IntegrationID, 10)
+		if it, err := a.Integrations.Get(ctx, p.IntegrationID); err == nil {
+			name = it.Name
+		}
+		return "Refresh of " + name
+	case jobs.TypeArrBackup:
+		return a.describeArrBackup(ctx, p)
+	case jobs.TypeManifestExport:
+		return "Manifest for " + dest()
 	}
 	return string(t)
 }

@@ -1,0 +1,28 @@
+[
+  {
+    "label": "bunkarr-full",
+    "delayProfileIds": [],
+    "importListIds": [],
+    "notificationIds": [],
+    "restrictionIds": [],
+    "indexerIds": [],
+    "downloadClientIds": [],
+    "autoTagIds": [],
+    "artistIds": [
+      1
+    ],
+    "id": 1
+  },
+  {
+    "label": "irreplaceable",
+    "delayProfileIds": [],
+    "importListIds": [],
+    "notificationIds": [],
+    "restrictionIds": [],
+    "indexerIds": [],
+    "downloadClientIds": [],
+    "autoTagIds": [],
+    "artistIds": [],
+    "id": 2
+  }
+]

@@ -9,6 +9,9 @@ export const JOB_TYPE_LABELS: Record<JobType, string> = {
   plexdb_backup: 'Plex DB backup',
   retention: 'Retention',
   verify: 'Verify',
+  refresh: 'Refresh',
+  arr_backup: '*arr backup',
+  manifest_export: 'Manifest export',
 };
 
 export const JOB_STATUS_LABELS: Record<JobStatus, string> = {

@@ -134,7 +134,9 @@ func TestCreate(t *testing.T) {
 	if d.Settings.Verify.Mode != VerifyFull || d.Settings.Verify.SamplePercent != DefaultSamplePercent || d.Settings.MaxChangeFiles != DefaultMaxChangeFiles {
 		t.Errorf("settings = %+v", d.Settings)
 	}
-	if d.Retention != (Retention{DeletedDays: 7, PlexDBDaily: 14, PlexDBWeekly: 8}) {
+	wantRet := DefaultRetention()
+	wantRet.DeletedDays = 7
+	if d.Retention != wantRet {
 		t.Errorf("retention = %+v", d.Retention)
 	}
 	m := readMarkerFile(t, target)
@@ -501,7 +503,9 @@ func TestUpdate(t *testing.T) {
 	if got.Settings.Hardlinks != HardlinksCopy || got.Settings.Verify.Mode != VerifySample {
 		t.Errorf("settings = %+v", got.Settings)
 	}
-	if got.Retention != (Retention{DeletedDays: 30, PlexDBDaily: 3, PlexDBWeekly: 8}) {
+	wantRet := DefaultRetention()
+	wantRet.PlexDBDaily = 3
+	if got.Retention != wantRet {
 		t.Errorf("retention = %+v (zero deletedDays must become 30)", got.Retention)
 	}
 	// Empty fields keep the stored values; the unchanged target (even through a symlink) is fine.

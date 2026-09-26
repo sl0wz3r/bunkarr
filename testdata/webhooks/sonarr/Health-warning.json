@@ -1,0 +1,30 @@
+{
+  "_note": "Health warning (includeHealthWarnings=true).",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:46:31.050746+00:00",
+  "method": "POST",
+  "path": "/sonarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Sonarr/4.0.20.3014 (alpine 3.24.1)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "391"
+  },
+  "body": {
+    "level": "warning",
+    "message": "No indexers available with Automatic Search enabled, Sonarr will not provide any automatic search results",
+    "type": "IndexerSearchCheck",
+    "wikiUrl": "https://wiki.servarr.com/sonarr/system#no-indexers-available-with-automatic-search-enabled-sonarr-will-not-provide-any-automatic-search-results",
+    "eventType": "Health",
+    "instanceName": "Sonarr"
+  }
+}

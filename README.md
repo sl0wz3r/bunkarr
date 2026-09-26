@@ -10,16 +10,20 @@ and the *arr stack. It knows which media can be re-downloaded:
 
 Bunkarr never modifies or deletes your source media.
 
-> **Status: early development (Phase 1 — replaces a nightly rsync job).** Bunkarr mirrors your
-> libraries to a mounted share (such as a UniFi UNAS over NFS or SMB) and backs up the Plex
-> database. *arr awareness, tiering, manifests and the restore wizard come in later phases. See
-> [the roadmap](#roadmap).
+> **Status: early development. Phase 2 (*arr awareness) is complete; Phase 3 (tiering) is
+> next.** Bunkarr mirrors your libraries to a mounted share (such as a UniFi UNAS over NFS or
+> SMB), backs up the Plex database and the Sonarr, Radarr and Lidarr configuration, backs up an
+> *arr import within a minute through its webhook, and writes manifests of every *arr item.
+> Every file is still backed up in full: tiering (manifest-only files) comes in Phase 3, the
+> restore wizard in Phase 5. See [the roadmap](#roadmap).
 
 ## Screenshots
 
 The screenshots show a demo setup, not a real library: public-domain films and TV series as files
-of random bytes, a scratch Plex Media Server in Docker, and an NFS share ("UNAS") and an SMB share
-("Offsite NAS") served by containers. No real media was involved.
+of random bytes, a scratch Plex Media Server and real Sonarr, Radarr and Lidarr in Docker (the
+imports are tiny generated videos), and an NFS share ("UNAS") and an SMB share ("Offsite NAS")
+served by containers. "Sign in with Plex" ran against a fake plex.tv from the test suite. No real
+media and no Plex account were involved.
 
 <table>
   <tr>
@@ -28,23 +32,53 @@ of random bytes, a scratch Plex Media Server in Docker, and an NFS share ("UNAS"
       <p align="center"><b>Activity → Queue</b>: running jobs with progress, speed and the file being copied</p>
     </td>
     <td width="50%" valign="top">
-      <a href="docs/images/history.png"><img src="docs/images/history.png" alt="Activity history, newest first: a preview, a scan, a sync whose deletions the mass-change guard held, a sync with one failed file and its retry, a verification, a sync and a Plex database backup resumed after a restart, then earlier verifications, Plex database backups and syncs, each with status, duration and summary"></a>
-      <p align="center"><b>Activity → History</b>: every scan, preview, sync, verify and Plex DB backup, with warnings and resumed jobs</p>
+      <a href="docs/images/history.png"><img src="docs/images/history.png" alt="Activity history, newest first: a manifest export, a full sync of the UNAS share and a Radarr backup, then the Radarr refreshes that webhooks started for a new film, its import and an upgrade, each followed by a one-path targeted sync to both shares, with status, duration and summary"></a>
+      <p align="center"><b>Activity → History</b>: webhook-triggered refreshes and targeted syncs next to a full sync, an *arr backup and a manifest export</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <a href="docs/images/job.png"><img src="docs/images/job.png" alt="Detail of a sync job: counters for copied, updated, moved, linked, retained and held files, an item summary and the list of items"></a>
-      <p align="center"><b>Job detail</b>: what a sync did, file by file (this one resumed after a restart)</p>
+      <a href="docs/images/job.png"><img src="docs/images/job.png" alt="Detail of a targeted sync started by a Radarr webhook: counters, the item summary and its two items, the film's upgraded 1080p file copied and its old 720p file moved into retention"></a>
+      <p align="center"><b>Job detail</b>: a Radarr upgrade backed up by a webhook: the new file copied, the old one kept in retention</p>
     </td>
     <td width="50%" valign="top">
-      <a href="docs/images/library.png"><img src="docs/images/library.png" alt="Library with three sources, two imported from Plex, with file counts, size, unique size and hardlink groups"></a>
+      <a href="docs/images/library.png"><img src="docs/images/library.png" alt="Library with three sources, two imported from Plex, with file counts, size, unique size and hardlink groups, and the manifest export buttons"></a>
       <p align="center"><b>Library</b>: sources imported from Plex or added by hand; hardlinks are counted once</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <a href="docs/images/destinations.png"><img src="docs/images/destinations.png" alt="Destinations list: an NFS and an SMB share with their capability badges, schedules and last sync"></a>
+      <a href="docs/images/connect.png"><img src="docs/images/connect.png" alt="Settings, Connect: Lidarr, Radarr and Sonarr connections with their path mappings, refresh schedule, index status and backup settings, and an Apprise notification"></a>
+      <p align="center"><b>Settings → Connect</b>: Sonarr, Radarr and Lidarr with path mappings, index status and backups</p>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/webhook.png"><img src="docs/images/webhook.png" alt="The webhook panel of the Radarr connection: the webhook URL, Basic authentication with the webhook key as the password (hidden behind Show key), the triggers to tick and the recent events with the jobs they queued"></a>
+      <p align="center"><b>Webhook</b>: the URL and key to paste into Radarr, and the events it sent</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/images/arr-backups.png"><img src="docs/images/arr-backups.png" alt="Radarr backup versions on the UNAS share: two verified zips taken from Radarr's Backups folder"></a>
+      <p align="center"><b>*arr backups</b>: verified copies of Radarr's own backup zip, never offered for download</p>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/manifests.png"><img src="docs/images/manifests.png" alt="Manifests of the UNAS share: the day's newest version with item and file counts, listed size, integrity and JSON and CSV downloads, next to Export now, Preview and the current view as JSON or CSV"></a>
+      <p align="center"><b>Manifests</b>: every *arr item and library file, versioned on each destination</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/images/plex-signin.png"><img src="docs/images/plex-signin.png" alt="Sign in with Plex: signed in, the account's owned and shared servers, and the chosen server's connections tested from Bunkarr: a recommended local HTTPS connection, its derived unencrypted LAN address, and a remote and a relay connection that did not answer"></a>
+      <p align="center"><b>Sign in with Plex</b>: pick a server and one of its tested connections</p>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/plex.png"><img src="docs/images/plex.png" alt="Plex server form with a successful connection test, Sign in with Plex, and the manual URL, token and data path fields"></a>
+      <p align="center"><b>Settings → Plex</b>: connection test, sign-in or URL and token, data path</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/images/destinations.png"><img src="docs/images/destinations.png" alt="Destinations list: an NFS and an SMB share with their capability badges, schedules, last sync, and buttons for snapshots and manifests"></a>
       <p align="center"><b>Destinations</b>: each share with the capabilities Bunkarr probed, its schedules and last sync</p>
     </td>
     <td width="50%" valign="top">
@@ -54,27 +88,21 @@ of random bytes, a scratch Plex Media Server in Docker, and an NFS share ("UNAS"
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <a href="docs/images/plex.png"><img src="docs/images/plex.png" alt="Plex server form with a successful connection test, the Plex data path and a path mapping"></a>
-      <p align="center"><b>Settings → Plex</b>: connection test, data path and path mappings</p>
+      <a href="docs/images/plex-snapshots.png"><img src="docs/images/plex-snapshots.png" alt="Snapshots on a destination: Radarr and Sonarr backup zips and a Plex database backup, each with its size, integrity result and path"></a>
+      <p align="center"><b>Snapshots</b>: verified Plex DB and *arr backup versions on the share</p>
     </td>
     <td width="50%" valign="top">
-      <a href="docs/images/plex-snapshots.png"><img src="docs/images/plex-snapshots.png" alt="Plex database snapshots on a destination, each with its size, integrity result and path"></a>
-      <p align="center"><b>Plex DB snapshots</b>: verified versions of the Plex database on the share</p>
+      <a href="docs/images/tasks.png"><img src="docs/images/tasks.png" alt="System tasks: sync, verify, Plex backup, retention, *arr refresh and *arr backup schedules with next and last run, Preview and Run now"></a>
+      <p align="center"><b>System → Tasks</b>: every schedule, with Preview and Run now</p>
     </td>
   </tr>
   <tr>
-    <td width="50%" valign="top">
-      <a href="docs/images/tasks.png"><img src="docs/images/tasks.png" alt="System tasks: sync, verify, Plex backup and retention schedules with next and last run, Preview and Run now"></a>
-      <p align="center"><b>System → Tasks</b>: every schedule, with Preview and Run now</p>
-    </td>
     <td width="50%" valign="top">
       <a href="docs/images/status.png"><img src="docs/images/status.png" alt="System status with version, build, uptime, config directory and database"></a>
       <p align="center"><b>System → Status</b>: version, build and where Bunkarr keeps its data</p>
     </td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center">
-      <a href="docs/images/mobile.png"><img src="docs/images/mobile.png" alt="Bunkarr on a phone-sized screen: a sync whose deletions the mass-change guard held, with the Apply held changes button" width="280"></a>
+    <td width="50%" valign="top" align="center">
+      <a href="docs/images/mobile.png"><img src="docs/images/mobile.png" alt="Bunkarr on a phone-sized screen: a sync whose deletions the mass-change guard held, with the Apply held changes button" width="220"></a>
       <p align="center"><b>Mobile</b>: a sync held by the mass-change guard, on a phone</p>
     </td>
   </tr>
@@ -107,6 +135,19 @@ of random bytes, a scratch Plex Media Server in Docker, and an NFS share ("UNAS"
 - **Adopts an existing rsync copy** instead of copying everything again.
 - **Schedules** (System → Tasks), **Activity** (queue with progress and ETA, history, job logs) and
   **Apprise notifications**.
+- **Sonarr, Radarr and Lidarr** (Settings → Connect): Bunkarr keeps an index of their movies,
+  series, artists and files, refreshed every 6 hours and at start-up. Their **webhooks** make an
+  import or upgrade reach the backup within a minute: the webhook only says which item changed,
+  Bunkarr asks the *arr about it and syncs just that folder. The full refresh catches up on
+  anything a webhook missed. See [Sonarr, Radarr and Lidarr](#sonarr-radarr-and-lidarr).
+- ***arr config backups**: each app's own backup zip (settings and database), read from its
+  `Backups` folder (or downloaded over HTTP), verified and versioned at a destination. See
+  [*arr config backups](#arr-config-backups).
+- **Manifests**: a JSON and CSV list of every *arr item and every file, with what each
+  destination holds, written after full syncs and on demand, so a library can be acquired again
+  after a disaster. See [Manifests](#manifests).
+- **Sign in with Plex**: pick your server after a plex.tv sign-in instead of pasting a token.
+  Tokens stay on Bunkarr's server.
 
 ## Quick start (Docker Compose)
 
@@ -128,6 +169,10 @@ of random bytes, a scratch Plex Media Server in Docker, and an NFS share ("UNAS"
    MEDIA_DIR=/mnt/user/data
    PLEX_DIR="/mnt/user/appdata/plex/Library/Application Support/Plex Media Server"
    BACKUP_DIR=/mnt/remotes/UNAS_backup
+   # optional: the *arr apps' Backups folders (uncomment their lines in the compose file too)
+   SONARR_BACKUPS=/mnt/user/appdata/sonarr/Backups
+   RADARR_BACKUPS=/mnt/user/appdata/radarr/Backups
+   LIDARR_BACKUPS=/mnt/user/appdata/lidarr/Backups
    ```
 
    [`deploy/docker-compose.yml`](deploy/docker-compose.yml) refuses to start while `PUID`,
@@ -152,6 +197,7 @@ of random bytes, a scratch Plex Media Server in Docker, and an NFS share ("UNAS"
 | `/media` (`MEDIA_DIR`, `:ro`) | Your library. Mount the folder that holds both downloads and library (e.g. `/mnt/user/data`) as **one volume** so hardlinks are detected. |
 | `/plex` (`PLEX_DIR`, `:ro`) | Plex's data directory, `…/appdata/plex/Library/Application Support/Plex Media Server`, for the Plex DB backup. Read-only is enough. |
 | `/backup` (`BACKUP_DIR`, `:rw,slave`) | The destination, e.g. the UNAS share mounted on the host (`/mnt/remotes/…`). Unassigned Devices mounts remote shares after Docker starts; `slave` propagation lets the container see the share when it appears. Without it Bunkarr sees an empty folder (and refuses to sync). |
+| `/arr/<app>-backups` (`SONARR_BACKUPS`, `RADARR_BACKUPS`, `LIDARR_BACKUPS`, `:ro`; optional) | The `Backups` folder of each *arr you connect (its `/config/Backups`, e.g. `/mnt/user/appdata/radarr/Backups`), for the *arr config backups. The lines are commented out in the compose file: uncomment the ones you need. The folder must exist before the container starts; the app creates it with its first backup (System → Backup → Backup Now). See [*arr config backups](#arr-config-backups). |
 
 | Variable | Compose file | Image default | |
 |---|---|---|---|
@@ -200,10 +246,15 @@ This removes the login (not the API key or anything else); the next visit shows 
 ## First run
 
 1. **Login.** Create the user on the first visit.
-2. **Plex** (Settings → Plex, optional). Add the server:
-   - URL: use the server's IP, `http://192.168.1.10:32400`. A claimed server with a token also
-     works by container name; an unclaimed one answers 401 to a name it does not know.
-   - Token: your `X-Plex-Token` (write-only; only ever sent to this URL).
+2. **Plex** (Settings → Plex, optional). Add the server, either way:
+   - **Sign in with Plex**: approve Bunkarr in the plex.tv window that opens, pick your server,
+     and Bunkarr tests its connections (Local/Remote/Relay, HTTPS or Unencrypted) and recommends
+     one. "Use" takes it; an unencrypted (`http`) or failing connection needs "Use anyway". See
+     [Sign in with Plex](#sign-in-with-plex).
+   - **Or enter the details manually**, as before:
+     - URL: use the server's IP, `http://192.168.1.10:32400`. A claimed server with a token also
+       works by container name; an unclaimed one answers 401 to a name it does not know.
+     - Token: your `X-Plex-Token` (write-only; only ever sent to this URL).
    - Data path: `/plex`.
    - Path mappings: Plex's path → Bunkarr's path for the same folder, e.g. `/data` → `/media`.
    - Test.
@@ -232,7 +283,237 @@ This removes the login (not the API key or anything else); the next visit shows 
    queues one dry run per destination, whose items are the retained files a real run would delete
    (the global job's log links them). Nothing is deleted, and a preview does not count as a run
    of the schedule. API: `POST /api/v1/schedules/{id}/run` with `{"dryRun": true}`.
-7. **Notifications** (Settings → Connect, optional): an Apprise API for failures and warnings.
+7. **Sonarr, Radarr, Lidarr** (Settings → Connect, optional): connect each app, paste the
+   webhook into it and, for its config backups, set its Backups folder. See
+   [Sonarr, Radarr and Lidarr](#sonarr-radarr-and-lidarr).
+8. **Notifications** (Settings → Connect, optional): an Apprise API for failures and warnings.
+
+## Sonarr, Radarr and Lidarr
+
+Settings → Connect → Sonarr, Radarr or Lidarr → **Add**. Bunkarr only reads from the apps (and
+asks them to make their own backups); it never changes their settings, items or files.
+
+### Connecting
+
+- **URL**: how Bunkarr reaches the app, including any URL base: `http://192.168.1.10:7878`, or
+  `http://radarr:7878/radarr` on the same Docker network (Sonarr's port is 8989, Lidarr's 8686).
+- **API key**: the app's Settings → General → Security → API Key. Stored encrypted, never shown
+  again, and sent only in a request header to this URL.
+- **Path mappings**: the app reports paths as it sees them inside its container. Map each of its
+  root folders to where Bunkarr sees the same folder. Both sides are the container paths of one
+  host folder:
+
+  | The app mounts | Its root folder | Bunkarr mounts | Mapping (app path → Bunkarr path) |
+  |---|---|---|---|
+  | `/mnt/user/data:/data` | `/data/media/movies` | `/mnt/user/data:/media` | `/data` → `/media` |
+  | `/mnt/user/data/media/movies:/movies` | `/movies` | `/mnt/user/data:/media` | `/movies` → `/media/media/movies` |
+  | `/mnt/user/data/media:/media` | `/media/movies` | `/mnt/user/data/media:/media` | `/media` → `/media` |
+
+  A path no mapping covers is unmapped, so add a mapping even when both sides are the same. The
+  mapped folder must be inside one of Bunkarr's sources (Library): Bunkarr backs up sources,
+  and the app tells it which folder in them changed. An item whose folder is in no source is
+  still indexed and listed in [manifests](#manifests), but nothing of it is copied.
+- **Test** checks that the URL answers as the chosen app and accepts the key, then shows each
+  root folder with its Bunkarr path and source, and backup access (see
+  [*arr config backups](#arr-config-backups)). It also warns when:
+  - the app's **recycle bin** lies inside a source that does not exclude it (every upgrade's old
+    file would be copied twice; the warning offers to exclude it);
+  - **Change File Date** is not None (every version of a title then gets the same modification
+    time, so a replacement of the same size can look unchanged).
+- The connection card shows the index (items, files, last refresh) and **Unmapped files**: files
+  of the app that map to no path, lie in no source, or are not in the catalog yet (scan the
+  source).
+- **Full refresh**: every 6 hours (`15 */6 * * *`) and at start-up, Bunkarr reads all of the
+  app's items and files, updates its index and queues a sync of each folder that changed. It
+  catches up on everything a webhook missed.
+
+### Webhook
+
+After you save the connection, its **Webhook** panel shows what to paste into the app. In the
+app: Settings → Connect → **+** → **Webhook**:
+
+| App field | Value |
+|---|---|
+| Name | anything, e.g. `Bunkarr` |
+| Triggers | the ones the panel lists (below) |
+| Webhook URL | the panel's URL, `http://<bunkarr address>/api/v1/webhook/<app>/<id>`. The panel builds it from *Bunkarr address*, which is how the app reaches Bunkarr: `http://bunkarr:8787` on the same Docker network, otherwise the host's IP and port. |
+| Method | `POST` |
+| Username | anything, e.g. `bunkarr` |
+| Password | the connection's **webhook key** (Show key) |
+
+Then press **Test** in the app: the panel shows *Last Test received* and the recent events.
+
+- **The webhook key belongs to this one connection.** It works only on its webhook route, and
+  Bunkarr's own API key is refused there, so the app (and its backups, which hold its settings)
+  never holds a key that controls Bunkarr. Basic auth (the key as the password) is recommended
+  because the app keeps its password field private; the `X-Api-Key` header also works.
+  `?apikey=<key>` in the URL works too but ends up in proxy and access logs. **Regenerate key**
+  stops the old key at once: paste the new one into the app (events sent meanwhile are refused;
+  the next full refresh catches up).
+- **Triggers:**
+  - Radarr: On Import, On Upgrade, On Rename, On Movie Added, On Movie Delete, On Movie File
+    Delete, On Movie File Delete For Upgrade.
+  - Sonarr: On Import, On Upgrade, On Rename, On Series Add, On Series Delete, On Episode File
+    Delete, On Episode File Delete For Upgrade.
+  - Lidarr: On Release Import, On Upgrade, On Rename, On Track Retag, On Artist Add, On Album
+    Delete, On Artist Delete. Lidarr sends no webhook for a manual import unless "Replace
+    existing files" is ticked, and none when a track file is deleted; the full refresh finds
+    those changes.
+- **What a webhook does.** It is a hint, not the truth: its payload only chooses which movie,
+  series or artist to look at. Bunkarr waits 5 s for more events of the same item (at most 20 s),
+  reads the item from the app's API, then scans and syncs just its folder. A delete waits 60 s,
+  because the app sends it before it removes the folder; an upgrade's file delete waits for the
+  import that follows it (up to 30 min), so the new file is copied before the old one moves into
+  retention. A webhook sync moves a vanished file into retention only when its folder got new
+  content (an upgrade or a rename); other deletions wait for the next full sync.
+- **Webhooks can be missed** (Bunkarr stopped, a network error, an event type the app does not
+  send). Nothing is lost: the full refresh and the scheduled syncs catch up.
+- **How fast.** With a free worker and destination, an import starts copying within about 30 s
+  of the app finishing it. What delays it, all common at night when the apps import:
+  - a full refresh of the same connection (Sonarr needs two requests per series);
+  - both job workers busy (for example a nightly sync and a weekly verify);
+  - another destination's sync scanning the same source;
+  - a sync, verify or retention job of the same destination (a verify of a large backup can take
+    hours);
+  - a file not yet visible through Bunkarr's mount (NFS attribute cache): up to 60 s more.
+
+## *arr config backups
+
+Each connection's **Backup** section copies the app's own backup zip (its settings and
+database) to a destination, verifies it (zip structure, checksums, database integrity) and keeps
+versions. Choose the destination to turn it on: it runs weekly (Sunday 06:30) by default, and
+**Back up now** on the connection card runs it at once.
+
+**Mount the app's Backups folder** (recommended). With a login required (Authentication: Forms,
+the default), an *arr does not let its API key download backups, so Bunkarr reads the zips from
+the folder instead. Bunkarr never stores the app's UI password.
+
+1. Find the app's `Backups` folder on the host: its `/config/Backups`, on Unraid
+   `/mnt/user/appdata/radarr/Backups`. The app creates it with its first backup (System → Backup
+   → Backup Now).
+2. Set the variable in `deploy/.env` and uncomment the app's line in
+   [`deploy/docker-compose.yml`](deploy/docker-compose.yml) (read-only):
+
+   ```yaml
+   - "${RADARR_BACKUPS:?set RADARR_BACKUPS in deploy/.env (Radarr's Backups folder)}:/arr/radarr-backups:ro"
+   ```
+
+3. Recreate the container: `docker compose -f deploy/docker-compose.yml up -d`.
+4. Settings → Connect → Radarr → Backup → **Backups folder** `/arr/radarr-backups`, then Test:
+   *Backups folder: readable*. "Not readable" means the files are not readable by `PUID`.
+
+Without a Backups folder Bunkarr downloads the zip over HTTP with the API key. That works only
+when the app does not require a login for Bunkarr's address (Settings → General → Security →
+Authentication Required: "Disabled for Local Addresses"); otherwise the job fails and says so.
+
+- **Manual backups pile up in the app.** The apps prune only their scheduled backups (every
+  7 days by default); a backup made on request is a manual one and stays in `Backups/manual`
+  for good. So when the app's newest scheduled backup is younger than *Reuse scheduled backups*
+  (7 days), Bunkarr copies it and asks for nothing; only otherwise does it ask the app for a new
+  backup. Keep Bunkarr's schedule weekly. The card shows how many manual backups the app holds
+  and warns above 10: delete old ones in the app (System → Backup).
+- **The zips are sensitive.** They hold the app's API key and the passwords of its indexers and
+  download clients. Bunkarr writes them with mode 0600 in 0700 folders, but does not encrypt
+  them (a backup only Bunkarr's key could open would fail exactly when Bunkarr's config is
+  lost). An SMB share mounted without POSIX extensions ignores file modes, so Bunkarr refuses
+  such a destination unless you tick *Accept insecure file modes*. Restrict who can read the
+  share, or its `.bunkarr/arr` folder, on the NAS.
+- **Where:** `<target>/.bunkarr/arr/<connection>-<id>/<time>/`, the zip as the app made it and a
+  `manifest.json` (its sha256, entries and integrity result). Versions kept: 14 daily and
+  8 weekly (per destination: Destinations → Retention).
+- **Restore:** in the app, System → Backup → Restore Backup, and upload the zip (the app
+  restarts with that configuration and database).
+
+## Manifests
+
+A manifest is the disaster record of your *arr library: every Sonarr, Radarr and Lidarr item
+(movies; series with their seasons and episodes; artists with their albums) with its IDs (TMDB,
+TVDB, IMDb, MusicBrainz), title, year, quality profile, root folder, monitored state and tags,
+and every file with its path, size and quality, plus whether this destination holds it
+(`backedUp`, `sha256`). Library files that belong to no item are listed too. With it, a library
+can be acquired again after a disaster, including anything that was never copied.
+
+- **Where:** `<target>/.bunkarr/manifests/<time>/`:
+  - `manifest.json`, the canonical form;
+  - `manifest.csv`, one row per file (and per item without files) for a spreadsheet; a cell that
+    starts with `=`, `+`, `-` or `@` gets a leading `'`, so read the JSON when exact values
+    matter;
+  - `SHA256SUMS` for both.
+- **When:** after each full sync (when *arr connections exist) and on **Export now**. An
+  unchanged manifest writes no new version. Versions kept: the newest of each of the last
+  30 days and 12 weeks (Destinations → Retention). A manifest ends *completed with warnings*
+  when a connection's index is stale or an item's folder is in no source.
+- **In the UI:** Destinations → the **Manifests** button of a destination lists its versions
+  with their counts, downloads each as JSON or CSV (checked against its checksums first; a
+  damaged one is reported, not downloaded), and has **Export now**, **Preview** and *Current
+  view* (built on the spot). Library → **Export manifest** builds one of every enabled source,
+  without the per-destination fields.
+- **API:** `GET /api/v1/manifest/export?format=json|csv[&destinationId=N]` (built on the spot;
+  the `X-Bunkarr-SHA256` header carries its hash), `GET /api/v1/destinations/{id}/manifests` and
+  `GET /api/v1/manifests/{id}/download?format=json|csv`.
+- **Without Bunkarr:** check a version, then query it, for example every item with a file the
+  destination does not hold (kind, title, year, IDs):
+
+  ```sh
+  cd /path/to/target/.bunkarr/manifests/<time>
+  sha256sum -c SHA256SUMS
+  jq -r '.items[] | select(any((.files // [])[]; .backedUp == false))
+         | [.kind, .title, .year, (.externalIds | tojson)] | @tsv' manifest.json
+  ```
+
+  A tool that adds the items back to a fresh *arr is part of the Phase 5 restore wizard; until
+  then the manifest gives each item's IDs, root folder, quality profile and monitored state to
+  add it by hand.
+
+## Sign in with Plex
+
+Settings → Plex → **Sign in with Plex**, instead of pasting a token:
+
+1. A plex.tv window opens: sign in there and approve Bunkarr (Bunkarr never sees your password).
+2. Pick your server. Bunkarr tests each connection plex.tv lists for it, from where Bunkarr runs,
+   and adds a plain `http://<ip>:32400` for each local `*.plex.direct` address (many routers'
+   DNS-rebind protection blocks those names). Working connections come first: local, then
+   remote, relays last; HTTPS before HTTP.
+3. **Use** takes the recommended connection; an unencrypted (`http`) or failing one needs
+   **Use anyway**. Save.
+
+- **Tokens stay on Bunkarr's server.** The browser never receives your account token or a server
+  token. Bunkarr saves the server's own access token (encrypted) and sends a token only to a
+  connection that answered as your server, and only over HTTPS until you choose *Use anyway*.
+- If plex.tv lists no token for a server you own, Bunkarr can save your **account token** for it
+  (tick *Use my Plex account token*). That token controls your whole Plex account and stays valid
+  until you sign out of all devices.
+- **A server shared with you** can be used to import libraries, but Bunkarr cannot read its
+  settings (no maintenance-window check), and backing up its database needs its data folder
+  mounted into Bunkarr. If plex.tv lists no token for it, Bunkarr never sends your account token
+  to it: enter the server's URL and a token manually.
+- **Network:** Bunkarr calls plex.tv and clients.plex.tv (HTTPS) only while you sign in; otherwise
+  it talks only to your server's URL. A sign-in lasts 10 minutes and does not survive a restart.
+- **Revoking:** Bunkarr appears on plex.tv under Settings → **Authorized Devices** as *Bunkarr*
+  on *Docker* (each install has its own client identifier). Remove it there to revoke the
+  sign-in; afterwards sign in again or enter a token manually.
+- Entering the URL and token manually works as before (see [First run](#first-run)).
+
+## Upgrading and downgrading
+
+Update the checkout (`git pull`) and run the Quick start's `up -d --build` again, or pull a
+released image (`docker compose -f deploy/docker-compose.yml pull`, then `up -d`). Running jobs
+are queued to resume.
+
+**Pre-migration copy.** Before a new version changes the database schema, Bunkarr writes a copy
+of the database to `/config/backups/bunkarr-v<old schema version>-<time>.db` (mode 0600; the new
+copy and the newest two others are kept), and it refuses to upgrade when that copy fails. Phase
+2's upgrade rebuilds tables, and an older Bunkarr refuses a newer database, so this copy is the
+only way back. To downgrade:
+
+1. Stop Bunkarr: `docker compose -f deploy/docker-compose.yml down`.
+2. In `/config`, move `bunkarr.db` and its `bunkarr.db-wal` and `bunkarr.db-shm` files (if
+   present) aside.
+3. Copy the pre-migration copy to `/config/bunkarr.db`, owned by `PUID`:`PGID`. Keep
+   `bunkarr.key`: it is the same key.
+4. Start the previous version: set `image:` to its tag, or check out its git tag and build.
+
+Whatever Bunkarr recorded after the upgrade (jobs, backup versions, settings) is not in the copy.
 
 ## The mass-change guard
 
@@ -285,7 +566,7 @@ still go to retention first. Preview shows what would be held.
   ```
 
   The loop skips lines with an escaped character (`grep -v '\\'`); recreate those by hand. Apart
-  from Bunkarr's own database (which Phase 1 does not back up), the manifest is the only record
+  from Bunkarr's own database (which Bunkarr does not back up), the manifest is the only record
   of these names.
 - **Plex database** versions are under `<target>/.bunkarr/plex/<server>-<id>/<time>/` with a
   `manifest.json` (sha256 of each file, integrity result). To restore:
@@ -303,6 +584,11 @@ still go to retention first. Preview shows what would be held.
   can read the share may be able to read the token. Restrict who can read the backup share (or
   its `.bunkarr/plex` folder) on the NAS, or mount it over NFS or SMB with Unix extensions. An
   option to skip or encrypt this file is planned ([DEFERRED.md](DEFERRED.md)).
+- **Sonarr, Radarr and Lidarr configuration**: each version's zip under
+  `<target>/.bunkarr/arr/…`; restore it in the app (see [*arr config backups](#arr-config-backups)).
+  The same caution applies: the zips hold the app's API key and passwords.
+- **The *arr library itself** (to acquire media again): the newest version under
+  `<target>/.bunkarr/manifests/` (see [Manifests](#manifests)).
 
 ## API
 
@@ -317,7 +603,11 @@ curl -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' -d '{"dryRun":true
 
 - `GET /api/v1/health` — unauthenticated liveness check.
 - `GET /api/v1/openapi.json` — the OpenAPI 3.1 description of every endpoint (a test keeps it in
-  step with the router). The Phase 1 contract is [`docs/design/phase1.md`](docs/design/phase1.md) §7.
+  step with the router). The Phase 1 contract is [`docs/design/phase1.md`](docs/design/phase1.md) §7;
+  Phase 2's additions are in [`docs/design/phase2-3.md`](docs/design/phase2-3.md) §13.
+- `POST /api/v1/webhook/{app}/{integrationId}` — the *arr webhooks. They take only that
+  connection's webhook key (Basic auth password, `X-Api-Key` or `apikey`), never the API key
+  above; see [Webhook](#webhook).
 
 ## Roadmap
 
@@ -325,7 +615,7 @@ curl -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' -d '{"dryRun":true
 |---|---|
 | 0 | Foundation: server, auth, settings, UI shell, image, CI ✅ |
 | 1 | MVP: Plex integration, scanner with hardlink detection, file-copy engine, scheduled syncs, Plex DB backup, activity/history, Apprise notifications ✅ |
-| 2 | *arr awareness: Sonarr/Radarr APIs and webhooks, *arr config backups, manifest export |
+| 2 | *arr awareness: Sonarr/Radarr/Lidarr APIs and webhooks, *arr config backups, manifest export, Sign in with Plex ✅ |
 | 3 | Tiering: rule engine (tags, quality, Tautulli, Seerr, Maintainerr), plan preview |
 | 4 | Destinations & versioning: restic and rclone engines, B2/S3/SFTP, bandwidth windows |
 | 5 | Restore & disaster recovery: restore wizard, manifest re-acquisition, restore tests |
@@ -347,6 +637,7 @@ make docker-test      # build the image and smoke-test it
 make test-docker      # image smoke, container kill, Plex backup/restore and SMB/NFS share tests (Docker and Go)
 make test-plex        # the Plex backup/restore test only (slow; pulls plexinc/pms-docker once)
 make test-shares      # syncs and kill + resume on Samba (CIFS) and NFS shares (privileged containers)
+make test-arr         # real Sonarr, Radarr and Lidarr: imports, upgrades, webhooks, backups, manifests (needs internet)
 cd web && npm run dev # UI dev server on :5173, proxying /api to :8787
 ```
 

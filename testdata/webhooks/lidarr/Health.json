@@ -1,0 +1,31 @@
+{
+  "_note": "Existing health error re-sent after the 15-minute startup grace period.",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:40:18.794676+00:00",
+  "method": "POST",
+  "path": "/lidarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Lidarr/3.1.0.4875 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "384"
+  },
+  "body": {
+    "level": "error",
+    "message": "No indexers available with RSS sync enabled, Lidarr will not grab new releases automatically",
+    "type": "IndexerRssCheck",
+    "wikiUrl": "https://wiki.servarr.com/lidarr/system#no-indexers-available-with-rss-sync-enabled-lidarr-will-not-grab-new-releases-automatically",
+    "eventType": "Health",
+    "instanceName": "Lidarr",
+    "applicationUrl": ""
+  }
+}

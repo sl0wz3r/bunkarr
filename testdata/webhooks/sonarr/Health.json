@@ -1,0 +1,30 @@
+{
+  "_note": "Existing health error re-sent after the 15-minute startup grace period.",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:46:31.048258+00:00",
+  "method": "POST",
+  "path": "/sonarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Sonarr/4.0.20.3014 (alpine 3.24.1)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "360"
+  },
+  "body": {
+    "level": "error",
+    "message": "No indexers available with RSS sync enabled, Sonarr will not grab new releases automatically",
+    "type": "IndexerRssCheck",
+    "wikiUrl": "https://wiki.servarr.com/sonarr/system#no-indexers-available-with-rss-sync-enabled-sonarr-will-not-grab-new-releases-automatically",
+    "eventType": "Health",
+    "instanceName": "Sonarr"
+  }
+}

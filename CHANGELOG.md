@@ -8,6 +8,39 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Phase 2: Sonarr, Radarr and Lidarr awareness (design: `docs/design/phase2-3.md`, decisions in
+  ADR 0006).
+- *arr connections (Settings → Connect): URL, write-only API key, path mappings and a connection
+  test. Bunkarr keeps an index of each app's items, files, quality profiles, root folders and tags,
+  refreshed at start-up and on a schedule. A refresh that would remove unusually much is held until
+  "Apply held changes".
+- Webhooks: each *arr posts its events to its own URL with a per-integration webhook key (sent as
+  the HTTP Basic password, recommended; "Regenerate key" on the Connect card). An import or upgrade
+  is backed up within about a minute by a sync of just that item's folder, and a burst of events
+  becomes one refresh and one sync per destination. A file deleted in an *arr stays in the live
+  backup until the next full sync, where the mass-change guard sees it, then moves into retention.
+  Missed webhooks are caught up by the full refresh.
+- *arr backups: each app's own backup zip, read from its `Backups` folder mounted read-only (works
+  with Forms login) or downloaded over HTTP. A recent scheduled backup is reused; otherwise Bunkarr
+  asks the *arr to make one. Every zip is verified (entry CRCs, database check) and versioned at the
+  destination (weekly by default; 14 daily and 8 weekly versions kept). The zips hold the *arr's
+  secrets: they are stored unsealed with mode 0600, and never served or logged.
+- Manifests: `manifest.json` and `manifest.csv` under `.bunkarr/manifests/` at each destination
+  list every *arr's items, ids, profiles, root folders and backed-up files, so a library can be
+  rebuilt without the *arr. Written after a full sync when an *arr is connected, versioned (30
+  daily and 12 weekly by default), downloadable or exported on demand from Destinations →
+  Manifests.
+- Sign in with Plex (Settings → Plex): sign in at plex.tv, pick a server, see each connection
+  tested, and save. The saved token is that server's own; tokens never reach the browser, and an
+  unencrypted connection needs "Use anyway". The URL + token path still works.
+- Activity and notifications for the new jobs (Refresh, *arr backup, Manifest export). Webhook
+  syncs and refreshes notify about warnings and failures at most once per destination or
+  integration per 24 h; held changes always notify.
+- Upgrade safety: before migrating its database, Bunkarr saves a copy under `/config/backups`. To
+  downgrade, stop the container, restore that copy as `/config/bunkarr.db` and run the older
+  image.
+- `make test-arr`: acceptance tests against real Sonarr, Radarr and Lidarr containers.
+
 - Phase 1: backups that replace a nightly rsync job (design: `docs/design/phase1.md`).
 - Plex integration (Settings → Plex): server URL and write-only token, connection test, path
   mappings, and "Import from Plex" to add library folders as sources.
@@ -87,3 +120,14 @@ All notable changes to this project are documented here. The format follows
   healthcheck and an image smoke test; docker-compose example.
 - CI on GitHub and Gitea (typecheck, tests, race tests, gofmt, vet, govulncheck, npm audit,
   shellcheck, image build and test); release workflow pushing multi-arch images to GHCR on tags.
+
+### Changed
+
+- `*.partial~` and `*.backup~` (the *arrs' temporary copy names) are excluded by default, so stale
+  temp files from the *arrs are no longer backed up.
+- The Plex, *arr and Apprise clients refuse link-local and cloud metadata addresses.
+- A running webhook sync no longer makes a scheduled sync or verify skip its turn: the scheduled
+  job waits for it. A scheduled run is skipped only while an untargeted job of its type runs on
+  the same destination and covers all of its sources.
+- `Cross-Origin-Opener-Policy` is `same-origin-allow-popups`, so Bunkarr can close the plex.tv
+  sign-in popup.

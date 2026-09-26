@@ -1,0 +1,43 @@
+{
+  "_note": "Sent automatically when the Webhook connection was created.",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:25:52.072711+00:00",
+  "method": "POST",
+  "path": "/lidarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Lidarr/3.1.0.4875 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "traceparent": "00-3ba9fc2ebf1cd5b6f88a7d238f1ca98c-5b5a3ae91f9d18fb-00",
+    "Content-Type": "application/json",
+    "Content-Length": "312"
+  },
+  "body": {
+    "artist": {
+      "id": 1,
+      "name": "Test Name",
+      "path": "C:\\testpath",
+      "mbId": "aaaaa-aaa-aaaa-aaaaaa",
+      "tags": [
+        "test-tag"
+      ]
+    },
+    "albums": [
+      {
+        "id": 123,
+        "title": "Test title"
+      }
+    ],
+    "eventType": "Test",
+    "instanceName": "Lidarr",
+    "applicationUrl": ""
+  }
+}

@@ -50,7 +50,7 @@ export function useNames(): Names {
   return {
     source: namer<Source>(sources.data, 'source'),
     destination: namer<Destination>(destinations.data, 'destination'),
-    integration: namer<Integration>(integrations.data, 'Plex server'),
+    integration: namer<Integration>(integrations.data, 'integration'),
   };
 }
 
@@ -60,14 +60,28 @@ export function jobTarget(job: Pick<Job, 'type' | 'params'>, names: Names): stri
   switch (job.type) {
     case 'scan':
       return (p.sourceIds ?? []).map(names.source).join(', ') || 'all sources';
-    case 'sync':
+    case 'sync': {
+      const to = p.destinationId ? names.destination(p.destinationId) : '';
+      const n = p.paths?.length ?? 0;
+      return n > 0 ? `${to} (${n === 1 ? '1 path' : `${n} paths`})` : to;
+    }
     case 'verify':
+    case 'manifest_export':
       return p.destinationId ? names.destination(p.destinationId) : '';
     case 'retention':
       return p.destinationId ? names.destination(p.destinationId) : 'all destinations';
     case 'plexdb_backup': {
       const from = p.integrationId ? names.integration(p.integrationId) : 'Plex';
       return p.destinationId ? `${from} → ${names.destination(p.destinationId)}` : from;
+    }
+    case 'arr_backup': {
+      const from = p.integrationId ? names.integration(p.integrationId) : '*arr';
+      return p.destinationId ? `${from} → ${names.destination(p.destinationId)}` : from;
+    }
+    case 'refresh': {
+      const of = p.integrationId ? names.integration(p.integrationId) : '';
+      const items = p.arrItemIds?.length ?? 0;
+      return items > 0 ? `${of} (${items === 1 ? '1 item' : `${items} items`})` : of;
     }
     default:
       return '';

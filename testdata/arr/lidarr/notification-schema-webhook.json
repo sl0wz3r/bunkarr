@@ -1,0 +1,98 @@
+{
+  "onGrab": false,
+  "onReleaseImport": false,
+  "onUpgrade": false,
+  "onRename": false,
+  "onArtistAdd": false,
+  "onArtistDelete": false,
+  "onAlbumDelete": false,
+  "onHealthIssue": false,
+  "onHealthRestored": false,
+  "onDownloadFailure": false,
+  "onImportFailure": false,
+  "onTrackRetag": false,
+  "onApplicationUpdate": false,
+  "supportsOnGrab": true,
+  "supportsOnReleaseImport": true,
+  "supportsOnUpgrade": true,
+  "supportsOnRename": true,
+  "supportsOnArtistAdd": true,
+  "supportsOnArtistDelete": true,
+  "supportsOnAlbumDelete": true,
+  "supportsOnHealthIssue": true,
+  "supportsOnHealthRestored": true,
+  "includeHealthWarnings": false,
+  "supportsOnDownloadFailure": true,
+  "supportsOnImportFailure": true,
+  "supportsOnTrackRetag": true,
+  "supportsOnApplicationUpdate": true,
+  "name": "",
+  "fields": [
+    {
+      "order": 0,
+      "name": "url",
+      "label": "URL",
+      "type": "url",
+      "advanced": false,
+      "privacy": "normal",
+      "isFloat": false
+    },
+    {
+      "order": 1,
+      "name": "method",
+      "label": "Method",
+      "helpText": "Which HTTP method to use submit to the Webservice",
+      "value": 1,
+      "type": "select",
+      "advanced": false,
+      "selectOptions": [
+        {
+          "value": 1,
+          "name": "POST",
+          "order": 1
+        },
+        {
+          "value": 2,
+          "name": "PUT",
+          "order": 2
+        }
+      ],
+      "privacy": "normal",
+      "isFloat": false
+    },
+    {
+      "order": 2,
+      "name": "username",
+      "label": "Username",
+      "type": "textbox",
+      "advanced": false,
+      "privacy": "userName",
+      "isFloat": false
+    },
+    {
+      "order": 3,
+      "name": "password",
+      "label": "Password",
+      "type": "password",
+      "advanced": false,
+      "privacy": "password",
+      "isFloat": false
+    },
+    {
+      "order": 4,
+      "name": "headers",
+      "label": "Headers",
+      "value": [],
+      "type": "keyValueList",
+      "advanced": true,
+      "privacy": "normal",
+      "isFloat": false
+    }
+  ],
+  "implementationName": "Webhook",
+  "implementation": "Webhook",
+  "configContract": "WebhookSettings",
+  "infoLink": "https://wiki.servarr.com/lidarr/supported#webhook",
+  "tags": [],
+  "presets": []
+}

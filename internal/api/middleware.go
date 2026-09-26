@@ -24,7 +24,10 @@ func securityHeaders(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
-		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		// same-origin-allow-popups (design D10): the page keeps its opener to the plex.tv sign-in
+		// popup it opens, so it can close it after the PIN is approved. Pages that open the
+		// SPA are still isolated from it.
+		h.Set("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
 		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		next.ServeHTTP(w, r)
 	})

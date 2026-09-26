@@ -17,6 +17,10 @@
 //   - S9: a dry run scans, plans and guards, persists the plan as items and writes nothing to the
 //     destination.
 //   - S10b/S11: see guards.go.
+//   - D14 (phase2-3.md §9.1): a targeted sync (Params.Paths, the webhook path) scans and plans
+//     only its paths, and retains a vanished name only when the name's folder gets new content in
+//     the same plan (an upgrade or a rename); every other vanished name stays live and recorded
+//     until the next untargeted sync, whose mass-change guard sees the whole change (targeted.go).
 //
 // Records whose source is no longer linked to the destination (or was deleted) are orphans: a
 // sync never retains, moves or modifies them.
@@ -39,6 +43,7 @@
 package syncer
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -109,6 +114,16 @@ type Options struct {
 	Logger *slog.Logger
 	// Now is the clock; nil means time.Now.
 	Now func() time.Time
+	// Enqueuer queues the manifest export that follows a full sync (phase2-3.md §9.2); nil
+	// queues none.
+	Enqueuer jobs.Enqueuer
+	// ManifestAfterSync reports whether a sync of the destination that is neither a dry run nor
+	// targeted is followed by a manifest export (the destination's manifest.afterSync; auto: when
+	// an enabled *arr integration exists). nil means never.
+	ManifestAfterSync func(ctx context.Context, destinationID int64) (bool, error)
+	// ExpectedFiles returns the files the *arr index expects under the paths of a webhook sync
+	// of src (phase2-3.md §9.1 "expected files"); nil checks none.
+	ExpectedFiles func(ctx context.Context, src catalog.Source, paths []string) ([]ExpectedFile, error)
 }
 
 // base is what every runner shares.
@@ -119,10 +134,15 @@ type base struct {
 	dests *destinations.Store
 	log   *slog.Logger
 	now   func() time.Time
+
+	enq           jobs.Enqueuer
+	manifestAfter func(ctx context.Context, destinationID int64) (bool, error)
+	expected      func(ctx context.Context, src catalog.Source, paths []string) ([]ExpectedFile, error)
 }
 
 func newBase(o Options) base {
-	b := base{store: o.Store, cat: o.Catalog, scan: o.Scanner, dests: o.Destinations, log: o.Logger, now: o.Now}
+	b := base{store: o.Store, cat: o.Catalog, scan: o.Scanner, dests: o.Destinations, log: o.Logger, now: o.Now,
+		enq: o.Enqueuer, manifestAfter: o.ManifestAfterSync, expected: o.ExpectedFiles}
 	if b.store == nil {
 		b.store = NewStore(o.DB)
 	}

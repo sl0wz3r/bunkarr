@@ -1,0 +1,32 @@
+{
+  "_note": "Download client deleted -> DownloadClientCheck warning (includeHealthWarnings=true).",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:48:59.493368+00:00",
+  "method": "POST",
+  "path": "/radarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Radarr/6.4.4.10685 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "traceparent": "00-d686f4e19a8ab06e4bf7b47bf7ce09b5-b1ccd121d1b586c9-00",
+    "Content-Type": "application/json",
+    "Content-Length": "269"
+  },
+  "body": {
+    "level": "warning",
+    "message": "No download client is available",
+    "type": "DownloadClientCheck",
+    "wikiUrl": "https://wiki.servarr.com/radarr/system#no-download-client-is-available",
+    "eventType": "Health",
+    "instanceName": "Radarr",
+    "applicationUrl": ""
+  }
+}

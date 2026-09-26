@@ -60,11 +60,15 @@ func TestVerifyGoodCopy(t *testing.T) {
 	}
 }
 
-func TestVerifyDetectsDamage(t *testing.T) {
-	tests := []struct {
-		name   string
-		damage func(t *testing.T, p string)
-	}{
+// damage is one way of damaging a database file.
+type damage struct {
+	name   string
+	damage func(t *testing.T, p string)
+}
+
+// damages are the damage cases of TestVerifyDetectsDamage and TestQuickCheck.
+func damages() []damage {
+	return []damage{
 		{"corrupted page", func(t *testing.T, p string) {
 			size, count := pageGeometry(t, p)
 			f, err := os.OpenFile(p, os.O_WRONLY, 0)
@@ -99,7 +103,10 @@ func TestVerifyDetectsDamage(t *testing.T) {
 			}
 		}},
 	}
-	for _, tt := range tests {
+}
+
+func TestVerifyDetectsDamage(t *testing.T) {
+	for _, tt := range damages() {
 		t.Run(tt.name, func(t *testing.T) {
 			p := cleanLibrary(t, 1000, 1000)
 			tt.damage(t, p)
@@ -275,4 +282,63 @@ func TestCollateRe(t *testing.T) {
 			t.Errorf("isBuiltinCollation(%q) = %v", name, !want)
 		}
 	}
+}
+
+func TestQuickCheck(t *testing.T) {
+	ctx := context.Background()
+	t.Run("good copies", func(t *testing.T) {
+		plain := filepath.Join(t.TempDir(), "sonarr.db")
+		d := openRW(t, plain, "journal_mode(DELETE)")
+		for _, q := range []string{`CREATE TABLE Series (Id INTEGER PRIMARY KEY, Title TEXT)`, `CREATE INDEX IX_Title ON Series (Title)`,
+			`INSERT INTO Series (Title) VALUES ('The Office'), ('Heat')`} {
+			mustExec(t, d, q)
+		}
+		if err := d.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for name, p := range map[string]string{"rollback journal": plain, "wal, closed": cleanLibrary(t, 50, 50),
+			"unknown collation": collatedLibrary(t)} {
+			before := dirSnapshot(t, filepath.Dir(p))
+			problems, err := QuickCheck(ctx, p)
+			if err != nil || problems == nil || len(problems) != 0 {
+				t.Errorf("%s: problems %q, %v; want none", name, problems, err)
+			}
+			if got := dirSnapshot(t, filepath.Dir(p)); !slices.Equal(got, before) {
+				t.Errorf("%s: QuickCheck created or changed files next to the copy:\nbefore %v\nafter  %v", name, before, got)
+			}
+		}
+	})
+	for _, tt := range damages() {
+		t.Run(tt.name, func(t *testing.T) {
+			p := cleanLibrary(t, 1000, 1000)
+			tt.damage(t, p)
+			problems, err := QuickCheck(ctx, p)
+			if err != nil {
+				t.Fatalf("QuickCheck returned an error instead of problems: %v", err)
+			}
+			if len(problems) == 0 || len(problems) > maxReportedErrors+1 {
+				t.Fatalf("damage: %d problem lines %q", len(problems), problems)
+			}
+		})
+	}
+	t.Run("file errors", func(t *testing.T) {
+		if _, err := QuickCheck(ctx, filepath.Join(t.TempDir(), "missing.db")); !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("missing file: %v", err)
+		}
+		if _, err := QuickCheck(ctx, t.TempDir()); err == nil {
+			t.Fatal("a directory was checked")
+		}
+		link := filepath.Join(t.TempDir(), "link.db")
+		if err := os.Symlink(cleanLibrary(t, 10, 10), link); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := QuickCheck(ctx, link); err == nil {
+			t.Fatal("a symlink was followed")
+		}
+		cctx, cancel := context.WithCancel(ctx)
+		cancel()
+		if _, err := QuickCheck(cctx, cleanLibrary(t, 10, 10)); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancelled: %v", err)
+		}
+	})
 }

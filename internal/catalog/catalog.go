@@ -94,6 +94,7 @@ type Store struct {
 	db    *db.DB
 	opts  StoreOptions
 	locks *sourceLocks
+	dirs  dirListings // the folder listings DirExists reads (locate.go)
 
 	identityHook func(rootIdentity) rootIdentity // test hook: rewrites the new path's filesystem identity in checkSameRoot
 }

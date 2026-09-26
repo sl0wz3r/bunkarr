@@ -1,0 +1,192 @@
+[
+  {
+    "artistId": 1,
+    "foreignTrackId": "387a02d6-91b0-4314-85f8-184f7a27f824",
+    "foreignRecordingId": "0cc60267-3026-4e36-b4a0-06acb912516a",
+    "trackFileId": 20,
+    "albumId": 46,
+    "explicit": false,
+    "absoluteTrackNumber": 1,
+    "trackNumber": "1",
+    "title": "Swipesy Cake Walk",
+    "duration": 205106,
+    "mediumNumber": 1,
+    "hasFile": true,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "id": 1169
+  },
+  {
+    "artistId": 1,
+    "foreignTrackId": "0b3b5bda-6e60-4f6d-a05f-d9eca8bf5ed3",
+    "foreignRecordingId": "3f9c1d98-cf3c-45b8-a7a4-b16bf5ab2d1c",
+    "trackFileId": 21,
+    "albumId": 46,
+    "explicit": false,
+    "absoluteTrackNumber": 2,
+    "trackNumber": "2",
+    "title": "Lily Queen",
+    "duration": 277533,
+    "mediumNumber": 1,
+    "hasFile": true,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "id": 1170
+  },
+  {
+    "artistId": 1,
+    "foreignTrackId": "12e150c7-4251-4762-8810-2d16c70cc554",
+    "foreignRecordingId": "a9c0f8c4-cb89-46db-acb9-d360b5c2889e",
+    "trackFileId": 22,
+    "albumId": 46,
+    "explicit": false,
+    "absoluteTrackNumber": 3,
+    "trackNumber": "3",
+    "title": "Sunflower Slow Drag",
+    "duration": 231800,
+    "mediumNumber": 1,
+    "hasFile": true,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "id": 1171
+  },
+  {
+    "artistId": 1,
+    "foreignTrackId": "ba20c1f4-86d3-402d-8b35-a3f18e6585ad",
+    "foreignRecordingId": "c60926e1-659a-4445-b6fa-e933f3a3057f",
+    "trackFileId": 23,
+    "albumId": 46,
+    "explicit": false,
+    "absoluteTrackNumber": 4,
+    "trackNumber": "4",
+    "title": "Something Doing",
+    "duration": 242666,
+    "mediumNumber": 1,
+    "hasFile": true,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "id": 1172
+  },
+  {
+    "artistId": 1,
+    "foreignTrackId": "da99defa-073a-4a56-814b-88cff4130f40",
+    "foreignRecordingId": "b9e4f9dd-9945-4c83-86e0-6ed1d06f4901",
+    "trackFileId": 24,
+    "albumId": 46,
+    "explicit": false,
+    "absoluteTrackNumber": 5,
+    "trackNumber": "5",
+    "title": "Felicity Rag",
+    "duration": 222333,
+    "mediumNumber": 1,
+    "hasFile": true,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "id": 1173
+  },
+  {
+    "artistId": 1,
+    "foreignTrackId": "89b8099e-122a-48c7-8c62-ece422fc21d1",
+    "foreignRecordingId": "8a38dfde-daee-4825-8045-3b9961fd8525",
+    "trackFileId": 25,
+    "albumId": 46,
+    "explicit": false,
+    "absoluteTrackNumber": 6,
+    "trackNumber": "6",
+    "title": "Mule-Walk Stomp",
+    "duration": 149626,
+    "mediumNumber": 1,
+    "hasFile": true,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "id": 1174
+  },
+  {
+    "artistId": 1,
+    "foreignTrackId": "5f9ed21e-57a5-46ab-a09b-6b2aff6b1d60",
+    "foreignRecordingId": "2a6a6e65-12ac-47fa-9e67-a624d52c1462",
+    "trackFileId": 26,
+    "albumId": 46,
+    "explicit": false,
+    "absoluteTrackNumber": 7,
+    "trackNumber": "7",
+    "title": "Eccentricity-Syncopated Waltz",
+    "duration": 313533,
+    "mediumNumber": 1,
+    "hasFile": true,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "id": 1175
+  },
+  {
+    "artistId": 1,
+    "foreignTrackId": "d505a0dd-27c4-47d6-8b2d-bc7ba451f166",
+    "foreignRecordingId": "30559b74-d18c-46b9-8589-02bf34eb6800",
+    "trackFileId": 27,
+    "albumId": 46,
+    "explicit": false,
+    "absoluteTrackNumber": 8,
+    "trackNumber": "8",
+    "title": "Modernistic (You've Got to Be)",
+    "duration": 187666,
+    "mediumNumber": 1,
+    "hasFile": true,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "id": 1176
+  },
+  {
+    "artistId": 1,
+    "foreignTrackId": "67f7622c-6622-4586-9ce6-793f85015512",
+    "foreignRecordingId": "c99ea00a-ee68-4ad2-8c4c-a974dfa60144",
+    "trackFileId": 28,
+    "albumId": 46,
+    "explicit": false,
+    "absoluteTrackNumber": 9,
+    "trackNumber": "9",
+    "title": "Snowy Morning Blues",
+    "duration": 186573,
+    "mediumNumber": 1,
+    "hasFile": true,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "id": 1177
+  },
+  {
+    "artistId": 1,
+    "foreignTrackId": "410b4230-751b-459c-bb92-ae7d657dcede",
+    "foreignRecordingId": "92a1b239-55de-4ac3-9683-45f1acaece8e",
+    "trackFileId": 29,
+    "albumId": 46,
+    "explicit": false,
+    "absoluteTrackNumber": 10,
+    "trackNumber": "10",
+    "title": "Carolina Shout",
+    "duration": 206266,
+    "mediumNumber": 1,
+    "hasFile": true,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "id": 1178
+  }
+]

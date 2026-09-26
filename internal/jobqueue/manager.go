@@ -20,6 +20,9 @@ import (
 const (
 	// DefaultWorkers is how many jobs run at once unless Options.Workers says otherwise.
 	DefaultWorkers = 2
+	// DefaultRefreshWorkers is how many refresh jobs run at once, in their own pool that is not
+	// counted against the workers (phase2-3.md §7.3, §12.1).
+	DefaultRefreshWorkers = 2
 	// DefaultMaxAttempts is how many crashed runs a job gets before recovery fails it.
 	DefaultMaxAttempts = 3
 	// DefaultProgressEvery is the minimum interval between progress writes.
@@ -53,8 +56,12 @@ var (
 
 // Options configures a Manager. Zero values take the defaults.
 type Options struct {
-	// Workers is how many jobs run at once (setting jobs.workers; default 2).
+	// Workers is how many jobs run at once (setting jobs.workers; default 2), refresh jobs not
+	// counted.
 	Workers int
+	// RefreshWorkers is how many refresh jobs run at once, in their own pool (default 2), so a
+	// long sync and a verify cannot starve a webhook's targeted refresh.
+	RefreshWorkers int
 	// MaxAttempts is how many runs a job gets when the process keeps crashing during it: start-up
 	// recovery fails a job whose attempt would exceed it (default 3).
 	MaxAttempts int
@@ -101,10 +108,12 @@ type Manager struct {
 
 // activeJob is a job this Manager has taken from the queue.
 type activeJob struct {
-	id     int64
-	keys   []string
-	cancel context.CancelCauseFunc
-	rep    *reporter
+	id   int64
+	keys []string
+	// refresh is true for a job of the refresh pool.
+	refresh bool
+	cancel  context.CancelCauseFunc
+	rep     *reporter
 
 	// finMu orders the job's own final write against Stop giving up on it.
 	finMu     sync.Mutex
@@ -121,6 +130,9 @@ func New(d *db.DB, log *slog.Logger, o Options) *Manager {
 	}
 	if o.Workers < 1 {
 		o.Workers = DefaultWorkers
+	}
+	if o.RefreshWorkers < 1 {
+		o.RefreshWorkers = DefaultRefreshWorkers
 	}
 	if o.MaxAttempts < 1 {
 		o.MaxAttempts = DefaultMaxAttempts
@@ -172,8 +184,8 @@ func (m *Manager) OnFinish(fn func(jobs.Job)) {
 	m.mu.Unlock()
 }
 
-// SetWorkers changes how many jobs run at once (at least 1). Running jobs are not interrupted
-// when the limit shrinks.
+// SetWorkers changes how many jobs run at once (at least 1; refresh jobs have their own pool).
+// Running jobs are not interrupted when the limit shrinks.
 func (m *Manager) SetWorkers(n int) {
 	m.mu.Lock()
 	m.workers = max(n, 1)
@@ -361,16 +373,23 @@ func wait(ctx context.Context, f *inflight) bool {
 	}
 }
 
-// Enqueue implements jobs.Enqueuer: it queues a job, or returns the identical queued job (same
-// type, canonical params and dry run). An empty trigger means manual. An invalid spec is a
-// ValidationError.
+// Enqueue implements jobs.Enqueuer: it queues a job, returns the identical queued job (same
+// type, canonical params and dry run), or coalesces a targeted spec with a queued job (see
+// Store.CreateJob). An empty trigger means manual. An invalid spec is a ValidationError.
 func (m *Manager) Enqueue(ctx context.Context, spec jobs.Spec) (jobs.Job, error) {
-	job, created, err := m.store.CreateJob(ctx, spec)
+	job, outcome, err := m.store.createJob(ctx, spec)
 	if err != nil {
 		return jobs.Job{}, err
 	}
-	if created {
+	switch outcome {
+	case outcomeCreated:
 		m.log.Info("Job queued", "jobId", job.ID, "jobType", string(job.Type), "trigger", string(job.Trigger), "dryRun", job.DryRun)
+	case outcomeMerged, outcomeCovered:
+		m.log.Info("Job request coalesced with a queued job", "jobId", job.ID, "jobType", string(job.Type), "outcome", outcome.String(),
+			"paths", len(job.Params.Paths), "arrItemIds", len(job.Params.ArrItemIDs))
+	case outcomeOverflow:
+		m.log.Info("Too many targets were merged into a queued job: it now covers its whole scope", "jobId", job.ID,
+			"jobType", string(job.Type))
 	}
 	m.wake()
 	return job, nil
@@ -479,11 +498,33 @@ func (m *Manager) loop(ctx context.Context) {
 	}
 }
 
-// dispatch starts the oldest queued jobs whose lock keys are free, while workers are free. A job
-// whose keys are held is skipped, so it does not block younger jobs with free keys.
+// refreshPool reports whether jobs of type t run in the refresh pool.
+func refreshPool(t jobs.Type) bool { return t == jobs.TypeRefresh }
+
+// poolsFullLocked reports whether the general pool and the refresh pool are both full, and
+// whether the pool of type t is. Caller holds m.mu.
+func (m *Manager) poolsFullLocked(t jobs.Type) (all, own bool) {
+	refresh := 0
+	for _, aj := range m.running {
+		if aj.refresh {
+			refresh++
+		}
+	}
+	general := len(m.running) - refresh
+	generalFull, refreshFull := general >= m.workers, refresh >= m.opts.RefreshWorkers
+	if refreshPool(t) {
+		return generalFull && refreshFull, refreshFull
+	}
+	return generalFull && refreshFull, generalFull
+}
+
+// dispatch starts the oldest queued jobs whose lock keys are free, while their pool has a free
+// worker (refresh jobs have their own pool). A job whose keys are held or whose pool is full is
+// skipped, so it does not block younger jobs with free keys in another pool.
 func (m *Manager) dispatch(ctx context.Context) {
 	m.mu.Lock()
-	full := len(m.running) >= m.workers || m.crashed
+	full, _ := m.poolsFullLocked("")
+	full = full || m.crashed
 	m.mu.Unlock()
 	if full {
 		return
@@ -500,11 +541,12 @@ func (m *Manager) dispatch(ctx context.Context) {
 			return
 		}
 		m.mu.Lock()
-		if len(m.running) >= m.workers || m.crashed || m.state != stateStarted {
+		all, own := m.poolsFullLocked(job.Type)
+		if all || m.crashed || m.state != stateStarted {
 			m.mu.Unlock()
 			return
 		}
-		if _, dup := m.running[job.ID]; dup {
+		if _, dup := m.running[job.ID]; dup || own {
 			m.mu.Unlock()
 			continue
 		}
@@ -520,7 +562,7 @@ func (m *Manager) dispatch(ctx context.Context) {
 			continue
 		}
 		jctx, cancel := context.WithCancelCause(m.base)
-		aj := &activeJob{id: job.ID, keys: keys, cancel: cancel, rep: newReporter(m, job)}
+		aj := &activeJob{id: job.ID, keys: keys, refresh: refreshPool(job.Type), cancel: cancel, rep: newReporter(m, job)}
 		m.running[job.ID] = aj
 		for _, k := range keys {
 			m.keys[k] = job.ID

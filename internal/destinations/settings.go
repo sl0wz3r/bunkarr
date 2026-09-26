@@ -1,8 +1,11 @@
 package destinations
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 )
 
 // VerifyMode says how much a verify job re-reads (design §4.5).
@@ -64,6 +67,21 @@ type Retention struct {
 	PlexDBDaily int `json:"plexDbDaily"`
 	// PlexDBWeekly is how many ISO weeks keep their newest Plex DB version (1-520).
 	PlexDBWeekly int `json:"plexDbWeekly"`
+	// ArrDaily is how many daily *arr backup versions are kept per integration (1-365; design
+	// phase2-3.md §10 step 8).
+	ArrDaily int `json:"arrDaily"`
+	// ArrWeekly is how many ISO weeks keep their newest *arr backup version (1-520).
+	ArrWeekly int `json:"arrWeekly"`
+	// ManifestDays is how many days keep their newest manifest version (1-3650; design
+	// phase2-3.md §11.2 step 6). internal/manifest reads it from the stored JSON.
+	ManifestDays int `json:"manifestDays"`
+	// ManifestWeeks is how many ISO weeks keep their newest manifest version (0-520). Unlike
+	// the other periods 0 is a value, no weekly versions: only a missing manifestWeeks takes the
+	// default (UnmarshalJSON records whether it was present; a Go literal's zero is missing).
+	ManifestWeeks int `json:"manifestWeeks"`
+	// manifestWeeksSet says ManifestWeeks is a value, not missing: it was in the decoded JSON,
+	// or the retention is normalized (so normalizing it again changes nothing).
+	manifestWeeksSet bool
 }
 
 // Defaults (design §4, §5, S5, S10b).
@@ -74,6 +92,10 @@ const (
 	DefaultDeletedDays      = 30
 	DefaultPlexDBDaily      = 14
 	DefaultPlexDBWeekly     = 8
+	DefaultArrDaily         = 14
+	DefaultArrWeekly        = 8
+	DefaultManifestDays     = 30
+	DefaultManifestWeeks    = 12
 )
 
 // DefaultSettings returns the documented default settings.
@@ -90,7 +112,52 @@ func DefaultSettings() Settings {
 
 // DefaultRetention returns the documented default retention.
 func DefaultRetention() Retention {
-	return Retention{DeletedDays: DefaultDeletedDays, PlexDBDaily: DefaultPlexDBDaily, PlexDBWeekly: DefaultPlexDBWeekly}
+	return Retention{DeletedDays: DefaultDeletedDays, PlexDBDaily: DefaultPlexDBDaily, PlexDBWeekly: DefaultPlexDBWeekly,
+		ArrDaily: DefaultArrDaily, ArrWeekly: DefaultArrWeekly, ManifestDays: DefaultManifestDays,
+		ManifestWeeks: DefaultManifestWeeks, manifestWeeksSet: true}
+}
+
+// retentionFields is Retention without its UnmarshalJSON method.
+type retentionFields Retention
+
+// decodeRetention decodes retention JSON and records whether manifestWeeks was present. strict
+// refuses unknown keys (the API decodes its bodies that way).
+func decodeRetention(b []byte, strict bool) (Retention, error) {
+	var aux struct {
+		retentionFields
+		// ManifestWeeks shadows the embedded field, so a present 0 is told from a missing key.
+		ManifestWeeks *int `json:"manifestWeeks"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	if strict {
+		dec.DisallowUnknownFields()
+	}
+	if err := dec.Decode(&aux); err != nil {
+		return Retention{}, err
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return Retention{}, errors.New("invalid character after the retention object")
+	}
+	r := Retention(aux.retentionFields)
+	r.manifestWeeksSet = aux.ManifestWeeks != nil
+	if aux.ManifestWeeks != nil {
+		r.ManifestWeeks = *aux.ManifestWeeks
+	}
+	return r, nil
+}
+
+// UnmarshalJSON decodes a retention object, refusing unknown keys as the API does; a present
+// manifestWeeks keeps its value, 0 included (see ManifestWeeks).
+func (r *Retention) UnmarshalJSON(b []byte) error {
+	if string(bytes.TrimSpace(b)) == "null" {
+		return nil
+	}
+	got, err := decodeRetention(b, true)
+	if err != nil {
+		return err
+	}
+	*r = got
+	return nil
 }
 
 // Normalize fills missing (empty or zero) values with the defaults and validates the rest. An
@@ -155,6 +222,31 @@ func (r Retention) Normalize() (Retention, error) {
 	if r.PlexDBWeekly == 0 {
 		r.PlexDBWeekly = d.PlexDBWeekly
 	}
+	if r.ArrDaily == 0 {
+		r.ArrDaily = d.ArrDaily
+	}
+	if r.ArrWeekly == 0 {
+		r.ArrWeekly = d.ArrWeekly
+	}
+	if r.ManifestDays == 0 {
+		r.ManifestDays = d.ManifestDays
+	}
+	if r.ManifestWeeks == 0 && !r.manifestWeeksSet {
+		r.ManifestWeeks = d.ManifestWeeks
+	}
+	r.manifestWeeksSet = true
+	if r.ManifestDays < 1 || r.ManifestDays > 3650 {
+		return Retention{}, ValidationError(fmt.Sprintf("manifest daily versions %d is out of range (1-3650)", r.ManifestDays))
+	}
+	if r.ManifestWeeks < 0 || r.ManifestWeeks > 520 {
+		return Retention{}, ValidationError(fmt.Sprintf("manifest weekly versions %d is out of range (0-520; 0 keeps none)", r.ManifestWeeks))
+	}
+	if r.ArrDaily < 1 || r.ArrDaily > 365 {
+		return Retention{}, ValidationError(fmt.Sprintf("*arr backup daily versions %d is out of range (1-365)", r.ArrDaily))
+	}
+	if r.ArrWeekly < 1 || r.ArrWeekly > 520 {
+		return Retention{}, ValidationError(fmt.Sprintf("*arr backup weekly versions %d is out of range (1-520)", r.ArrWeekly))
+	}
 	if r.DeletedDays < 1 || r.DeletedDays > 3650 {
 		return Retention{}, ValidationError(fmt.Sprintf("deleted-file retention %d days is out of range (1-3650)", r.DeletedDays))
 	}
@@ -180,11 +272,13 @@ func ParseSettings(raw string) (Settings, error) {
 }
 
 // ParseRetention reads retention JSON as stored in destinations.retention: missing keys and zero
-// values take the defaults ("{}" and "" are the defaults).
+// values take the defaults ("{}" and "" are the defaults), except a stored manifestWeeks 0.
+// Unknown keys are ignored.
 func ParseRetention(raw string) (Retention, error) {
 	var r Retention
 	if raw != "" {
-		if err := json.Unmarshal([]byte(raw), &r); err != nil {
+		var err error
+		if r, err = decodeRetention([]byte(raw), false); err != nil {
 			return Retention{}, fmt.Errorf("parse retention: %w", err)
 		}
 	}

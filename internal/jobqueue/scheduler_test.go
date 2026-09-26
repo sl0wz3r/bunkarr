@@ -233,6 +233,70 @@ func TestSchedulerSkipsWhenRunning(t *testing.T) {
 	}
 }
 
+// TestSkipRuleNeedsARunningJobOfTheScheduledSources: a scheduled sync or verify is skipped only
+// while a job of its destination runs without paths for all the sources it would do. An
+// untargeted follow-up sync of one source (a missing folder, a source root, an overflow) never
+// makes the scheduled sync of every source skip its turn (phase2-3.md §12.1, D8).
+func TestSkipRuleNeedsARunningJobOfTheScheduledSources(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name      string
+		typ       jobs.Type
+		running   jobs.Params
+		scheduled jobs.Params
+		want      bool
+	}{
+		{"one source under all", jobs.TypeSync, jobs.Params{DestinationID: 3, SourceIDs: []int64{1}}, jobs.Params{DestinationID: 3}, false},
+		{"one source under two", jobs.TypeSync, jobs.Params{DestinationID: 3, SourceIDs: []int64{1}}, jobs.Params{DestinationID: 3, SourceIDs: []int64{1, 2}}, false},
+		{"other source", jobs.TypeSync, jobs.Params{DestinationID: 3, SourceIDs: []int64{1}}, jobs.Params{DestinationID: 3, SourceIDs: []int64{2}}, false},
+		{"same source", jobs.TypeSync, jobs.Params{DestinationID: 3, SourceIDs: []int64{1}}, jobs.Params{DestinationID: 3, SourceIDs: []int64{1}}, true},
+		{"two sources over one", jobs.TypeSync, jobs.Params{DestinationID: 3, SourceIDs: []int64{1, 2}}, jobs.Params{DestinationID: 3, SourceIDs: []int64{2}}, true},
+		{"all over one", jobs.TypeSync, jobs.Params{DestinationID: 3}, jobs.Params{DestinationID: 3, SourceIDs: []int64{2}}, true},
+		{"all over all", jobs.TypeSync, jobs.Params{DestinationID: 3, AllowChanges: true}, jobs.Params{DestinationID: 3}, true},
+		{"targeted", jobs.TypeSync, jobs.Params{DestinationID: 3, SourceIDs: []int64{1}, Paths: []string{"x"}}, jobs.Params{DestinationID: 3, SourceIDs: []int64{1}}, false},
+		{"other destination", jobs.TypeSync, jobs.Params{DestinationID: 4}, jobs.Params{DestinationID: 3}, false},
+		{"verify of one source under all", jobs.TypeVerify, jobs.Params{DestinationID: 3, SourceIDs: []int64{1}}, jobs.Params{DestinationID: 3}, false},
+		{"verify of all", jobs.TypeVerify, jobs.Params{DestinationID: 3}, jobs.Params{DestinationID: 3, SourceIDs: []int64{1}}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := NewStore(openDB(t))
+			running, _, err := st.CreateJob(ctx, jobs.Spec{Type: tc.typ, Trigger: jobs.TriggerWebhook, Params: tc.running})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, ok, err := st.markRunning(ctx, running.ID, time.Now()); !ok || err != nil {
+				t.Fatalf("markRunning: %v %v", ok, err)
+			}
+			if got, err := st.hasRunning(ctx, tc.typ, tc.scheduled); got != tc.want || err != nil {
+				t.Fatalf("hasRunning(%+v) with %+v running = %v, %v; want %v", tc.scheduled, tc.running, got, err, tc.want)
+			}
+		})
+	}
+
+	// Through the scheduler: the nightly sync of every source is queued, not skipped, while a
+	// follow-up sync of one source runs.
+	st := NewStore(openDB(t))
+	sc, _ := st.UpsertSchedule(ctx, jobs.TypeSync, jobs.Params{DestinationID: 3}, "0 1 * * *", true)
+	followUp, _, _ := st.CreateJob(ctx, jobs.Spec{Type: jobs.TypeSync, Trigger: jobs.TriggerWebhook, Params: jobs.Params{DestinationID: 3, SourceIDs: []int64{1}}})
+	if _, ok, err := st.markRunning(ctx, followUp.ID, time.Now()); !ok || err != nil {
+		t.Fatalf("markRunning: %v %v", ok, err)
+	}
+	clk := &fakeClock{now: at(0, 59, 0)}
+	enq := newFakeEnqueuer()
+	s := newTestScheduler(t, st, enq, clk)
+	if err := s.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	clk.Set(at(1, 0, 0))
+	if spec := receive(t, "nightly sync of destination 3", enq.ch); spec.Params.DestinationID != 3 || len(spec.Params.SourceIDs) != 0 {
+		t.Fatalf("spec = %+v", spec)
+	}
+	s.Stop()
+	if got, _ := st.GetSchedule(ctx, sc.ID); got.LastRunAt == nil {
+		t.Fatal("the nightly sync was not recorded as a run")
+	}
+}
+
 func TestSchedulerReloadNeverFiresTwiceForOneMinute(t *testing.T) {
 	ctx := context.Background()
 	st := NewStore(openDB(t))

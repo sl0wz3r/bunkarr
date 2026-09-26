@@ -58,6 +58,63 @@ type harness struct {
 	rep   *recReporter
 }
 
+// templateDir holds migratedTemplate's database; TestMain removes it.
+var templateDir string
+
+// migratedTemplate is a database migrated once per test binary. newHarness copies it instead of
+// migrating a new database for every harness: under -race the migrations were almost half of a
+// crash-matrix case, and the package ran past go test's default 10-minute timeout.
+var migratedTemplate = sync.OnceValues(func() (string, error) {
+	dir, err := os.MkdirTemp("", "bunkarr-syncer-db-")
+	if err != nil {
+		return "", err
+	}
+	templateDir = dir
+	p := filepath.Join(dir, "bunkarr.db")
+	d, err := db.Open(context.Background(), p, nil)
+	if err != nil {
+		return "", err
+	}
+	// The last connection's close checkpoints the WAL into the database file.
+	return p, d.Close()
+})
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if templateDir != "" {
+		_ = os.RemoveAll(templateDir)
+	}
+	os.Exit(code)
+}
+
+// openMigratedDB opens a fully migrated database at p (a copy of migratedTemplate), closed when
+// the test ends.
+func openMigratedDB(t *testing.T, p string) *db.DB {
+	t.Helper()
+	tmpl, err := migratedTemplate()
+	if err != nil {
+		t.Fatalf("migrate the template database: %v", err)
+	}
+	for _, suffix := range []string{"", "-wal"} {
+		b, err := os.ReadFile(tmpl + suffix)
+		if suffix != "" && errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			t.Fatalf("read the template database: %v", err)
+		}
+		if err := os.WriteFile(p+suffix, b, 0o600); err != nil {
+			t.Fatalf("copy the template database: %v", err)
+		}
+	}
+	d, err := db.Open(context.Background(), p, nil)
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+	return d
+}
+
 func resolvedTempDir(t *testing.T) string {
 	t.Helper()
 	d, err := filepath.EvalSymlinks(t.TempDir())
@@ -78,17 +135,14 @@ func newHarness(t *testing.T) *harness {
 			t.Fatal(err)
 		}
 	}
-	d, err := db.Open(h.ctx, filepath.Join(h.base, "bunkarr.db"), nil)
-	if err != nil {
-		t.Fatalf("db.Open: %v", err)
-	}
-	t.Cleanup(func() { _ = d.Close() })
+	d := openMigratedDB(t, filepath.Join(h.base, "bunkarr.db"))
 	h.db = d
 	h.store = NewStore(d)
 	h.cat = catalog.NewStore(d, catalog.StoreOptions{HasBackups: h.store.HasBackups})
 	h.scanner = catalog.NewScanner(h.cat, catalog.ScannerOptions{})
 	h.dests = destinations.New(d, destinations.Options{Now: h.now})
 	h.jq = jobqueue.NewStore(d)
+	var err error
 	h.src, err = h.cat.Create(h.ctx, catalog.SourceInput{Name: "Movies", Path: h.srcDir})
 	if err != nil {
 		t.Fatalf("create source: %v", err)

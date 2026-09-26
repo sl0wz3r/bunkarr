@@ -1,0 +1,448 @@
+[
+  {
+    "episodeId": 18,
+    "seriesId": 1,
+    "sourceTitle": "The.Beverly.Hillbillies.S01E06.720p.HDTV.x264-PDGRP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 4,
+        "name": "HDTV-720p",
+        "source": "television",
+        "resolution": 720
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": true,
+    "date": "2026-09-25T12:34:35Z",
+    "eventType": "downloadFolderImported",
+    "data": {
+      "fileId": "8",
+      "droppedPath": "/downloads/sonarr/The.Beverly.Hillbillies.S01.720p.HDTV.x264-PDGRP/The.Beverly.Hillbillies.S01E06.720p.HDTV.x264-PDGRP.mkv",
+      "importedPath": "/tv/The Beverly Hillbillies/Season 1/The Beverly Hillbillies - S01E06 - Trick or Treat HDTV-720p.mkv",
+      "downloadClient": null,
+      "downloadClientName": null,
+      "releaseGroup": "PDGRP",
+      "customFormatScore": "0",
+      "size": "941725",
+      "indexerFlags": "0",
+      "releaseType": "SeasonPack"
+    },
+    "id": 12
+  },
+  {
+    "episodeId": 17,
+    "seriesId": 1,
+    "sourceTitle": "The.Beverly.Hillbillies.S01E04E05.720p.HDTV.x264-PDGRP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 4,
+        "name": "HDTV-720p",
+        "source": "television",
+        "resolution": 720
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": true,
+    "date": "2026-09-25T12:34:35Z",
+    "eventType": "downloadFolderImported",
+    "data": {
+      "fileId": "7",
+      "droppedPath": "/downloads/sonarr/The.Beverly.Hillbillies.S01.720p.HDTV.x264-PDGRP/The.Beverly.Hillbillies.S01E04E05.720p.HDTV.x264-PDGRP.mkv",
+      "importedPath": "/tv/The Beverly Hillbillies/Season 1/The Beverly Hillbillies - S01E04-E05 - The Clampetts Meet Mrs. Drysdale + Jed Buys Stock HDTV-720p.mkv",
+      "downloadClient": null,
+      "downloadClientName": null,
+      "releaseGroup": "PDGRP",
+      "customFormatScore": "0",
+      "size": "941725",
+      "indexerFlags": "0",
+      "releaseType": "SeasonPack"
+    },
+    "id": 11
+  },
+  {
+    "episodeId": 16,
+    "seriesId": 1,
+    "sourceTitle": "The.Beverly.Hillbillies.S01E04E05.720p.HDTV.x264-PDGRP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 4,
+        "name": "HDTV-720p",
+        "source": "television",
+        "resolution": 720
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": true,
+    "date": "2026-09-25T12:34:35Z",
+    "eventType": "downloadFolderImported",
+    "data": {
+      "fileId": "7",
+      "droppedPath": "/downloads/sonarr/The.Beverly.Hillbillies.S01.720p.HDTV.x264-PDGRP/The.Beverly.Hillbillies.S01E04E05.720p.HDTV.x264-PDGRP.mkv",
+      "importedPath": "/tv/The Beverly Hillbillies/Season 1/The Beverly Hillbillies - S01E04-E05 - The Clampetts Meet Mrs. Drysdale + Jed Buys Stock HDTV-720p.mkv",
+      "downloadClient": null,
+      "downloadClientName": null,
+      "releaseGroup": "PDGRP",
+      "customFormatScore": "0",
+      "size": "941725",
+      "indexerFlags": "0",
+      "releaseType": "SeasonPack"
+    },
+    "id": 10
+  },
+  {
+    "episodeId": 14,
+    "seriesId": 1,
+    "sourceTitle": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E02.1080p.WEB-DL.x264-PDGRP.mkv",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "WEBDL-1080p",
+        "source": "web",
+        "resolution": 1080
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": true,
+    "date": "2026-09-25T12:34:16Z",
+    "eventType": "episodeFileRenamed",
+    "data": {
+      "sourcePath": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E02.1080p.WEB-DL.x264-PDGRP.mkv",
+      "sourceRelativePath": "Season 1/The.Beverly.Hillbillies.S01E02.1080p.WEB-DL.x264-PDGRP.mkv",
+      "path": "/tv/The Beverly Hillbillies/Season 1/The Beverly Hillbillies - S01E02 - Getting Settled WEBDL-1080p.mkv",
+      "relativePath": "Season 1/The Beverly Hillbillies - S01E02 - Getting Settled WEBDL-1080p.mkv",
+      "releaseGroup": "PDGRP",
+      "size": "952016",
+      "indexerFlags": "0",
+      "releaseType": "SingleEpisode"
+    },
+    "id": 8
+  },
+  {
+    "episodeId": 13,
+    "seriesId": 1,
+    "sourceTitle": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E01.1080p.WEB-DL.x264-PDGRP.mkv",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "WEBDL-1080p",
+        "source": "web",
+        "resolution": 1080
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": true,
+    "date": "2026-09-25T12:34:16Z",
+    "eventType": "episodeFileRenamed",
+    "data": {
+      "sourcePath": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E01.1080p.WEB-DL.x264-PDGRP.mkv",
+      "sourceRelativePath": "Season 1/The.Beverly.Hillbillies.S01E01.1080p.WEB-DL.x264-PDGRP.mkv",
+      "path": "/tv/The Beverly Hillbillies/Season 1/The Beverly Hillbillies - S01E01 - The Clampetts Strike Oil WEBDL-1080p.mkv",
+      "relativePath": "Season 1/The Beverly Hillbillies - S01E01 - The Clampetts Strike Oil WEBDL-1080p.mkv",
+      "releaseGroup": "PDGRP",
+      "size": "952016",
+      "indexerFlags": "0",
+      "releaseType": "SingleEpisode"
+    },
+    "id": 7
+  },
+  {
+    "episodeId": 15,
+    "seriesId": 1,
+    "sourceTitle": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E03.720p.HDTV.x264-PDGRP.mkv",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 4,
+        "name": "HDTV-720p",
+        "source": "television",
+        "resolution": 720
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": true,
+    "date": "2026-09-25T12:34:16Z",
+    "eventType": "episodeFileRenamed",
+    "data": {
+      "sourcePath": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E03.720p.HDTV.x264-PDGRP.mkv",
+      "sourceRelativePath": "Season 1/The.Beverly.Hillbillies.S01E03.720p.HDTV.x264-PDGRP.mkv",
+      "path": "/tv/The Beverly Hillbillies/Season 1/The Beverly Hillbillies - S01E03 - Meanwhile, Back at the Cabin HDTV-720p.mkv",
+      "relativePath": "Season 1/The Beverly Hillbillies - S01E03 - Meanwhile, Back at the Cabin HDTV-720p.mkv",
+      "releaseGroup": "PDGRP",
+      "size": "941725",
+      "indexerFlags": "0",
+      "releaseType": "SingleEpisode"
+    },
+    "id": 6
+  },
+  {
+    "episodeId": 14,
+    "seriesId": 1,
+    "sourceTitle": "The.Beverly.Hillbillies.S01E02.1080p.WEB-DL.x264-PDGRP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "WEBDL-1080p",
+        "source": "web",
+        "resolution": 1080
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": true,
+    "date": "2026-09-25T12:33:57Z",
+    "eventType": "downloadFolderImported",
+    "data": {
+      "fileId": "6",
+      "droppedPath": "/downloads/sonarr/The.Beverly.Hillbillies.S01E02.1080p.WEB-DL.x264-PDGRP/The.Beverly.Hillbillies.S01E02.1080p.WEB-DL.x264-PDGRP.mkv",
+      "importedPath": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E02.1080p.WEB-DL.x264-PDGRP.mkv",
+      "downloadClient": null,
+      "downloadClientName": null,
+      "releaseGroup": "PDGRP",
+      "customFormatScore": "0",
+      "size": "952016",
+      "indexerFlags": "0",
+      "releaseType": "SingleEpisode"
+    },
+    "id": 5
+  },
+  {
+    "episodeId": 14,
+    "seriesId": 1,
+    "sourceTitle": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E02.720p.HDTV.x264-PDGRP.mkv",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 4,
+        "name": "HDTV-720p",
+        "source": "television",
+        "resolution": 720
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": true,
+    "date": "2026-09-25T12:33:57Z",
+    "eventType": "episodeFileDeleted",
+    "data": {
+      "reason": "Upgrade",
+      "releaseGroup": "PDGRP",
+      "size": "941725",
+      "indexerFlags": "0",
+      "releaseType": "SingleEpisode"
+    },
+    "id": 4
+  },
+  {
+    "episodeId": 13,
+    "seriesId": 1,
+    "sourceTitle": "The.Beverly.Hillbillies.S01E01.1080p.WEB-DL.x264-PDGRP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 3,
+        "name": "WEBDL-1080p",
+        "source": "web",
+        "resolution": 1080
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": true,
+    "date": "2026-09-25T12:33:42Z",
+    "eventType": "downloadFolderImported",
+    "data": {
+      "fileId": "5",
+      "droppedPath": "/downloads/sonarr/The.Beverly.Hillbillies.S01E01.1080p.WEB-DL.x264-PDGRP/The.Beverly.Hillbillies.S01E01.1080p.WEB-DL.x264-PDGRP.mkv",
+      "importedPath": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E01.1080p.WEB-DL.x264-PDGRP.mkv",
+      "downloadClient": null,
+      "downloadClientName": null,
+      "releaseGroup": "PDGRP",
+      "customFormatScore": "0",
+      "size": "952016",
+      "indexerFlags": "0",
+      "releaseType": "SingleEpisode"
+    },
+    "id": 3
+  },
+  {
+    "episodeId": 13,
+    "seriesId": 1,
+    "sourceTitle": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E01.720p.HDTV.x264-PDGRP.mkv",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 4,
+        "name": "HDTV-720p",
+        "source": "television",
+        "resolution": 720
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": true,
+    "date": "2026-09-25T12:33:42Z",
+    "eventType": "episodeFileDeleted",
+    "data": {
+      "reason": "Upgrade",
+      "releaseGroup": "PDGRP",
+      "size": "941725",
+      "indexerFlags": "0",
+      "releaseType": "SingleEpisode"
+    },
+    "id": 2
+  },
+  {
+    "episodeId": 15,
+    "seriesId": 1,
+    "sourceTitle": "The.Beverly.Hillbillies.S01E03.720p.HDTV.x264-PDGRP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 4,
+        "name": "HDTV-720p",
+        "source": "television",
+        "resolution": 720
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": true,
+    "date": "2026-09-25T12:33:19Z",
+    "eventType": "downloadFolderImported",
+    "data": {
+      "fileId": "4",
+      "droppedPath": "/downloads/sonarr/The.Beverly.Hillbillies.S01E03.720p.HDTV.x264-PDGRP/The.Beverly.Hillbillies.S01E03.720p.HDTV.x264-PDGRP.mkv",
+      "importedPath": "/tv/The Beverly Hillbillies/Season 1/The.Beverly.Hillbillies.S01E03.720p.HDTV.x264-PDGRP.mkv",
+      "downloadClient": null,
+      "downloadClientName": null,
+      "releaseGroup": "PDGRP",
+      "customFormatScore": "0",
+      "size": "941725",
+      "indexerFlags": "0",
+      "releaseType": "SingleEpisode"
+    },
+    "id": 1
+  }
+]

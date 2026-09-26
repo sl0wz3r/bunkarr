@@ -1,0 +1,85 @@
+{
+  "_note": "DELETE /api/v3/series/{id}?deleteFiles=false.",
+  "_observedAtReceipt": [
+    {
+      "field": "series.path",
+      "path": "/tv/One Step Beyond",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": null
+    }
+  ],
+  "receivedAt": "2026-09-25T12:35:18.988593+00:00",
+  "method": "POST",
+  "path": "/sonarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Sonarr/4.0.20.3014 (alpine 3.24.1)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "traceparent": "00-4a1cc25a9ed57b51e833256f5f884648-f3351d55dc6bc759-00",
+    "Content-Type": "application/json",
+    "Content-Length": "1488"
+  },
+  "body": {
+    "series": {
+      "id": 2,
+      "title": "One Step Beyond",
+      "titleSlug": "one-step-beyond",
+      "path": "/tv/One Step Beyond",
+      "tvdbId": 76479,
+      "tvMazeId": 18552,
+      "tmdbId": 10377,
+      "imdbId": "tt0052442",
+      "type": "standard",
+      "year": 1959,
+      "genres": [
+        "Drama",
+        "Fantasy",
+        "Mystery",
+        "Science Fiction",
+        "Suspense",
+        "Thriller"
+      ],
+      "images": [
+        {
+          "coverType": "banner",
+          "url": "/MediaCover/2/banner.jpg?lastWrite=639259360083982411",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/graphical/76479-g2.jpg"
+        },
+        {
+          "coverType": "poster",
+          "url": "/MediaCover/2/poster.jpg?lastWrite=639259360084413912",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/posters/76479-3.jpg"
+        },
+        {
+          "coverType": "fanart",
+          "url": "/MediaCover/2/fanart.jpg?lastWrite=639259360084804842",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/fanart/original/76479-1.jpg"
+        },
+        {
+          "coverType": "clearlogo",
+          "url": "/MediaCover/2/clearlogo.png?lastWrite=639259360085213822",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/76479/clearlogo/64ff0ccff1164.png"
+        }
+      ],
+      "tags": [
+        "irreplaceable"
+      ],
+      "originalLanguage": {
+        "id": 1,
+        "name": "English"
+      }
+    },
+    "deletedFiles": false,
+    "eventType": "SeriesDelete",
+    "instanceName": "Sonarr",
+    "applicationUrl": ""
+  }
+}

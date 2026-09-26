@@ -4,6 +4,7 @@ import { api } from '@/api/client';
 import type { AuthRequired, GeneralSettings } from '@/api/types';
 import { useAuth } from '@/auth';
 import { Page, Section } from '@/components/Page';
+import { copyText } from '@/lib/clipboard';
 
 function Row({ label, help, children }: { label: string; help?: string; children: ReactNode }) {
   return (
@@ -18,6 +19,17 @@ function Row({ label, help, children }: { label: string; help?: string; children
 }
 
 const input = 'w-full max-w-md rounded border border-line bg-page px-3 py-2 outline-none focus:border-accent';
+
+/**
+ * The master API key is for scripts and tools only. Sonarr, Radarr and Lidarr webhooks refuse it
+ * and take their connection's own webhook key (design D7, §16): the *arrs keep webhook
+ * credentials in their database and backup zips, which must never hold an admin key.
+ */
+const API_KEY_HELP =
+  'Send it as the X-Api-Key header or ?apikey= (scripts and tools). Do not give it to Sonarr, Radarr or Lidarr: they get a key of their own under Settings → Connect → edit the connection.';
+
+const API_KEY_REGENERATE_CONFIRM =
+  'Regenerate the API key? Scripts and tools using the current key stop working until you update them. Sonarr, Radarr and Lidarr use their own keys and are not affected.';
 
 export function General() {
   const { status, refresh } = useAuth();
@@ -51,7 +63,7 @@ export function General() {
 
   const regenerate = () =>
     run(async () => {
-      if (!window.confirm('Regenerate the API key? Anything using the current key (Sonarr/Radarr webhooks, scripts) stops working until you update it.')) {
+      if (!window.confirm(API_KEY_REGENERATE_CONFIRM)) {
         return;
       }
       setSettings(await api<GeneralSettings>('/settings/general/apikey', { method: 'POST' }));
@@ -89,7 +101,7 @@ export function General() {
                 <option value="disabled_for_local_addresses">Disabled for local addresses</option>
               </select>
             </Row>
-            <Row label="API key" help="Send it as the X-Api-Key header or ?apikey= (Sonarr/Radarr webhooks, scripts).">
+            <Row label="API key" help={API_KEY_HELP}>
               <div className="flex max-w-md gap-2">
                 <input
                   aria-label="API key"
@@ -104,7 +116,18 @@ export function General() {
                   type="button"
                   title="Copy"
                   className="rounded bg-panel-2 px-3"
-                  onClick={() => void navigator.clipboard?.writeText(settings.apiKey).then(() => setNotice('API key copied.'))}
+                  onClick={() =>
+                    void copyText(settings.apiKey).then((ok) => {
+                      if (ok) {
+                        setError(null);
+                        setNotice('API key copied.');
+                      } else {
+                        setShowKey(true);
+                        setNotice(null);
+                        setError('Your browser did not allow copying: select the key and copy it by hand.');
+                      }
+                    })
+                  }
                 >
                   <Copy className="h-4 w-4" />
                 </button>

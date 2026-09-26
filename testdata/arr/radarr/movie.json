@@ -1,0 +1,920 @@
+[
+  {
+    "title": "Night of the Living Dead",
+    "originalTitle": "Night of the Living Dead",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1,
+        "title": "El\u00e4vien kuolleiden y\u00f6",
+        "id": 1
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1,
+        "title": "Night of Anubis",
+        "id": 2
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1,
+        "title": "\u30ca\u30a4\u30c8\u30fb\u30aa\u30d6\u30fb\u30b6\u30fb\u30ea\u30d3\u30f3\u30b0\u30c7\u30c3\u30c9",
+        "id": 3
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1,
+        "title": "\u30ca\u30a4\u30c8\u30fb\u30aa\u30d6\u30fb\u30b6\u30fb\u30ea\u30d3\u30f3\u30b0\u30c7\u30c3\u30c9\uff0f\u30be\u30f3\u30d3\u306e\u8a95\u751f",
+        "id": 4
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1,
+        "title": "\u751f\u3051\u308b\u5c4d\u306e\u591c",
+        "id": 5
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1,
+        "title": "Noc \u017eij\u00edc\u00edch mrtv\u00fdch",
+        "id": 6
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1,
+        "title": "Monster Flick",
+        "id": 7
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1,
+        "title": "Night of the Flesh Eaters",
+        "id": 8
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1,
+        "title": "Ya\u015fayan \u00d6l\u00fcl\u0259rin Gec\u0259si",
+        "id": 9
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 1,
+        "title": "Night of the Living Dead: 30th Anniversary Edition",
+        "id": 10
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "night of the living dead",
+    "sizeOnDisk": 3412521,
+    "status": "released",
+    "overview": "A ragtag group barricade themselves in an old Pennsylvania farmhouse to remain safe from a horde of flesh-eating ghouls ravaging the Northeast.",
+    "inCinemas": "1968-10-04T00:00:00Z",
+    "physicalRelease": "1978-10-24T00:00:00Z",
+    "digitalRelease": "2008-02-19T00:00:00Z",
+    "releaseDate": "1978-10-24T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/1/poster.jpg?h=9ad711db55c0f1f6ef73",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/rb2NWyb008u1EcKCOyXs2Nmj0ra.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCover/1/fanart.jpg?h=c829e23111f5706c70ab",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/5KtmBSqFtHY3I9t8lgH27Mc0bqY.jpg"
+      }
+    ],
+    "website": "",
+    "year": 1968,
+    "youTubeTrailerId": "DIuI6T48Sj0",
+    "studio": "Image Ten",
+    "path": "/movies/Night of the Living Dead (1968)",
+    "qualityProfileId": 6,
+    "hasFile": true,
+    "movieFileId": 4,
+    "monitored": true,
+    "minimumAvailability": "released",
+    "isAvailable": true,
+    "folderName": "/movies/Night of the Living Dead (1968)",
+    "runtime": 96,
+    "cleanTitle": "nightlivingdead",
+    "imdbId": "tt0063350",
+    "tmdbId": 10331,
+    "titleSlug": "10331",
+    "rootFolderPath": "/movies",
+    "certification": "NR",
+    "genres": [
+      "Horror",
+      "Thriller",
+      "Science Fiction"
+    ],
+    "keywords": [
+      "barricade",
+      "bitten",
+      "black and white",
+      "cellar",
+      "cemetery",
+      "farm house",
+      "gas station",
+      "gun",
+      "halloween",
+      "house",
+      "intense",
+      "loss of loved one",
+      "pennsylvania, usa",
+      "sibling relationship",
+      "suspenseful",
+      "trapped",
+      "zombie"
+    ],
+    "tags": [
+      1
+    ],
+    "added": "2026-09-25T12:26:17Z",
+    "ratings": {
+      "imdb": {
+        "votes": 152550,
+        "value": 7.8,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 2830,
+        "value": 7.6,
+        "type": "user"
+      },
+      "metacritic": {
+        "votes": 0,
+        "value": 89,
+        "type": "user"
+      },
+      "rottenTomatoes": {
+        "votes": 0,
+        "value": 95,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 3904,
+        "value": 7.58069,
+        "type": "user"
+      }
+    },
+    "movieFile": {
+      "movieId": 1,
+      "relativePath": "Night of the Living Dead (1968) [Bluray-1080p].mkv",
+      "path": "/movies/Night of the Living Dead (1968)/Night of the Living Dead (1968) [Bluray-1080p].mkv",
+      "size": 3412521,
+      "dateAdded": "2026-09-25T12:29:51Z",
+      "sceneName": "Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP",
+      "releaseGroup": "PDGRP",
+      "edition": "",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 7,
+          "name": "Bluray-1080p",
+          "source": "bluray",
+          "resolution": 1080,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "indexerFlags": 0,
+      "mediaInfo": {
+        "audioBitrate": 0,
+        "audioChannels": 1,
+        "audioCodec": "Opus",
+        "audioLanguages": "",
+        "audioStreamCount": 1,
+        "videoBitDepth": 8,
+        "videoBitrate": 0,
+        "videoCodec": "x264",
+        "videoFps": 1000,
+        "videoDynamicRange": "",
+        "videoDynamicRangeType": "",
+        "resolution": "1920x1080",
+        "runTime": "1:30:00",
+        "scanType": "Progressive",
+        "subtitles": ""
+      },
+      "originalFilePath": "Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP/Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP.mkv",
+      "qualityCutoffNotMet": false,
+      "id": 4
+    },
+    "collection": {
+      "title": "Living Dead Collection",
+      "tmdbId": 261590
+    },
+    "popularity": 20.7716,
+    "statistics": {
+      "movieFileCount": 1,
+      "sizeOnDisk": 3412521,
+      "releaseGroups": [
+        "PDGRP"
+      ],
+      "movieFileQualities": [
+        {
+          "id": 7,
+          "name": "Bluray-1080p",
+          "source": "bluray",
+          "resolution": 1080,
+          "modifier": "none"
+        }
+      ]
+    },
+    "id": 1
+  },
+  {
+    "title": "His Girl Friday",
+    "originalTitle": "His Girl Friday",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "Luna nueva",
+        "id": 11
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "\u5c0f\u62a5\u5999\u51a4\u5bb6",
+        "id": 12
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "\u661f\u671f\u4e94\u5973\u90ce",
+        "id": 13
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "Ayuno de amor",
+        "id": 14
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "La dame du vendredi",
+        "id": 15
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "\u041c\u043e\u043c\u0438\u0447\u0435 \u0437\u0430 \u0432\u0441\u0438\u0447\u043a\u043e",
+        "id": 16
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "Sensationen",
+        "id": 17
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "Meid\u00e4n vastaeronneitten kesken",
+        "id": 18
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "Xanapantrevomai tin gynaika mou",
+        "id": 19
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "\uadf8\uc758 \uc5f0\uc778 \ud504\ub77c\uc774\ub370\uc774",
+        "id": 20
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "C\u00fcm\u0259 Q\u0131z\u0131",
+        "id": 21
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "Sein Maedchen fuer besondere Faelle",
+        "id": 22
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 2,
+        "title": "O Grande Esc\u00e2ndalo",
+        "id": 23
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "his girl friday",
+    "sizeOnDisk": 3412521,
+    "status": "released",
+    "overview": "Walter Burns is an irresistibly conniving newspaper publisher desperate to woo back his paper\u2019s star reporter, who also happens to be his estranged wife. She\u2019s threatening to quit and settle down with a new beau, but, as Walter knows, she has a weakness: she can\u2019t resist a juicy scoop.",
+    "inCinemas": "1940-01-18T00:00:00Z",
+    "physicalRelease": "2005-12-22T00:00:00Z",
+    "digitalRelease": "1972-09-12T00:00:00Z",
+    "releaseDate": "1972-09-12T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/2/poster.jpg?h=98a2f46fcdb142ff8698",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/lu86Y9zTPH3neCiUzLzHCEFHf7f.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCover/2/fanart.jpg?h=a15d485d8d86903e66d5",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/ihoQaiMFAz4YCTAaSIsQjRknsNH.jpg"
+      }
+    ],
+    "website": "",
+    "year": 1940,
+    "youTubeTrailerId": "FKghQCbQOwY",
+    "studio": "Columbia Pictures",
+    "path": "/movies/His Girl Friday (1940)",
+    "qualityProfileId": 6,
+    "hasFile": true,
+    "movieFileId": 1,
+    "monitored": true,
+    "minimumAvailability": "released",
+    "isAvailable": true,
+    "folderName": "/movies/His Girl Friday (1940)",
+    "runtime": 92,
+    "cleanTitle": "hisgirlfriday",
+    "imdbId": "tt0032599",
+    "tmdbId": 3085,
+    "titleSlug": "3085",
+    "rootFolderPath": "/movies",
+    "certification": "NR",
+    "genres": [
+      "Comedy",
+      "Romance",
+      "Crime"
+    ],
+    "keywords": [
+      "ambivalent",
+      "based on play or musical",
+      "black and white",
+      "bride-to-be",
+      "comedy of remarriage",
+      "convicted murderer",
+      "corrupt politician",
+      "ex spouses",
+      "fianc\u00e9 fianc\u00e9e relationship",
+      "fugitive",
+      "imminent execution",
+      "insurance agent",
+      "journalism",
+      "journalist",
+      "newspaper editor",
+      "political corruption",
+      "press room",
+      "prison",
+      "reprieve",
+      "rolltop desk",
+      "screwball comedy",
+      "suicide",
+      "wager"
+    ],
+    "tags": [
+      2
+    ],
+    "added": "2026-09-25T12:26:17Z",
+    "ratings": {
+      "imdb": {
+        "votes": 68575,
+        "value": 7.8,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 971,
+        "value": 7.4,
+        "type": "user"
+      },
+      "metacritic": {
+        "votes": 0,
+        "value": 94,
+        "type": "user"
+      },
+      "rottenTomatoes": {
+        "votes": 0,
+        "value": 99,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 1385,
+        "value": 7.58556,
+        "type": "user"
+      }
+    },
+    "movieFile": {
+      "movieId": 2,
+      "relativePath": "His Girl Friday (1940) [Bluray-1080p].mkv",
+      "path": "/movies/His Girl Friday (1940)/His Girl Friday (1940) [Bluray-1080p].mkv",
+      "size": 3412521,
+      "dateAdded": "2026-09-25T12:26:17Z",
+      "releaseGroup": "PDGRP",
+      "edition": "",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 7,
+          "name": "Bluray-1080p",
+          "source": "bluray",
+          "resolution": 1080,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "indexerFlags": 0,
+      "mediaInfo": {
+        "audioBitrate": 0,
+        "audioChannels": 1,
+        "audioCodec": "Opus",
+        "audioLanguages": "",
+        "audioStreamCount": 1,
+        "videoBitDepth": 8,
+        "videoBitrate": 0,
+        "videoCodec": "h264",
+        "videoFps": 1000,
+        "videoDynamicRange": "",
+        "videoDynamicRangeType": "",
+        "resolution": "1920x1080",
+        "runTime": "1:30:00",
+        "scanType": "Progressive",
+        "subtitles": ""
+      },
+      "qualityCutoffNotMet": false,
+      "id": 1
+    },
+    "popularity": 3.3349,
+    "statistics": {
+      "movieFileCount": 1,
+      "sizeOnDisk": 3412521,
+      "releaseGroups": [
+        "PDGRP"
+      ],
+      "movieFileQualities": [
+        {
+          "id": 7,
+          "name": "Bluray-1080p",
+          "source": "bluray",
+          "resolution": 1080,
+          "modifier": "none"
+        }
+      ]
+    },
+    "id": 2
+  },
+  {
+    "title": "Charade",
+    "originalTitle": "Charade",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 6,
+        "title": "Charade - ett farligt spel",
+        "id": 24
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 6,
+        "title": "Charade - tre mand frem for en enke",
+        "id": 25
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 6,
+        "title": "Charade - vaarallinen peli",
+        "id": 26
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 6,
+        "title": "Hvem svindler hvem?",
+        "id": 27
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 6,
+        "title": "Rantevou sto Parisi",
+        "id": 28
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 6,
+        "title": "\u039f \u0393\u03c1\u03af\u03c6\u03bf\u03c2",
+        "id": 29
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 6,
+        "title": "\uc0e4\ub808\uc774\ub4dc",
+        "id": 30
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 6,
+        "title": "Charada",
+        "id": 31
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "charade",
+    "sizeOnDisk": 3412521,
+    "status": "released",
+    "overview": "After Regina Lampert falls for the dashing Peter Joshua on a skiing holiday in the French Alps, she discovers upon her return to Paris that her husband has been murdered. Soon, she and Peter are giving chase to three of her late husband's World War II cronies, Tex, Scobie and Gideon, who are after a quarter of a million dollars the quartet stole while behind enemy lines.",
+    "inCinemas": "1963-12-01T00:00:00Z",
+    "physicalRelease": "1990-01-01T00:00:00Z",
+    "digitalRelease": "1963-12-01T00:00:00Z",
+    "releaseDate": "1963-12-01T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/3/poster.jpg?h=c331ba1640e6e96afee2",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/qqaPjC5FQidtKY65jbAKZPiOTaS.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCover/3/fanart.jpg?h=d447d83195dcf2311743",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/gj2TBYmOIy4E2GjMIpnbAEZNCQx.jpg"
+      }
+    ],
+    "website": "",
+    "year": 1963,
+    "youTubeTrailerId": "OpuGXAlvDZs",
+    "studio": "Stanley Donen Films",
+    "path": "/movies/Charade (1963)",
+    "qualityProfileId": 6,
+    "hasFile": true,
+    "movieFileId": 3,
+    "monitored": true,
+    "minimumAvailability": "released",
+    "isAvailable": true,
+    "folderName": "/movies/Charade (1963)",
+    "runtime": 113,
+    "cleanTitle": "charade",
+    "imdbId": "tt0056923",
+    "tmdbId": 4808,
+    "titleSlug": "4808",
+    "rootFolderPath": "/movies",
+    "certification": "NR",
+    "genres": [
+      "Comedy",
+      "Mystery",
+      "Romance"
+    ],
+    "keywords": [
+      "age difference",
+      "alias",
+      "alps mountains",
+      "american spy",
+      "caper",
+      "caper comedy",
+      "central intelligence agency (cia)",
+      "espionage",
+      "interpreter",
+      "loss of loved one",
+      "notre dame cathedral",
+      "paris, france",
+      "screwball comedy",
+      "spy",
+      "stamp",
+      "train",
+      "whodunit",
+      "widow"
+    ],
+    "tags": [],
+    "added": "2026-09-25T12:26:17Z",
+    "ratings": {
+      "imdb": {
+        "votes": 94808,
+        "value": 7.8,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 1601,
+        "value": 7.7,
+        "type": "user"
+      },
+      "metacritic": {
+        "votes": 0,
+        "value": 83,
+        "type": "user"
+      },
+      "rottenTomatoes": {
+        "votes": 0,
+        "value": 95,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 1820,
+        "value": 7.7478,
+        "type": "user"
+      }
+    },
+    "movieFile": {
+      "movieId": 3,
+      "relativePath": "Charade (1963) [Bluray-1080p].mkv",
+      "path": "/movies/Charade (1963)/Charade (1963) [Bluray-1080p].mkv",
+      "size": 3412521,
+      "dateAdded": "2026-09-25T12:29:33Z",
+      "sceneName": "Charade.1963.1080p.BluRay.x264-PDGRP",
+      "releaseGroup": "PDGRP",
+      "edition": "",
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ],
+      "quality": {
+        "quality": {
+          "id": 7,
+          "name": "Bluray-1080p",
+          "source": "bluray",
+          "resolution": 1080,
+          "modifier": "none"
+        },
+        "revision": {
+          "version": 1,
+          "real": 0,
+          "isRepack": false
+        }
+      },
+      "indexerFlags": 0,
+      "mediaInfo": {
+        "audioBitrate": 0,
+        "audioChannels": 1,
+        "audioCodec": "Opus",
+        "audioLanguages": "",
+        "audioStreamCount": 1,
+        "videoBitDepth": 8,
+        "videoBitrate": 0,
+        "videoCodec": "x264",
+        "videoFps": 1000,
+        "videoDynamicRange": "",
+        "videoDynamicRangeType": "",
+        "resolution": "1920x1080",
+        "runTime": "1:30:00",
+        "scanType": "Progressive",
+        "subtitles": ""
+      },
+      "originalFilePath": "Charade.1963.1080p.BluRay.x264-PDGRP/Charade.1963.1080p.BluRay.x264-PDGRP.mkv",
+      "qualityCutoffNotMet": false,
+      "id": 3
+    },
+    "popularity": 7.4215,
+    "statistics": {
+      "movieFileCount": 1,
+      "sizeOnDisk": 3412521,
+      "releaseGroups": [
+        "PDGRP"
+      ],
+      "movieFileQualities": [
+        {
+          "id": 7,
+          "name": "Bluray-1080p",
+          "source": "bluray",
+          "resolution": 1080,
+          "modifier": "none"
+        }
+      ]
+    },
+    "id": 3
+  },
+  {
+    "title": "The General",
+    "originalTitle": "The General",
+    "originalLanguage": {
+      "id": 1,
+      "name": "English"
+    },
+    "alternateTitles": [
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "\u5c06\u519b",
+        "id": 32
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "Le m\u00e9cano de la G\u00e9n\u00e9rale",
+        "id": 33
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "Come vinsi la guerra",
+        "id": 34
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "A Gl\u00f3ria de Pamplinas",
+        "id": 35
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "De Generaal",
+        "id": 36
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "\uc81c\ub124\ub7f4",
+        "id": 37
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "General",
+        "id": 38
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "Generalen",
+        "id": 39
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "O stratigo",
+        "id": 40
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "T\u00f6bb mint gener\u00e1lis",
+        "id": 41
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "Keaton no Dai Ressha Tsuiseki",
+        "id": 42
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "Pamplinas Maquinista",
+        "id": 43
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "Mecanicul",
+        "id": 44
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "\u041f\u0430\u0440\u043e\u0432\u043e\u0437 \u0413\u0435\u043d\u0435\u0440\u0430\u043b",
+        "id": 45
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "The Engine Driver",
+        "id": 46
+      },
+      {
+        "sourceType": "tmdb",
+        "movieMetadataId": 7,
+        "title": "Dagens helt",
+        "id": 47
+      }
+    ],
+    "secondaryYearSourceId": 0,
+    "sortTitle": "general",
+    "sizeOnDisk": 0,
+    "status": "released",
+    "overview": "During America\u2019s Civil War, Union spies steal engineer Johnny Gray's beloved locomotive, 'The General'\u2014with Johnnie's lady love aboard an attached boxcar\u2014and he single-handedly must do all in his power to both get The General back and to rescue Annabelle.",
+    "inCinemas": "1926-12-25T00:00:00Z",
+    "physicalRelease": "1984-10-26T00:00:00Z",
+    "digitalRelease": "2005-05-20T00:00:00Z",
+    "releaseDate": "1984-10-26T00:00:00Z",
+    "images": [
+      {
+        "coverType": "poster",
+        "url": "/MediaCover/4/poster.jpg?h=82e70f86f9760ffeb125",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/4NmV1Wei4LxT2lpjViCAScgCZLq.jpg"
+      },
+      {
+        "coverType": "fanart",
+        "url": "/MediaCover/4/fanart.jpg?h=0415cbe74112122c5989",
+        "remoteUrl": "https://image.tmdb.org/t/p/original/mzox4HbcV9W42MH2dB1QsdDVGo3.jpg"
+      }
+    ],
+    "website": "",
+    "year": 1926,
+    "youTubeTrailerId": "eEVWb9NcSuY",
+    "studio": "Joseph M. Schenck Productions",
+    "path": "/movies/The General (1926)",
+    "qualityProfileId": 4,
+    "hasFile": false,
+    "movieFileId": 0,
+    "monitored": false,
+    "minimumAvailability": "released",
+    "isAvailable": true,
+    "folderName": "/movies/The General (1926)",
+    "runtime": 79,
+    "cleanTitle": "thegeneral",
+    "imdbId": "tt0017925",
+    "tmdbId": 961,
+    "titleSlug": "961",
+    "rootFolderPath": "/movies",
+    "certification": "NR",
+    "genres": [
+      "Comedy",
+      "War",
+      "Romance"
+    ],
+    "keywords": [
+      "american civil war",
+      "amused",
+      "army",
+      "attack",
+      "behind enemy lines",
+      "black and white",
+      "bridge",
+      "cannon",
+      "engineer",
+      "fianc\u00e9",
+      "general",
+      "silent film",
+      "southern usa",
+      "spy",
+      "train"
+    ],
+    "tags": [
+      1,
+      2
+    ],
+    "added": "2026-09-25T12:32:36Z",
+    "ratings": {
+      "imdb": {
+        "votes": 106072,
+        "value": 8.1,
+        "type": "user"
+      },
+      "tmdb": {
+        "votes": 1452,
+        "value": 7.917,
+        "type": "user"
+      },
+      "rottenTomatoes": {
+        "votes": 0,
+        "value": 92,
+        "type": "user"
+      },
+      "trakt": {
+        "votes": 1708,
+        "value": 7.84133,
+        "type": "user"
+      }
+    },
+    "popularity": 5.1365,
+    "statistics": {
+      "movieFileCount": 0,
+      "sizeOnDisk": 0,
+      "releaseGroups": [],
+      "movieFileQualities": []
+    },
+    "id": 4
+  }
+]

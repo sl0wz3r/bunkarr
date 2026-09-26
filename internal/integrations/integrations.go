@@ -1,8 +1,11 @@
-// Package integrations stores the external services Bunkarr talks to (Plex in Phase 1; the *arrs,
-// Tautulli, Seerr and Maintainerr later) in the integrations table.
+// Package integrations stores the external services Bunkarr talks to (Plex, Sonarr, Radarr,
+// Lidarr, Tautulli, Seerr and Maintainerr) in the integrations table.
 //
 // Each integration has a URL, an optional API key (for Plex, the X-Plex-Token) and type-specific
-// settings (PlexSettings for Plex). The key is sealed with the keyring (ADR 0003) using the
+// settings (PlexSettings, ArrSettings, TautulliSettings, SeerrSettings, MaintainerrSettings),
+// validated and normalized on every write (docs/design/phase2-3.md §4.2); NormalizeStored brings
+// rows saved before Phase 2 to those rules at start-up. Sonarr, Radarr and Lidarr integrations
+// also have a webhook key (webhookkeys.go). The key is sealed with the keyring (ADR 0003) using the
 // associated data "integration:<id>:apiKey", so a sealed value copied into another row does not
 // open. It never leaves the store in any form other than through TokenFor (and Token), and the
 // API only sees HasAPIKey (design S8). The key is bound to the stored URL: TokenFor returns it
@@ -131,11 +134,13 @@ type Store struct {
 	db  *db.DB
 	kr  *config.Keyring
 	now func() time.Time
+	// hooks is the webhook key map (webhookkeys.go).
+	hooks *webhookKeys
 }
 
-// NewStore returns a store over d that seals API keys with kr.
+// NewStore returns a store over d that seals API keys and webhook keys with kr.
 func NewStore(d *db.DB, kr *config.Keyring) *Store {
-	return &Store{db: d, kr: kr, now: time.Now}
+	return &Store{db: d, kr: kr, now: time.Now, hooks: newWebhookKeys()}
 }
 
 const selectColumns = `SELECT id, type, name, url, api_key <> '', enabled, settings, created_at, updated_at FROM integrations`
@@ -286,10 +291,16 @@ func (s *Store) Create(ctx context.Context, in Input) (Integration, error) {
 		enabled = *in.Enabled
 	}
 
-	var it Integration
+	var (
+		it         Integration
+		webhookKey string
+	)
 	registryMu.Lock()
 	defer registryMu.Unlock()
 	err = s.db.Write(ctx, func(tx *sql.Tx) error {
+		if err := checkLinks(ctx, tx, in.Type, settings, token != ""); err != nil {
+			return err
+		}
 		now := db.FormatTime(s.now())
 		res, err := tx.ExecContext(ctx, `INSERT INTO integrations (type, name, url, api_key, enabled, settings, created_at, updated_at)
 			VALUES (?, ?, ?, '', ?, ?, ?, ?)`, string(in.Type), name, u, enabled, settings, now, now)
@@ -299,6 +310,11 @@ func (s *Store) Create(ctx context.Context, in Input) (Integration, error) {
 		id, err := res.LastInsertId()
 		if err != nil {
 			return fmt.Errorf("create integration: %w", err)
+		}
+		if in.Type.IsArr() {
+			if webhookKey, err = s.storeNewWebhookKey(ctx, tx, id); err != nil {
+				return err
+			}
 		}
 		if token != "" {
 			sealed, err := s.seal(id, token)
@@ -317,6 +333,9 @@ func (s *Store) Create(ctx context.Context, in Input) (Integration, error) {
 	}
 	faultinject.Point(pointBeforeHold)
 	logging.SetSecrets(secretOwner(it.ID), token)
+	if webhookKey != "" {
+		s.holdWebhookKey(it.ID, it.Type, webhookKey)
+	}
 	return it, nil
 }
 
@@ -358,6 +377,9 @@ func (s *Store) Update(ctx context.Context, id int64, in Input) (Integration, er
 			if settings, err = normalizeSettings(cur.Type, in.Settings); err != nil {
 				return err
 			}
+		}
+		if err := checkLinks(ctx, tx, cur.Type, settings, token != "" || (cur.HasAPIKey && !in.ClearAPIKey)); err != nil {
+			return err
 		}
 		enabled := cur.Enabled
 		if in.Enabled != nil {
@@ -423,6 +445,7 @@ func (s *Store) Delete(ctx context.Context, id int64) error {
 	}
 	faultinject.Point(pointBeforeHold)
 	logging.SetSecrets(secretOwner(id))
+	s.releaseWebhookKey(id)
 	return nil
 }
 
@@ -478,9 +501,10 @@ func (s *Store) unseal(id int64, sealed string) (string, error) {
 	return s.open(id, sealed)
 }
 
-// RegisterSecrets unseals every stored API key and holds it in the redaction registry
-// (logging.SetSecrets), so the values are redacted from logs from start-up on. Keys that do not
-// open are reported in the returned error (all others are still registered).
+// RegisterSecrets unseals every stored API key and webhook key and holds it in the redaction
+// registry (logging.SetSecrets), so the values are redacted from logs from start-up on; it also
+// loads the webhook key map (MatchWebhookKey). Keys that do not open are reported in the returned
+// error (all others are still registered).
 func (s *Store) RegisterSecrets(ctx context.Context) error {
 	type row struct {
 		id     int64
@@ -518,6 +542,9 @@ func (s *Store) RegisterSecrets(ctx context.Context) error {
 			continue
 		}
 		logging.SetSecrets(secretOwner(r.id), token)
+	}
+	if err := s.loadWebhookKeys(ctx); err != nil {
+		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }
@@ -578,16 +605,8 @@ func normalizeSettings(typ Type, raw json.RawMessage) (string, error) {
 		}
 		return string(b), nil
 	}
-	if settingsAbsent(raw) {
-		return "{}", nil
-	}
-	var obj map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &obj); err != nil || obj == nil {
+	if t := strings.TrimSpace(string(raw)); t != "" && t != "null" && !strings.HasPrefix(t, "{") {
 		return "", ValidationError("settings must be a JSON object")
 	}
-	b, err := json.Marshal(obj)
-	if err != nil {
-		return "", fmt.Errorf("encode settings: %w", err)
-	}
-	return string(b), nil
+	return normalizeOtherSettings(typ, raw)
 }

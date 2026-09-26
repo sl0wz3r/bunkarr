@@ -1,0 +1,333 @@
+{
+  "format": "bunkarr-manifest",
+  "formatVersion": 1,
+  "createdAt": "2026-09-25T12:30:00Z",
+  "generator": {
+    "name": "Bunkarr",
+    "version": "1.0.0"
+  },
+  "scope": {
+    "kind": "destination",
+    "destinationId": 2,
+    "destinationName": "UNAS"
+  },
+  "job": {
+    "id": 42,
+    "queuedAt": "2026-09-25T12:29:00Z"
+  },
+  "integrations": [
+    {
+      "id": 1,
+      "type": "radarr",
+      "name": "Radarr",
+      "appVersion": "6.4.4.10685",
+      "refreshedAt": "2026-09-25T11:30:00Z",
+      "status": "ok",
+      "fresh": true,
+      "lastError": null,
+      "qualityProfiles": [
+        {
+          "id": 6,
+          "name": "HD-1080p"
+        }
+      ],
+      "metadataProfiles": [],
+      "rootFolders": [
+        {
+          "id": 1,
+          "path": "/movies",
+          "accessible": true,
+          "localPath": "/media/movies",
+          "sourceId": 3
+        }
+      ],
+      "tags": [
+        {
+          "id": 1,
+          "label": "bunkarr-full"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "sonarr",
+      "name": "Sonarr, \"TV\"",
+      "appVersion": "4.0.20.3014",
+      "refreshedAt": null,
+      "status": "failed",
+      "fresh": false,
+      "lastError": "GET series: HTTP 500",
+      "qualityProfiles": [],
+      "metadataProfiles": [],
+      "rootFolders": [],
+      "tags": []
+    }
+  ],
+  "sources": [
+    {
+      "id": 3,
+      "name": "Media",
+      "destFolder": "media"
+    }
+  ],
+  "items": [
+    {
+      "integrationId": 1,
+      "kind": "movie",
+      "arrId": 1,
+      "title": "=HYPERLINK(\"x\")",
+      "year": 1968,
+      "externalIds": {
+        "tmdb": 10331,
+        "imdb": "tt0063350"
+      },
+      "path": "/movies/Night, of the Living Dead",
+      "located": true,
+      "rootFolder": "/movies",
+      "qualityProfile": "HD-1080p",
+      "metadataProfile": "",
+      "monitored": true,
+      "tags": [
+        "+sum",
+        "bunkarr-full"
+      ],
+      "genres": [
+        "Horror"
+      ],
+      "added": "2020-01-02T03:04:05Z",
+      "detail": {
+        "minimumAvailability": "released"
+      },
+      "files": [
+        {
+          "arrFileId": 4,
+          "path": "/movies/Night, of the Living Dead/night.mkv",
+          "relativePath": "night.mkv",
+          "size": 3412521,
+          "quality": "Bluray-1080p",
+          "dateAdded": "2020-01-02T03:04:05Z",
+          "source": {
+            "id": 3,
+            "relPath": "movies/Night, of the Living Dead/night.mkv"
+          },
+          "tier": "full",
+          "rule": {
+            "id": 0,
+            "name": "no rule matched"
+          },
+          "kept": false,
+          "backedUp": true,
+          "sha256": "abababababababababababababababababababababababababababababababab"
+        }
+      ],
+      "extraFiles": [
+        {
+          "source": 3,
+          "relPath": "movies/Night, of the Living Dead/night.en.srt",
+          "size": 1200,
+          "tier": "full",
+          "kept": false,
+          "backedUp": true
+        },
+        {
+          "source": 3,
+          "relPath": "movies/Night, of the Living Dead/-poster.jpg",
+          "size": 300,
+          "tier": "skip",
+          "kept": true,
+          "backedUp": true
+        }
+      ],
+      "skippedFiles": 1
+    },
+    {
+      "integrationId": 1,
+      "kind": "movie",
+      "arrId": 4,
+      "title": "The General",
+      "year": 1926,
+      "externalIds": {
+        "tmdb": 961
+      },
+      "path": "/movies/The General (1926)",
+      "located": true,
+      "rootFolder": "/movies",
+      "qualityProfile": "HD-1080p",
+      "metadataProfile": "",
+      "monitored": false,
+      "tags": [],
+      "genres": [],
+      "added": null,
+      "detail": {},
+      "files": [],
+      "extraFiles": [],
+      "skippedFiles": 0
+    },
+    {
+      "integrationId": 1,
+      "kind": "movie",
+      "arrId": 5,
+      "title": "Nosferatu",
+      "year": 1922,
+      "externalIds": {
+        "tmdb": 653
+      },
+      "path": "/movies-4k/Nosferatu (1922)",
+      "located": false,
+      "rootFolder": "/movies-4k",
+      "qualityProfile": "@Ultra-HD",
+      "metadataProfile": "",
+      "monitored": true,
+      "tags": [],
+      "genres": [],
+      "added": null,
+      "detail": {},
+      "files": [
+        {
+          "arrFileId": 5,
+          "path": "/movies-4k/Nosferatu (1922)/n.mkv",
+          "relativePath": "n.mkv",
+          "size": 5000,
+          "quality": "Bluray-2160p",
+          "dateAdded": null,
+          "source": null,
+          "tier": null,
+          "rule": null,
+          "kept": false,
+          "backedUp": false,
+          "sha256": null
+        }
+      ],
+      "extraFiles": [],
+      "skippedFiles": 0
+    },
+    {
+      "integrationId": 4,
+      "kind": "series",
+      "arrId": 1,
+      "title": "The Beverly Hillbillies",
+      "year": 1962,
+      "externalIds": {
+        "tmdb": 1930,
+        "imdb": "tt0055662",
+        "tvdb": 71471
+      },
+      "path": "/tv/The Beverly Hillbillies",
+      "located": true,
+      "rootFolder": "/tv",
+      "qualityProfile": "HD-1080p",
+      "metadataProfile": "",
+      "monitored": true,
+      "tags": [
+        "line\nbreak",
+        "\ttab"
+      ],
+      "genres": [],
+      "added": null,
+      "detail": {
+        "seriesType": "standard",
+        "seasonFolder": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "languageProfileId": 1,
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 1,
+            "monitored": true
+          }
+        ],
+        "episodes": [
+          {
+            "season": 1,
+            "episode": 4,
+            "monitored": true
+          },
+          {
+            "season": 1,
+            "episode": 5,
+            "monitored": true
+          }
+        ]
+      },
+      "files": [
+        {
+          "arrFileId": 7,
+          "path": "/tv/The Beverly Hillbillies/Season 1/S01E04-E05.mkv",
+          "relativePath": "Season 1/S01E04-E05.mkv",
+          "size": 941725,
+          "quality": "HDTV-720p",
+          "dateAdded": null,
+          "episodes": [
+            {
+              "season": 1,
+              "episode": 4
+            },
+            {
+              "season": 1,
+              "episode": 5
+            }
+          ],
+          "source": {
+            "id": 3,
+            "relPath": "tv/The Beverly Hillbillies/Season 1/S01E04-E05.mkv"
+          },
+          "tier": "manifest",
+          "rule": {
+            "id": 2,
+            "name": "Manifest by default"
+          },
+          "kept": false,
+          "backedUp": false,
+          "sha256": null
+        }
+      ],
+      "extraFiles": [],
+      "skippedFiles": 0
+    }
+  ],
+  "otherFiles": [
+    {
+      "source": 3,
+      "relPath": "-rf/birthday.mp4",
+      "size": 5000,
+      "tier": "full",
+      "kept": false,
+      "backedUp": false
+    },
+    {
+      "source": null,
+      "relPath": "old source/file.mkv",
+      "size": 70,
+      "tier": null,
+      "kept": false,
+      "backedUp": true
+    }
+  ],
+  "summary": {
+    "items": 4,
+    "unlocatedItems": 1,
+    "files": 7,
+    "bytes": 4365816,
+    "tiers": {
+      "full": {
+        "files": 3,
+        "bytes": 3418721
+      },
+      "manifest": {
+        "files": 1,
+        "bytes": 941725
+      },
+      "skip": {
+        "files": 1,
+        "bytes": 300
+      }
+    },
+    "keptFiles": 1,
+    "backedUpBytes": 3414091,
+    "leftOut": 1
+  }
+}

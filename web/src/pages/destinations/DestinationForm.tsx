@@ -53,6 +53,12 @@ export function validateDestination(d: DestinationInput): string | null {
   if (!whole(r.deletedDays, 1, 3650)) return 'Keep deleted files for 1–3650 days.';
   if (!whole(r.plexDbDaily, 1, 365)) return 'Keep 1–365 daily Plex database versions.';
   if (!whole(r.plexDbWeekly, 1, 520)) return 'Keep 1–520 weekly Plex database versions.';
+  // Missing on a destination saved before *arr backups: the server fills the defaults.
+  if (r.arrDaily !== undefined && !whole(r.arrDaily, 1, 365)) return 'Keep 1–365 daily *arr backup versions.';
+  if (r.arrWeekly !== undefined && !whole(r.arrWeekly, 1, 520)) return 'Keep 1–520 weekly *arr backup versions.';
+  // manifestWeeks 0 is a value on the server (no weekly manifest versions), not the default.
+  if (r.manifestDays !== undefined && !whole(r.manifestDays, 1, 3650)) return 'Keep 1–3650 daily manifest versions.';
+  if (r.manifestWeeks !== undefined && !whole(r.manifestWeeks, 0, 520)) return 'Keep 0–520 weekly manifest versions.';
   return null;
 }
 
@@ -351,6 +357,40 @@ export function DestinationForm({ destination, onClose }: { destination: Destina
             max={520}
             suffix="weeks (newest version of each)"
             help="The newest good version is never deleted; failed versions are kept 7 days for diagnosis."
+          />
+          <NumberField
+            label="*arr daily versions"
+            value={retention.arrDaily ?? 14}
+            onChange={(arrDaily) => setRetention({ ...retention, arrDaily })}
+            min={1}
+            max={365}
+            suffix="newest good versions per *arr"
+          />
+          <NumberField
+            label="*arr weekly versions"
+            value={retention.arrWeekly ?? 8}
+            onChange={(arrWeekly) => setRetention({ ...retention, arrWeekly })}
+            min={1}
+            max={520}
+            suffix="weeks (newest version of each)"
+            help="Versions of the Sonarr, Radarr and Lidarr backups, kept like the Plex database versions."
+          />
+          <NumberField
+            label="Manifest daily versions"
+            value={retention.manifestDays ?? 30}
+            onChange={(manifestDays) => setRetention({ ...retention, manifestDays })}
+            min={1}
+            max={3650}
+            suffix="days (newest version of each)"
+          />
+          <NumberField
+            label="Manifest weekly versions"
+            value={retention.manifestWeeks ?? 12}
+            onChange={(manifestWeeks) => setRetention({ ...retention, manifestWeeks })}
+            min={0}
+            max={520}
+            suffix="weeks (newest version of each; 0 keeps none)"
+            help="The newest good manifest version is never deleted."
           />
         </FormSection>
         {editing && (

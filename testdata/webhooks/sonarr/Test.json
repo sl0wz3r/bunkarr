@@ -1,0 +1,51 @@
+{
+  "_note": "Sent automatically when the Webhook connection was created. URL has ?apikey= and the X-Api-Key custom header is set.",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:25:51.973758+00:00",
+  "method": "POST",
+  "path": "/sonarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Sonarr/4.0.20.3014 (alpine 3.24.1)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "traceparent": "00-45506c5dd9cda216825520b42efd06ad-a6120ad1443fd954-00",
+    "Content-Type": "application/json",
+    "Content-Length": "465"
+  },
+  "body": {
+    "series": {
+      "id": 1,
+      "title": "Test Title",
+      "path": "C:\\testpath",
+      "tvdbId": 1234,
+      "tvMazeId": 0,
+      "tmdbId": 0,
+      "type": "standard",
+      "year": 0,
+      "tags": [
+        "test-tag"
+      ]
+    },
+    "episodes": [
+      {
+        "id": 123,
+        "episodeNumber": 1,
+        "seasonNumber": 1,
+        "title": "Test title",
+        "seriesId": 0,
+        "tvdbId": 0
+      }
+    ],
+    "eventType": "Test",
+    "instanceName": "Sonarr",
+    "applicationUrl": ""
+  }
+}

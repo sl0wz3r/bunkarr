@@ -8,6 +8,7 @@ import type { Source } from '@/api/types';
 import { Button, IconButton } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DataTable, type Column } from '@/components/DataTable';
+import { ManifestExportLinks } from '@/components/ManifestExport';
 import { ErrorNotice, Notice } from '@/components/Notice';
 import { EmptyState, Page, Stat, StatGrid } from '@/components/Page';
 import { Badge, ScanStatusBadge } from '@/components/StatusBadge';
@@ -130,6 +131,7 @@ export function Library() {
           <Button variant="ghost" icon={Download} onClick={() => setImporting(true)}>
             Import from Plex
           </Button>
+          <ManifestExportLinks />
           <Button
             variant="ghost"
             icon={RefreshCw}

@@ -2,6 +2,8 @@ package api
 
 import (
 	"bytes"
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +15,8 @@ import (
 	"testing"
 
 	"github.com/sl0wz3r/bunkarr/internal/integrations"
+	"github.com/sl0wz3r/bunkarr/internal/integrations/arr"
+	"github.com/sl0wz3r/bunkarr/internal/integrations/arr/arrtest"
 	"github.com/sl0wz3r/bunkarr/internal/integrations/plex/plextest"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
 	"github.com/sl0wz3r/bunkarr/internal/logging"
@@ -135,9 +139,9 @@ func TestIntegrationTest(t *testing.T) {
 			t.Fatalf("token sent in a URL: %+v", r)
 		}
 	}
-	e.call(t, 200, "POST", "/integrations/test", map[string]any{"type": "sonarr", "url": pms.URL}, &res)
+	e.call(t, 200, "POST", "/integrations/test", map[string]any{"type": "tautulli", "url": pms.URL}, &res)
 	if res.OK || !strings.Contains(res.Message, "not available") {
-		t.Fatalf("test of a sonarr integration: %+v", res)
+		t.Fatalf("test of a tautulli integration: %+v", res)
 	}
 	for _, b := range []map[string]any{
 		{"type": "plex", "url": ""},
@@ -444,5 +448,108 @@ func TestStoredSecretsStayRedactedWhenOthersAreReplaced(t *testing.T) {
 	}
 	if !logging.ContainsSecret("x " + plexToken + " y") {
 		t.Fatalf("the stored Plex token is no longer redacted: %q", logging.RedactSecrets("token="+plexToken))
+	}
+}
+
+// TestNewAppNormalizesSavedIntegrations: rows saved before Phase 2 are normalized when the app
+// starts: an invalid one is disabled, and an *arr one gets a webhook key that the key map knows.
+func TestNewAppNormalizesSavedIntegrations(t *testing.T) {
+	e := newEnvWith(t, nil, func(o *AppOptions) {
+		for _, q := range []string{
+			`INSERT INTO integrations (id, type, name, url, settings, created_at, updated_at)
+				VALUES (1, 'sonarr', 'Sonarr', 'http://sonarr:8989', '{"old":true}', '2026-09-01T00:00:00.000000000Z', '2026-09-01T00:00:00.000000000Z')`,
+			`INSERT INTO integrations (id, type, name, url, settings, created_at, updated_at)
+				VALUES (2, 'tautulli', 'Tautulli', 'http://tautulli:8181', '{}', '2026-09-01T00:00:00.000000000Z', '2026-09-01T00:00:00.000000000Z')`,
+		} {
+			if err := o.DB.Write(context.Background(), func(tx *sql.Tx) error { _, err := tx.Exec(q); return err }); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	var list []integrations.Integration
+	e.call(t, 200, "GET", "/integrations", nil, &list)
+	if len(list) != 2 || !list[0].Enabled || list[1].Enabled || strings.Contains(string(list[0].Settings), `"old"`) {
+		t.Fatalf("integrations after start-up: %+v", list)
+	}
+	key, err := e.app.Integrations.WebhookKey(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if who, ok := e.app.Integrations.MatchWebhookKey(key); !ok || who.IntegrationID != 1 || who.Type != integrations.TypeSonarr {
+		t.Fatalf("MatchWebhookKey = %+v, %v", who, ok)
+	}
+}
+
+// TestArrIntegrationTest: POST /integrations/test for an *arr, with unsaved settings in the body
+// and with the stored settings and key of a saved integration (phase2-3.md §4.1, §13).
+func TestArrIntegrationTest(t *testing.T) {
+	e := newEnv(t, nil)
+	const key = "radarr-test-key-0123456789abcdef"
+	fake := arrtest.NewServer(t, arr.KindRadarr, key)
+	movies := e.mkdir(t, "media/movies")
+	srcID := e.createSource(t, "Movies", movies)
+	settings := map[string]any{"pathMappings": []map[string]string{{"arr": "/movies", "local": movies}}}
+
+	var res integrations.ArrTestResult
+	code, raw := e.raw(t, "POST", "/integrations/test", map[string]any{"type": "radarr", "url": fake.URL, "apiKey": key, "settings": settings})
+	if code != 200 || strings.Contains(string(raw), key) {
+		t.Fatalf("test: %d %s", code, raw)
+	}
+	if err := json.Unmarshal(raw, &res); err != nil {
+		t.Fatal(err)
+	}
+	if !res.OK || res.AppName != "Radarr" || len(res.RootFolders) != 1 || res.RootFolders[0].LocalPath == nil ||
+		*res.RootFolders[0].LocalPath != movies || res.RootFolders[0].SourceID == nil || *res.RootFolders[0].SourceID != srcID ||
+		!res.RootFolders[0].Exists || res.Backup == nil || res.Backup.Folder != "not-set" || res.Backup.HTTP != "ok" {
+		t.Fatalf("test with unsaved settings: %+v", res)
+	}
+	// Without settings, nothing is mapped.
+	e.call(t, 200, "POST", "/integrations/test", map[string]any{"type": "radarr", "url": fake.URL, "apiKey": key}, &res)
+	if !res.OK || res.RootFolders[0].LocalPath != nil {
+		t.Fatalf("test without settings: %+v", res)
+	}
+	// Unsaved settings are validated like a create.
+	if code, msg := e.status(t, "POST", "/integrations/test", map[string]any{"type": "radarr", "url": fake.URL, "apiKey": key,
+		"settings": map[string]any{"pathMappings": []map[string]string{{"arr": "movies", "local": movies}}}}); code != 400 ||
+		!strings.Contains(msg, "absolute path") {
+		t.Fatalf("invalid settings: %d %q", code, msg)
+	}
+	if code, _ := e.status(t, "POST", "/integrations/test", map[string]any{"type": "radarr", "url": fake.URL, "apiKey": key,
+		"plexSignIn": map[string]any{"id": strings.Repeat("a", 32), "serverId": "x"}}); code != 400 {
+		t.Fatalf("plexSignIn with an *arr: %d", code)
+	}
+
+	// A saved integration: the stored key and settings are used, the key only at its URL.
+	var it integrations.Integration
+	e.call(t, 201, "POST", "/integrations", map[string]any{"type": "radarr", "name": "Radarr", "url": fake.URL, "apiKey": key,
+		"settings": settings}, &it)
+	fake.ResetRequests()
+	e.call(t, 200, "POST", "/integrations/test", map[string]any{"type": "radarr", "url": fake.URL, "id": it.ID}, &res)
+	if !res.OK || res.RootFolders[0].LocalPath == nil || *res.RootFolders[0].LocalPath != movies {
+		t.Fatalf("test of the saved integration: %+v", res)
+	}
+	for _, r := range fake.Requests() {
+		if strings.Contains(r.Path, "/api/") && r.Header.Get("X-Api-Key") != key {
+			t.Fatalf("the stored key was not sent: %+v", r)
+		}
+	}
+	other := arrtest.NewServer(t, arr.KindRadarr, key)
+	if code, msg := e.status(t, "POST", "/integrations/test", map[string]any{"type": "radarr", "url": other.URL, "id": it.ID}); code != 400 ||
+		!strings.Contains(msg, "enter the API key") {
+		t.Fatalf("stored key to another URL: %d %q", code, msg)
+	}
+	if n := len(other.Requests()); n != 0 {
+		t.Fatalf("the other server received %d requests", n)
+	}
+	// A wrong typed key: the answer never repeats it.
+	code, raw = e.raw(t, "POST", "/integrations/test", map[string]any{"type": "radarr", "url": fake.URL, "apiKey": "typed-wrong-key-0123456789"})
+	if code != 200 || strings.Contains(string(raw), "typed-wrong-key-0123456789") || !strings.Contains(string(raw), "rejected the API key") {
+		t.Fatalf("wrong key: %d %s", code, raw)
+	}
+	// A Sonarr URL tested as Radarr.
+	sonarr := arrtest.NewServer(t, arr.KindSonarr, key)
+	e.call(t, 200, "POST", "/integrations/test", map[string]any{"type": "radarr", "url": sonarr.URL, "apiKey": key}, &res)
+	if res.OK || !strings.Contains(res.Message, "Sonarr, not Radarr") {
+		t.Fatalf("Sonarr as Radarr: %+v", res)
 	}
 }

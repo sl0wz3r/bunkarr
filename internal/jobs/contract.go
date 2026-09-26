@@ -1,13 +1,17 @@
 // Package jobs is the contract between Bunkarr's job manager (internal/jobqueue: a persistent,
 // resumable queue with worker limits, cancellation, progress and the cron scheduler) and the job
-// runners (internal/catalog, internal/syncer, internal/plexdb). It holds types and interfaces
-// only, so runners never depend on the manager's implementation; see docs/design/phase1.md §6.
+// runners (internal/catalog, internal/syncer, internal/plexdb, and from Phases 2-3
+// internal/mediaindex, internal/arrbackup, internal/manifest). It holds types, interfaces and
+// pure helpers only, so runners never depend on the manager's implementation; see
+// docs/design/phase1.md §6 and docs/design/phase2-3.md §12.
 package jobs
 
 import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"path"
+	"strings"
 	"time"
 )
 
@@ -21,6 +25,33 @@ const (
 	TypePlexDBBackup Type = "plexdb_backup"
 	TypeRetention    Type = "retention"
 	TypeVerify       Type = "verify"
+)
+
+// Job types of Phases 2 and 3 (docs/design/phase2-3.md §12.1).
+const (
+	// TypeRefresh refreshes the metadata cache of one integration (Params.IntegrationID): the
+	// *arr index of Sonarr, Radarr or Lidarr, the Plex library index, or the Tautulli, Seerr or
+	// Maintainerr facts. With ArrItemIDs it refreshes only those *arr items; with SyncAfter it
+	// then queues the targeted syncs of their folders (the webhook path). A full *arr refresh
+	// also queues targeted syncs for the items whose files changed (the reconcile, phase2-3.md
+	// §6.1). Refresh jobs run in their own pool, not counted against jobs.workers (§12.1).
+	TypeRefresh Type = "refresh"
+	// TypeArrBackup backs up an *arr's configuration and database through its backup API
+	// (Params.IntegrationID, Params.DestinationID; 0 = the integration's backup destination).
+	TypeArrBackup Type = "arr_backup"
+	// TypeManifestExport writes a manifest version (JSON and CSV of every library item and file)
+	// to a destination (Params.DestinationID).
+	TypeManifestExport Type = "manifest_export"
+)
+
+// Limits of targeted jobs. A merge that would exceed one of them makes the queued job untargeted
+// instead (it then covers its whole scope), never drops the extra targets; a refresh keeps
+// SyncAfter (phase2-3.md §12.2).
+const (
+	// MaxTargetPaths is the most Params.Paths a targeted sync carries.
+	MaxTargetPaths = 1000
+	// MaxTargetItems is the most Params.ArrItemIDs a targeted refresh carries.
+	MaxTargetItems = 500
 )
 
 // Status is a job's lifecycle state.
@@ -59,8 +90,58 @@ type Params struct {
 	DestinationID int64   `json:"destinationId,omitempty"`
 	SourceIDs     []int64 `json:"sourceIds,omitempty"`
 	IntegrationID int64   `json:"integrationId,omitempty"`
-	// AllowChanges runs changes the mass-change guard would hold (design S10b).
+	// AllowChanges runs changes the mass-change guard would hold (design S10b): on a sync, the
+	// held retains, updates, releases and unknown-promoted copies; on a refresh, the deletions and
+	// cache shrinks the refresh guard held (phase2-3.md S10).
 	AllowChanges bool `json:"allowChanges,omitempty"`
+
+	// Paths narrows a sync to these paths inside its one source (SourceIDs then holds exactly one
+	// id): paths of files or folders that satisfy ValidTargetPath, e.g. "Heat (1995)". A targeted
+	// sync scans and plans only these subtrees, and retains a vanished name only when its
+	// directory gets new content in the same plan (phase2-3.md §9.1, D14). Canonical form: sorted,
+	// de-duplicated, no path inside another listed path; at most MaxTargetPaths.
+	Paths []string `json:"paths,omitempty"`
+	// ArrItemIDs narrows a refresh of an *arr integration to these items: the *arr's own movie,
+	// series or artist ids. Canonical form: sorted, de-duplicated; at most MaxTargetItems.
+	ArrItemIDs []int64 `json:"arrItemIds,omitempty"`
+	// SyncAfter makes a refresh queue follow-up syncs when it ends (also when it failed, never
+	// when it was cancelled), for every enabled destination linked to the source whose
+	// syncOnArrChange setting is on. With ArrItemIDs: a targeted sync of the items' old and new
+	// folders per source (trigger webhook). Without ArrItemIDs (only an overflow merge creates
+	// that, phase2-3.md §12.2): an untargeted sync of every source the integration's root folders
+	// locate into.
+	SyncAfter bool `json:"syncAfter,omitempty"`
+	// ReleaseDemoted makes a sync release what it keeps at the destination although the file's
+	// tier there is no longer full (phase2-3.md S15): those files move into retention with reason
+	// released and expire after the destination's deletedDays. Counted by the mass-change guard.
+	// A dry run lists the release items; a real run must name that dry run (ReleaseOf) and the
+	// rule revision it evaluated (ReleaseRevision), and releases only the records the dry run
+	// listed that are still not full when each item runs. Not allowed with Paths.
+	ReleaseDemoted bool `json:"releaseDemoted,omitempty"`
+	// ReleaseOf is the id of the finished dry-run sync (same destination, ReleaseDemoted) whose
+	// release items a real ReleaseDemoted run applies.
+	ReleaseOf int64 `json:"releaseOf,omitempty"`
+	// ReleaseRevision is the tiers.revision that dry run evaluated (its stats.tierRevision). The
+	// enqueue is refused ("rules changed since the preview") unless it equals the current
+	// revision, and each release item re-checks it when it runs.
+	ReleaseRevision int64 `json:"releaseRevision,omitempty"`
+}
+
+// ValidTargetPath reports whether p may appear in Params.Paths: a clean (path.Clean(p) == p),
+// relative, slash-separated path that is not "" or ".", has no ".." element and no NUL byte.
+// Names that only start with a dot or contain ".." inside a name (".hack SIGN (2002)",
+// "Movie..Name") are valid. The source's os.Root is the real fence (safety rule S1); this keeps
+// params canonical and refuses paths that could never name something inside a source.
+func ValidTargetPath(p string) bool {
+	if p == "" || p == "." || p == ".." || path.IsAbs(p) || strings.HasPrefix(p, "../") || strings.ContainsRune(p, 0) {
+		return false
+	}
+	return path.Clean(p) == p
+}
+
+// Targeted reports whether p narrows its job to some paths (sync) or items (refresh).
+func (p Params) Targeted() bool {
+	return len(p.Paths) > 0 || len(p.ArrItemIDs) > 0
 }
 
 // Spec is a request to run a job.
@@ -222,6 +303,17 @@ func (f RunnerFunc) Run(ctx context.Context, job Job, env Env) (Result, error) {
 // that start follow-up work.
 type Enqueuer interface {
 	// Enqueue queues a job. If an identical job (type, params, dry run) is still queued, that job
-	// is returned instead of a new one.
+	// is returned instead of a new one. Targeted jobs (Params.Targeted) that are not dry runs are
+	// coalesced with queued, not running, jobs that are not dry runs (phase2-3.md §12.2):
+	//   - one that a queued untargeted job of the same type and scope already covers returns that
+	//     job. A refresh with SyncAfter is covered only by a queued refresh with SyncAfter, so a
+	//     scheduled full refresh waiting for a slot never swallows a webhook's follow-up syncs;
+	//   - one whose other params (SyncAfter included) equal a queued targeted job's is merged into
+	//     it: paths or item ids united, the queued job keeps its place, and the returned Job is the
+	//     merged one;
+	//   - a merge beyond MaxTargetPaths / MaxTargetItems makes the queued job untargeted; a
+	//     refresh keeps SyncAfter.
+	// The returned Job's QueuedAt is earlier than the call when an existing job was returned or
+	// merged into (the webhook processor records such events as "coalesced").
 	Enqueue(ctx context.Context, spec Spec) (Job, error)
 }

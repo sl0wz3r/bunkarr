@@ -1,0 +1,110 @@
+{
+  "_note": "POST /api/v3/release/push (magnet) sent to a Torrent Blackhole client.",
+  "_observedAtReceipt": [
+    {
+      "field": "series.path",
+      "path": "/tv/The Beverly Hillbillies",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": null
+    }
+  ],
+  "receivedAt": "2026-09-25T12:40:42.674872+00:00",
+  "method": "POST",
+  "path": "/sonarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Sonarr/4.0.20.3014 (alpine 3.24.1)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "traceparent": "00-2f155b023b1472d2215c42d9cffdbfff-9af969492f109c5f-00",
+    "Content-Type": "application/json",
+    "Content-Length": "2082"
+  },
+  "body": {
+    "series": {
+      "id": 1,
+      "title": "The Beverly Hillbillies",
+      "titleSlug": "the-beverly-hillbillies",
+      "path": "/tv/The Beverly Hillbillies",
+      "tvdbId": 71471,
+      "tvMazeId": 2139,
+      "tmdbId": 1930,
+      "imdbId": "tt0055662",
+      "type": "standard",
+      "year": 1962,
+      "genres": [
+        "Comedy",
+        "Family"
+      ],
+      "images": [
+        {
+          "coverType": "banner",
+          "url": "/MediaCover/1/banner.jpg?lastWrite=639259360078222143",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/graphical/71471-g2.jpg"
+        },
+        {
+          "coverType": "poster",
+          "url": "/MediaCover/1/poster.jpg?lastWrite=639259360078856653",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/posters/71471-7.jpg"
+        },
+        {
+          "coverType": "fanart",
+          "url": "/MediaCover/1/fanart.jpg?lastWrite=639259360079497224",
+          "remoteUrl": "https://artworks.thetvdb.com/banners/fanart/original/71471-1.jpg"
+        }
+      ],
+      "tags": [
+        "bunkarr-full"
+      ],
+      "originalLanguage": {
+        "id": 1,
+        "name": "English"
+      }
+    },
+    "episodes": [
+      {
+        "id": 18,
+        "episodeNumber": 6,
+        "seasonNumber": 1,
+        "title": "Trick or Treat",
+        "overview": "The homesick Clampetts, unaware that it’s Halloween, decide to go calling on their new Beverly Hills neighbors.",
+        "airDate": "1962-10-31",
+        "airDateUtc": "1962-11-01T00:30:00Z",
+        "seriesId": 1,
+        "tvdbId": 46691
+      }
+    ],
+    "release": {
+      "quality": "HDTV-720p",
+      "qualityVersion": 1,
+      "releaseGroup": "PDGRP",
+      "releaseTitle": "The.Beverly.Hillbillies.S01E06.720p.HDTV.x264-PDGRP",
+      "indexer": "spike-indexer",
+      "size": 800000000,
+      "customFormatScore": 0,
+      "customFormats": [],
+      "languages": [
+        {
+          "id": 1,
+          "name": "English"
+        }
+      ]
+    },
+    "downloadClient": "blackhole",
+    "downloadClientType": "Torrent Blackhole",
+    "customFormatInfo": {
+      "customFormats": [],
+      "customFormatScore": 0
+    },
+    "eventType": "Grab",
+    "instanceName": "Sonarr",
+    "applicationUrl": ""
+  }
+}

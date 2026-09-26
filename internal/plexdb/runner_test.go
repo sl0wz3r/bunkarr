@@ -24,6 +24,7 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/jobqueue"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
 	"github.com/sl0wz3r/bunkarr/internal/logging"
+	"github.com/sl0wz3r/bunkarr/internal/snapshots"
 )
 
 // plexAPIToken is the X-Plex-Token of the fixture integration.
@@ -202,7 +203,7 @@ func (f *fixture) entries(t *testing.T) []string {
 }
 
 // snapshots returns the recorded versions, newest first.
-func (f *fixture) snapshots(t *testing.T) []Snapshot {
+func (f *fixture) snapshots(t *testing.T) []snapshots.Snapshot {
 	t.Helper()
 	s, err := f.runner.Store().List(f.ctx, f.dest.ID)
 	if err != nil {
@@ -213,7 +214,7 @@ func (f *fixture) snapshots(t *testing.T) []Snapshot {
 
 // checkVersion checks a recorded version against the destination: every manifest file present
 // with its size and sha256, the library copy verified and consistent, Preferences.xml 0600.
-func (f *fixture) checkVersion(t *testing.T, s Snapshot) Manifest {
+func (f *fixture) checkVersion(t *testing.T, s snapshots.Snapshot) Manifest {
 	t.Helper()
 	var m Manifest
 	if err := json.Unmarshal(s.Manifest, &m); err != nil {
@@ -251,7 +252,7 @@ func (f *fixture) checkVersion(t *testing.T, s Snapshot) Manifest {
 
 // assertConverged checks the state every backup must end in: exactly one version per recorded
 // row, no partial or trash directory, no temp file, no staging directory.
-func (f *fixture) assertConverged(t *testing.T, wantVersions int) []Snapshot {
+func (f *fixture) assertConverged(t *testing.T, wantVersions int) []snapshots.Snapshot {
 	t.Helper()
 	snaps := f.snapshots(t)
 	var dirs []string
@@ -312,7 +313,7 @@ func TestRunBackup(t *testing.T) {
 	if got, err := f.runner.Store().Get(f.ctx, s.ID); err != nil || got.Path != s.Path {
 		t.Fatalf("Get: %+v, %v", got, err)
 	}
-	if _, err := f.runner.Store().Get(f.ctx, s.ID+100); !errors.Is(err, ErrNotFound) {
+	if _, err := f.runner.Store().Get(f.ctx, s.ID+100); !errors.Is(err, snapshots.ErrNotFound) {
 		t.Fatalf("Get unknown: %v", err)
 	}
 
@@ -973,7 +974,7 @@ func TestPruneDropsALostVersion(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if _, err := f.runner.Store().insert(f.ctx, lost); err != nil {
+			if _, err := f.runner.Store().Insert(f.ctx, lost); err != nil {
 				t.Fatal(err)
 			}
 			f.setRetention(t, 14, 8)
@@ -1191,7 +1192,7 @@ func TestRunRecordsAnotherJobsOrphan(t *testing.T) {
 	f.removeStaging(t, third.ID)
 	var orphan string
 	for _, e := range f.entries(t) {
-		if !slices.ContainsFunc(snaps, func(s Snapshot) bool { return filepath.Base(s.Path) == e }) {
+		if !slices.ContainsFunc(snaps, func(s snapshots.Snapshot) bool { return filepath.Base(s.Path) == e }) {
 			orphan = e
 		}
 	}

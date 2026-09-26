@@ -1,10 +1,14 @@
 // Package plex is a small client for the Plex Media Server HTTP API: the server's identity, its
 // library sections with their folder locations, and the preferences Bunkarr needs (the butler
-// window and Plex's own database backup task).
+// window and Plex's own database backup task). It also holds the plex.tv sign-in helpers
+// (plextv.go: PIN, account, resources) and the connection probe (probe.go) of "Sign in with Plex"
+// (design §5).
 //
 // Safety (design S8): the token is sent only in the X-Plex-Token header, never in a URL, and only
 // to servers that answered /identity like Plex (Test checks the identity first; Identity itself is
 // sent without the token). Redirects are not followed, so the header never reaches another host.
+// Every connection dials through internal/netguard (S16), so link-local and cloud metadata
+// addresses are refused after name resolution.
 // Errors name the method and path only (never the full URL, a query, a header or a response
 // body), and the client's own token is redacted from them. The client does not put the token in
 // the process-wide redaction registry: it may be one typed into a Test form, and only stored tokens
@@ -14,21 +18,21 @@
 package plex
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
-	"strconv"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sl0wz3r/bunkarr/internal/logging"
+	"github.com/sl0wz3r/bunkarr/internal/netguard"
 	"github.com/sl0wz3r/bunkarr/internal/version"
 )
 
@@ -36,8 +40,11 @@ import (
 const (
 	// DefaultTimeout bounds each request (connect, headers and body).
 	DefaultTimeout = 10 * time.Second
-	// DefaultClientIdentifier is sent as X-Plex-Client-Identifier when none is configured.
+	// DefaultClientIdentifier is sent as X-Plex-Client-Identifier when none is configured. Only
+	// tests rely on it: the app sends its per-install identifier (design §5).
 	DefaultClientIdentifier = "bunkarr"
+	// DefaultProduct is sent as X-Plex-Product when Options.Product is empty.
+	DefaultProduct = "Bunkarr"
 	// MaxResponseBytes is the largest response body the client reads.
 	MaxResponseBytes = 8 << 20
 )
@@ -55,50 +62,154 @@ var (
 	ErrUnauthorized = errors.New("plex rejected the request as unauthorized (check the token)")
 	// ErrNotPlex means the server answered, but not like a Plex Media Server.
 	ErrNotPlex = errors.New("the server did not answer like a Plex Media Server")
+	// ErrNotFound means plex.tv answered 404 (for a PIN: it expired or does not exist).
+	ErrNotFound = errors.New("not found")
+	// ErrInvalidArgument means a function was called with an argument it refuses (an empty
+	// client identifier or token, a plex.tv base URL that is not https).
+	ErrInvalidArgument = errors.New("invalid argument")
 )
 
-// Error is a failed request. Its text is built from the method, the path and the cause only.
+// Error is a failed request. Its text is built from the service, the method, the path and the
+// cause only.
 type Error struct {
-	// Method and Path identify the request ("GET", "/library/sections").
+	// Service is the host kind: "" (a Plex Media Server, shown as "plex"), "plex.tv" or
+	// "clients.plex.tv".
+	Service string
+	// Method and Path identify the request ("GET", "/library/sections"). A path that carries an
+	// identifier the caller must not reveal (a PIN id) is a template ("/api/v2/pins/{id}").
 	Method string
 	Path   string
 	// StatusCode is the HTTP status, 0 when no response was received.
 	StatusCode int
-	// Err is the cause: ErrUnauthorized, ErrNotPlex, a timeout wrapping
+	// Err is the cause: ErrUnauthorized, ErrNotPlex, ErrNotFound, a timeout wrapping
 	// context.DeadlineExceeded, the caller's context error, or a network error.
 	Err error
 }
 
-// Error implements error: "plex <method> <path>: <cause>".
+// Error implements error: "plex <method> <path>: <cause>" ("plex.tv ..." for plex.tv).
 func (e *Error) Error() string {
-	return fmt.Sprintf("plex %s %s: %v", e.Method, e.Path, e.Err)
+	svc := e.Service
+	if svc == "" {
+		svc = "plex"
+	}
+	return fmt.Sprintf("%s %s %s: %v", svc, e.Method, e.Path, e.Err)
 }
 
 // Unwrap returns the cause.
 func (e *Error) Unwrap() error { return e.Err }
 
-// Options configures New. Zero values take the defaults.
+// Options configures New and the plex.tv helpers. Zero values take the defaults.
 type Options struct {
-	// HTTPClient is the client to use (default: a client with the default transport, so TLS
-	// certificates are verified). Its CheckRedirect is replaced on a copy: redirects are never
-	// followed.
+	// HTTPClient is the client to use (default: a client whose transport verifies TLS
+	// certificates and dials through netguard, design S16). Its CheckRedirect is replaced on a
+	// copy: redirects are never followed.
 	HTTPClient *http.Client
-	// ClientIdentifier is sent as X-Plex-Client-Identifier (default DefaultClientIdentifier).
+	// ClientIdentifier is sent as X-Plex-Client-Identifier (default DefaultClientIdentifier). The
+	// app sends its per-install identifier (setting plex.clientIdentifier), so plex.tv lists each
+	// install as its own device and one can be revoked alone.
 	ClientIdentifier string
 	// Timeout bounds each request (default DefaultTimeout).
 	Timeout time.Duration
 	// Logger receives one debug line per request (method, path, status, duration); default: none.
 	Logger *slog.Logger
+	// Product, Device and DeviceName fill X-Plex-Product, X-Plex-Device and X-Plex-Device-Name,
+	// which plex.tv shows under Authorized Devices. Defaults: DefaultProduct, the OS name
+	// (the app passes "Docker" in a container) and Product.
+	Product    string
+	Device     string
+	DeviceName string
+	// PlexTVURL and ClientsPlexTVURL replace https://plex.tv (PINs, user) and
+	// https://clients.plex.tv (resources). Only tests set them, and binaries built with -tags e2e
+	// (internal/testhooks); production builds use the constants. http is refused unless the host
+	// is loopback.
+	PlexTVURL        string
+	ClientsPlexTVURL string
+}
+
+// withDefaults returns o with every empty header field filled.
+func (o Options) withDefaults() Options {
+	if o.Timeout <= 0 {
+		o.Timeout = DefaultTimeout
+	}
+	o.ClientIdentifier = strings.TrimSpace(o.ClientIdentifier)
+	if o.ClientIdentifier == "" {
+		o.ClientIdentifier = DefaultClientIdentifier
+	}
+	if o.Product = strings.TrimSpace(o.Product); o.Product == "" {
+		o.Product = DefaultProduct
+	}
+	if o.Device = strings.TrimSpace(o.Device); o.Device == "" {
+		o.Device = platformName()
+	}
+	if o.DeviceName = strings.TrimSpace(o.DeviceName); o.DeviceName == "" {
+		o.DeviceName = o.Product
+	}
+	o.PlexTVURL = strings.TrimRight(strings.TrimSpace(o.PlexTVURL), "/")
+	if o.PlexTVURL == "" {
+		o.PlexTVURL = PlexTVURL
+	}
+	o.ClientsPlexTVURL = strings.TrimRight(strings.TrimSpace(o.ClientsPlexTVURL), "/")
+	if o.ClientsPlexTVURL == "" {
+		o.ClientsPlexTVURL = ClientsPlexTVURL
+	}
+	return o
+}
+
+// platformName is X-Plex-Platform: the operating system.
+func platformName() string {
+	switch runtime.GOOS {
+	case "linux":
+		return "Linux"
+	case "darwin":
+		return "macOS"
+	case "windows":
+		return "Windows"
+	case "freebsd":
+		return "FreeBSD"
+	}
+	return runtime.GOOS
+}
+
+// setHeaders sets the X-Plex header set of every request (o must have its defaults). The token,
+// when not empty, goes only in the X-Plex-Token header (S8).
+func (o Options) setHeaders(h http.Header, token string) {
+	h.Set("Accept", "application/json")
+	h.Set("User-Agent", version.UserAgent())
+	h.Set("X-Plex-Product", o.Product)
+	h.Set("X-Plex-Version", version.Version)
+	h.Set("X-Plex-Client-Identifier", o.ClientIdentifier)
+	h.Set("X-Plex-Platform", platformName())
+	h.Set("X-Plex-Device", o.Device)
+	h.Set("X-Plex-Device-Name", o.DeviceName)
+	if token != "" {
+		h.Set("X-Plex-Token", token)
+	}
+}
+
+// guardedTransport is the shared default transport: TLS verified, dials and proxies through
+// netguard (S16). It is shared so connections are pooled across clients.
+var guardedTransport = sync.OnceValue(func() *http.Transport { return netguard.NewTransport() })
+
+// httpClient returns a copy of hc (or of a client over guardedTransport when hc is nil) that never
+// follows redirects.
+func httpClient(hc *http.Client) *http.Client {
+	out := &http.Client{Transport: guardedTransport()}
+	if hc != nil {
+		cp := *hc
+		out = &cp
+	}
+	out.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return out
 }
 
 // Client talks to one Plex Media Server. It is safe for concurrent use.
 type Client struct {
-	base     string
-	token    string
-	clientID string
-	timeout  time.Duration
-	hc       *http.Client
-	log      *slog.Logger
+	base    string
+	token   string
+	opts    Options
+	timeout time.Duration
+	hc      *http.Client
+	log     *slog.Logger
 }
 
 // New returns a client for the server at baseURL (http or https, no user name or password, no
@@ -112,29 +223,18 @@ func New(baseURL, token string, opts Options) (*Client, error) {
 		return nil, errors.New("plex token contains invalid characters")
 	}
 
+	opts = opts.withDefaults()
 	c := &Client{
-		base:     base,
-		token:    token,
-		clientID: opts.ClientIdentifier,
-		timeout:  opts.Timeout,
-		log:      opts.Logger,
-	}
-	if c.clientID == "" {
-		c.clientID = DefaultClientIdentifier
-	}
-	if c.timeout <= 0 {
-		c.timeout = DefaultTimeout
+		base:    base,
+		token:   token,
+		opts:    opts,
+		timeout: opts.Timeout,
+		log:     opts.Logger,
+		hc:      httpClient(opts.HTTPClient),
 	}
 	if c.log == nil {
 		c.log = slog.New(slog.DiscardHandler)
 	}
-	hc := &http.Client{}
-	if opts.HTTPClient != nil {
-		cp := *opts.HTTPClient
-		hc = &cp
-	}
-	hc.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	c.hc = hc
 	return c, nil
 }
 
@@ -180,14 +280,11 @@ func (c *Client) get(ctx context.Context, path string, withToken bool, out any) 
 	if err != nil {
 		return fail(0, errors.New("cannot build the request"))
 	}
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", version.UserAgent())
-	req.Header.Set("X-Plex-Product", "Bunkarr")
-	req.Header.Set("X-Plex-Version", version.Version)
-	req.Header.Set("X-Plex-Client-Identifier", c.clientID)
-	if withToken && c.token != "" {
-		req.Header.Set("X-Plex-Token", c.token)
+	token := ""
+	if withToken {
+		token = c.token
 	}
+	c.opts.setHeaders(req.Header, token)
 
 	start := time.Now()
 	resp, err := c.hc.Do(req)
@@ -217,31 +314,10 @@ func (c *Client) get(ctx context.Context, path string, withToken bool, out any) 
 	return nil
 }
 
-// transportCause reduces a client error to a cause that holds no URL, query or header: the
-// *url.Error wrapper (which carries the full URL) is dropped, a network error is rebuilt from its
-// Op and Err, and timeouts are named.
+// transportCause reduces a client error to a cause that holds no URL, query or header (see the
+// package function of the same name).
 func (c *Client) transportCause(parent context.Context, err error) error {
-	if perr := parent.Err(); perr != nil {
-		return perr
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return fmt.Errorf("no answer within %s: %w", c.timeout, context.DeadlineExceeded)
-	}
-	var uerr *url.Error
-	if errors.As(err, &uerr) {
-		err = uerr.Err
-		if uerr.Timeout() {
-			return fmt.Errorf("no answer within %s: %w", c.timeout, context.DeadlineExceeded)
-		}
-	}
-	var operr *net.OpError
-	if errors.As(err, &operr) && operr.Err != nil {
-		if operr.Net != "" {
-			return fmt.Errorf("%s %s: %w", operr.Op, operr.Net, operr.Err)
-		}
-		return fmt.Errorf("%s: %w", operr.Op, operr.Err)
-	}
-	return err
+	return transportCause(parent, err, c.timeout)
 }
 
 // sanitize replaces an error whose text contains the token (it never should) by a redacted copy.
@@ -316,49 +392,6 @@ type Section struct {
 type Location struct {
 	ID   int64  `json:"id"`
 	Path string `json:"path"`
-}
-
-// flexString decodes a JSON string or number as text (Plex sends ids as either).
-type flexString string
-
-func (f *flexString) UnmarshalJSON(b []byte) error {
-	b = bytes.TrimSpace(b)
-	if bytes.Equal(b, []byte("null")) {
-		return nil
-	}
-	if len(b) > 0 && b[0] == '"' {
-		var s string
-		if err := json.Unmarshal(b, &s); err != nil {
-			return err
-		}
-		*f = flexString(s)
-		return nil
-	}
-	var n json.Number
-	if err := json.Unmarshal(b, &n); err != nil {
-		return err
-	}
-	*f = flexString(n.String())
-	return nil
-}
-
-// flexInt decodes a JSON number or numeric string.
-type flexInt int64
-
-func (f *flexInt) UnmarshalJSON(b []byte) error {
-	var s flexString
-	if err := s.UnmarshalJSON(b); err != nil {
-		return err
-	}
-	if s == "" {
-		return nil
-	}
-	n, err := strconv.ParseInt(string(s), 10, 64)
-	if err != nil {
-		return errors.New("not an integer")
-	}
-	*f = flexInt(n)
-	return nil
 }
 
 type wireSections struct {

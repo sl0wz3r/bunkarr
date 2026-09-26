@@ -1,0 +1,70 @@
+{
+  "_note": "DELETE /api/v1/artist/{id}?deleteFiles=false (followed by one AlbumDelete per album: 51 more).",
+  "_observedAtReceipt": [
+    {
+      "field": "artist.path",
+      "path": "/music/Scott Joplin",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": null
+    }
+  ],
+  "receivedAt": "2026-09-25T12:40:01.276762+00:00",
+  "method": "POST",
+  "path": "/lidarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Lidarr/3.1.0.4875 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "traceparent": "00-dfc01934488ab86b06c06309d375cc27-4d66944b96076870-00",
+    "Content-Type": "application/json",
+    "Content-Length": "1033"
+  },
+  "body": {
+    "artist": {
+      "id": 1,
+      "name": "Scott Joplin",
+      "disambiguation": "composer and pianist",
+      "path": "/music/Scott Joplin",
+      "mbId": "aec8a328-d2e8-4780-b2ea-318c7f8d6f75",
+      "type": "Person",
+      "genres": [
+        "Ragtime",
+        "Contemporary Classical",
+        "Jazz",
+        "Modern Classical"
+      ],
+      "images": [
+        {
+          "coverType": "poster",
+          "url": "/MediaCover/1/poster.jpg?lastWrite=639259360447767938",
+          "remoteUrl": "/config/MediaCover/1/poster.jpg"
+        },
+        {
+          "coverType": "fanart",
+          "url": "/MediaCover/1/fanart.jpg?lastWrite=639259360446771807",
+          "remoteUrl": "/config/MediaCover/1/fanart.jpg"
+        },
+        {
+          "coverType": "clearlogo",
+          "url": "/MediaCover/1/clearlogo.png?lastWrite=639259360446020559",
+          "remoteUrl": "/config/MediaCover/1/clearlogo.png"
+        }
+      ],
+      "tags": [
+        "bunkarr-full"
+      ]
+    },
+    "deletedFiles": false,
+    "eventType": "ArtistDelete",
+    "instanceName": "Lidarr",
+    "applicationUrl": ""
+  }
+}

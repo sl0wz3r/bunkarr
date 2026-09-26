@@ -12,6 +12,12 @@
 #      PLEX_DIR="/mnt/user/appdata/plex/Library/Application Support/Plex Media Server"
 #      BACKUP_DIR=/mnt/remotes/UNAS_backup
 #
+#    Optional, for the *arr backups (uncomment the matching volume lines below):
+#
+#      SONARR_BACKUPS=/mnt/user/appdata/sonarr/Backups
+#      RADARR_BACKUPS=/mnt/user/appdata/radarr/Backups
+#      LIDARR_BACKUPS=/mnt/user/appdata/lidarr/Backups
+#
 # 2. Check what Compose will run, then start it:
 #
 #      docker compose -f deploy/docker-compose.yml config
@@ -26,6 +32,8 @@
 #   /media    your library, READ-ONLY. Bunkarr never modifies or deletes source media.
 #   /plex     Plex's "Plex Media Server" data directory, READ-ONLY, for the Plex DB backup.
 #   /backup   a backup destination (e.g. the UNAS share mounted on the host), read-write.
+#   /arr/<app>-backups  (optional) the Backups folder of Sonarr, Radarr or Lidarr, READ-ONLY, for
+#             the *arr config backups (Settings → Connect → <app> → Backups folder).
 #
 # Hardlinks: mount the directory that contains both your downloads and library folders (e.g.
 # /mnt/user/data on Unraid) as ONE volume, so Bunkarr can see that two paths are the same file.
@@ -55,6 +63,17 @@ services:
       # propagation the container sees the share when it appears; without it Bunkarr sees the
       # empty mount point (it then refuses to sync: the destination marker is missing).
       - "${BACKUP_DIR:?set BACKUP_DIR in deploy/.env (the backup share as mounted on the host)}:/backup:rw,slave"
+      # *arr config backups: each app's Backups folder (its /config/Backups), READ-ONLY. With Forms
+      # login on, an *arr does not let its API key download backups, so Bunkarr reads the zips
+      # here. Uncomment the line of each app you connect and set its variable in deploy/.env; then
+      # enter the path on the right as that app's Backups folder in Settings → Connect. The folder
+      # must exist before the container starts: the app creates it with its first backup (System →
+      # Backup → Backup Now). The zips hold the app's API key and passwords.
+      # - "${SONARR_BACKUPS:?set SONARR_BACKUPS in deploy/.env (Sonarr's Backups folder)}:/arr/sonarr-backups:ro"
+      # - "${RADARR_BACKUPS:?set RADARR_BACKUPS in deploy/.env (Radarr's Backups folder)}:/arr/radarr-backups:ro"
+      # - "${LIDARR_BACKUPS:?set LIDARR_BACKUPS in deploy/.env (Lidarr's Backups folder)}:/arr/lidarr-backups:ro"
+    # Sonarr, Radarr and Lidarr post their webhooks to this port. On the same Docker network they
+    # reach Bunkarr as http://bunkarr:8787; otherwise use the host's address.
     ports:
       - "8787:8787"
     # Time for a clean stop: running jobs get 20 s to stop and are queued to resume. A killed

@@ -1,0 +1,16 @@
+[
+  {
+    "path": "/movies",
+    "accessible": true,
+    "freeSpace": 1813145030656,
+    "unmappedFolders": [],
+    "id": 1
+  },
+  {
+    "path": "/movies-4k",
+    "accessible": true,
+    "freeSpace": 1813145030656,
+    "unmappedFolders": [],
+    "id": 2
+  }
+]

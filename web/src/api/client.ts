@@ -14,6 +14,11 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  return (await apiResponse<T>(path, init)).data;
+}
+
+/** apiResponse is api that also returns the response headers (Date, for example). */
+export async function apiResponse<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<{ data: T; headers: Headers }> {
   const res = await fetch(`/api/v1${path}`, {
     method: init.method ?? 'GET',
     credentials: 'same-origin',
@@ -21,7 +26,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
     body: init.body === undefined ? undefined : JSON.stringify(init.body),
   });
   if (res.status === 204) {
-    return undefined as T;
+    return { data: undefined as T, headers: res.headers };
   }
   let data: unknown = null;
   try {
@@ -36,7 +41,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
         : `Request failed (HTTP ${res.status})`;
     throw new ApiError(res.status, msg);
   }
-  return data as T;
+  return { data: data as T, headers: res.headers };
 }
 
 /** QueryValue is a query-string parameter; empty strings, null and undefined are left out. */

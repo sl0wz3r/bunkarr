@@ -19,6 +19,10 @@ var defaultExcludes = []string{
 	"*.part",
 	"*.!qB",
 	"*.!ut",
+	// The temporary names of the *arrs' transactional copies (phase2-3.md §9.3): a webhook scan can
+	// run while a season pack is still being copied into the folder.
+	"*.partial~",
+	"*.backup~",
 	".grab/",
 	".bunkarr/",
 	".bunkarr-tmp-*",

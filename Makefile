@@ -71,6 +71,10 @@ test-docker: docker ## Docker suite: image smoke test, container kill test, Plex
 test-plex: docker ## Plex DB backup + restore test only (slow; pulls plexinc/pms-docker once)
 	sh docker/test-plex-restore.sh $(IMAGE)
 
+.PHONY: test-arr
+test-arr: docker ## *arr suite: real Radarr/Sonarr/Lidarr imports, upgrades, backups and manifests (needs internet)
+	sh docker/test-arr.sh $(IMAGE)
+
 .PHONY: test-shares
 test-shares: docker ## Sync and kill tests on SMB and NFS shares only (privileged containers)
 	sh docker/test-shares.sh $(IMAGE)

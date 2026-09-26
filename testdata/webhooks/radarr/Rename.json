@@ -1,0 +1,112 @@
+{
+  "_note": "command RenameFiles after enabling renameMovies.",
+  "_observedAtReceipt": [
+    {
+      "field": "movie.folderPath",
+      "path": "/movies/His Girl Friday (1940)",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedMovieFiles[0].previousPath",
+      "path": "/movies/His Girl Friday (1940)/His.Girl.Friday.1940.1080p.BluRay.x264-PDGRP.mkv",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "renamedMovieFiles[0].path",
+      "path": "/movies/His Girl Friday (1940)/His Girl Friday (1940) [Bluray-1080p].mkv",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 3412521
+    }
+  ],
+  "receivedAt": "2026-09-25T12:30:14.131266+00:00",
+  "method": "POST",
+  "path": "/radarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Radarr/6.4.4.10685 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "2200"
+  },
+  "body": {
+    "movie": {
+      "id": 2,
+      "title": "His Girl Friday",
+      "year": 1940,
+      "releaseDate": "2005-12-22",
+      "folderPath": "/movies/His Girl Friday (1940)",
+      "tmdbId": 3085,
+      "imdbId": "tt0032599",
+      "overview": "Walter Burns is an irresistibly conniving newspaper publisher desperate to woo back his paper’s star reporter, who also happens to be his estranged wife. She’s threatening to quit and settle down with a new beau, but, as Walter knows, she has a weakness: she can’t resist a juicy scoop.",
+      "genres": [
+        "Comedy",
+        "Romance",
+        "Crime"
+      ],
+      "images": [
+        {
+          "coverType": "poster",
+          "url": "/MediaCover/2/poster.jpg?h=98a2f46fcdb142ff8698",
+          "remoteUrl": "https://image.tmdb.org/t/p/original/lu86Y9zTPH3neCiUzLzHCEFHf7f.jpg"
+        },
+        {
+          "coverType": "fanart",
+          "url": "/MediaCover/2/fanart.jpg?h=a15d485d8d86903e66d5",
+          "remoteUrl": "https://image.tmdb.org/t/p/original/ihoQaiMFAz4YCTAaSIsQjRknsNH.jpg"
+        }
+      ],
+      "tags": [
+        "irreplaceable"
+      ],
+      "originalLanguage": {
+        "id": 1,
+        "name": "English"
+      }
+    },
+    "renamedMovieFiles": [
+      {
+        "previousRelativePath": "His.Girl.Friday.1940.1080p.BluRay.x264-PDGRP.mkv",
+        "previousPath": "/movies/His Girl Friday (1940)/His.Girl.Friday.1940.1080p.BluRay.x264-PDGRP.mkv",
+        "id": 1,
+        "relativePath": "His Girl Friday (1940) [Bluray-1080p].mkv",
+        "path": "/movies/His Girl Friday (1940)/His Girl Friday (1940) [Bluray-1080p].mkv",
+        "quality": "Bluray-1080p",
+        "qualityVersion": 1,
+        "releaseGroup": "PDGRP",
+        "indexerFlags": "0",
+        "size": 3412521,
+        "dateAdded": "2026-09-25T12:26:17.7442753Z",
+        "languages": [
+          {
+            "id": 1,
+            "name": "English"
+          }
+        ],
+        "mediaInfo": {
+          "audioChannels": 1.0,
+          "audioCodec": "Opus",
+          "audioLanguages": [],
+          "height": 1080,
+          "width": 1920,
+          "subtitles": [],
+          "videoCodec": "h264",
+          "videoDynamicRange": "",
+          "videoDynamicRangeType": ""
+        }
+      }
+    ],
+    "eventType": "Rename",
+    "instanceName": "Radarr",
+    "applicationUrl": ""
+  }
+}

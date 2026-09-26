@@ -1,0 +1,39 @@
+{
+  "_note": "POST /api/v1/notification/test with only the X-Api-Key custom header.",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:29:17.480437+00:00",
+  "method": "POST",
+  "path": "/lidarr-header",
+  "query": {},
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Lidarr/3.1.0.4875 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "traceparent": "00-5dcff7149298a706e696b75418cc6f64-578d9ab3f5325201-00",
+    "Content-Type": "application/json",
+    "Content-Length": "312"
+  },
+  "body": {
+    "artist": {
+      "id": 1,
+      "name": "Test Name",
+      "path": "C:\\testpath",
+      "mbId": "aaaaa-aaa-aaaa-aaaaaa",
+      "tags": [
+        "test-tag"
+      ]
+    },
+    "albums": [
+      {
+        "id": 123,
+        "title": "Test title"
+      }
+    ],
+    "eventType": "Test",
+    "instanceName": "Lidarr",
+    "applicationUrl": ""
+  }
+}

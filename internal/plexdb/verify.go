@@ -177,6 +177,63 @@ func Verify(ctx context.Context, path string) (rep IntegrityReport, err error) {
 	return rep, nil
 }
 
+// QuickCheck runs PRAGMA quick_check on a copy of a SQLite database that is not Plex's, such as
+// an *arr's database extracted from its backup zip (docs/design/phase2-3.md §10 step 6). Like
+// Verify, it opens the file "mode=ro&immutable=1" (nothing is created next to it; it must not be
+// a live database) on this package's private driver, after registering a binary-compare stub for
+// every collation of the schema that SQLite does not have, so an unknown collation is never
+// reported as damage.
+//
+// It returns the problem lines, at most 50 and then a count of the rest; an empty list means the
+// database passed. Problems SQLite reports (a corrupt page, a truncated file, not a database) and
+// an empty file are problems, not errors. The error is for a file that cannot be examined at all
+// (missing, not a regular file) and for cancellation (ctx.Err()).
+func QuickCheck(ctx context.Context, path string) ([]string, error) {
+	rep := IntegrityReport{Errors: []string{}}
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return nil, fmt.Errorf("quick check: %w", err)
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("quick check %s: %w", path, filecopy.ErrNotRegular)
+	}
+	if fi.Size() == 0 {
+		return []string{"the file is empty"}, nil
+	}
+	uri, err := fileURI(path, "mode=ro&immutable=1")
+	if err != nil {
+		return nil, err
+	}
+	sch, err := readSchema(ctx, uri)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return []string{"read the schema: " + err.Error()}, nil
+	}
+	if err := registerStubs(sch.collations); err != nil {
+		return nil, err
+	}
+	db := openDB(uri)
+	defer db.Close()
+	lines, err := pragmaLines(ctx, db, "PRAGMA quick_check")
+	switch {
+	case ctx.Err() != nil:
+		return nil, ctx.Err()
+	case err != nil:
+		rep.addError("quick_check: " + err.Error())
+	case len(lines) == 1 && lines[0] == "ok":
+	case len(lines) == 0:
+		rep.addError("quick_check: no result")
+	default:
+		for _, l := range lines {
+			rep.addError("quick_check: " + l)
+		}
+	}
+	rep.finish()
+	return rep.Errors, nil
+}
+
 // missingRe matches the integrity_check line a stub collation causes.
 var missingRe = regexp.MustCompile(`^row \d+ missing from index (.+)$`)
 

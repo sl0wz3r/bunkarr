@@ -1,0 +1,108 @@
+[
+  {
+    "onGrab": true,
+    "onReleaseImport": true,
+    "onUpgrade": true,
+    "onRename": true,
+    "onArtistAdd": true,
+    "onArtistDelete": true,
+    "onAlbumDelete": true,
+    "onHealthIssue": true,
+    "onHealthRestored": true,
+    "onDownloadFailure": true,
+    "onImportFailure": true,
+    "onTrackRetag": true,
+    "onApplicationUpdate": true,
+    "supportsOnGrab": true,
+    "supportsOnReleaseImport": true,
+    "supportsOnUpgrade": true,
+    "supportsOnRename": true,
+    "supportsOnArtistAdd": true,
+    "supportsOnArtistDelete": true,
+    "supportsOnAlbumDelete": true,
+    "supportsOnHealthIssue": true,
+    "supportsOnHealthRestored": true,
+    "includeHealthWarnings": true,
+    "supportsOnDownloadFailure": true,
+    "supportsOnImportFailure": true,
+    "supportsOnTrackRetag": true,
+    "supportsOnApplicationUpdate": true,
+    "name": "bunkarr-full",
+    "fields": [
+      {
+        "order": 0,
+        "name": "url",
+        "label": "URL",
+        "value": "http://capture:8080/lidarr?apikey=0123456789abcdef0123456789abcdef",
+        "type": "url",
+        "advanced": false,
+        "privacy": "normal",
+        "isFloat": false
+      },
+      {
+        "order": 1,
+        "name": "method",
+        "label": "Method",
+        "helpText": "Which HTTP method to use submit to the Webservice",
+        "value": 1,
+        "type": "select",
+        "advanced": false,
+        "selectOptions": [
+          {
+            "value": 1,
+            "name": "POST",
+            "order": 1
+          },
+          {
+            "value": 2,
+            "name": "PUT",
+            "order": 2
+          }
+        ],
+        "privacy": "normal",
+        "isFloat": false
+      },
+      {
+        "order": 2,
+        "name": "username",
+        "label": "Username",
+        "value": "",
+        "type": "textbox",
+        "advanced": false,
+        "privacy": "userName",
+        "isFloat": false
+      },
+      {
+        "order": 3,
+        "name": "password",
+        "label": "Password",
+        "value": "",
+        "type": "password",
+        "advanced": false,
+        "privacy": "password",
+        "isFloat": false
+      },
+      {
+        "order": 4,
+        "name": "headers",
+        "label": "Headers",
+        "value": [
+          {
+            "key": "X-Api-Key",
+            "value": "0123456789abcdef0123456789abcdef"
+          }
+        ],
+        "type": "keyValueList",
+        "advanced": true,
+        "privacy": "normal",
+        "isFloat": false
+      }
+    ],
+    "implementationName": "Webhook",
+    "implementation": "Webhook",
+    "configContract": "WebhookSettings",
+    "infoLink": "https://wiki.servarr.com/lidarr/supported#webhook",
+    "tags": [],
+    "id": 1
+  }
+]

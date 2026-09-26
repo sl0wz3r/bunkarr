@@ -29,11 +29,16 @@ type SyncRunner struct {
 	recheckEvery int
 	// freeSpace is filecopy.FreeSpace; tests replace it.
 	freeSpace func(*os.Root) (free, total uint64, err error)
+	// expectedWaits and sleep pace the rescans of a webhook sync's expected files; tests shorten
+	// them.
+	expectedWaits []time.Duration
+	sleep         func(ctx context.Context, d time.Duration) error
 }
 
 // NewSyncRunner returns the sync job runner.
 func NewSyncRunner(o Options) *SyncRunner {
-	return &SyncRunner{base: newBase(o), planBatch: planBatch, recheckEvery: recheckEvery, freeSpace: filecopy.FreeSpace}
+	return &SyncRunner{base: newBase(o), planBatch: planBatch, recheckEvery: recheckEvery, freeSpace: filecopy.FreeSpace,
+		expectedWaits: defaultExpectedWaits, sleep: sleepCtx}
 }
 
 var _ jobs.Runner = (*SyncRunner)(nil)
@@ -60,6 +65,20 @@ type SyncStats struct {
 	DurationMs     int64 `json:"durationMs"`
 	// Sources summarizes each source's scan and plan (only for the attempt that planned).
 	Sources []SourceSummary `json:"sources"`
+	// Targeted is set for a sync narrowed to Paths (phase2-3.md §9.1).
+	Targeted bool     `json:"targeted"`
+	Paths    []string `json:"paths,omitempty"`
+	// ExpectedMissing counts the files the *arr index expected under the paths that were still
+	// not found after the rescans, or that lie under a path the source lists only under another
+	// spelling (a webhook sync; expected.go).
+	ExpectedMissing int64 `json:"expectedMissing"`
+	// RetainsDeferred counts the vanished names a targeted sync left live and recorded for the
+	// next untargeted sync (D14).
+	RetainsDeferred int64 `json:"retainsDeferred"`
+	// ManifestExportJob is the manifest export queued after the sync (§9.2); 0 when none.
+	ManifestExportJob int64 `json:"manifestExportJob,omitempty"`
+	// Skipped is set when a follow-up sync found its destination not mounted and did nothing.
+	Skipped string `json:"skipped,omitempty"`
 }
 
 // SourceSummary is one source's part of a sync.
@@ -75,6 +94,10 @@ type SourceSummary struct {
 	// Changes is what the mass-change guard counted; Held how many items it held.
 	Changes int64 `json:"changes"`
 	Held    int64 `json:"held"`
+	// Paths are the targets a targeted sync scanned and planned (the others were dropped by the
+	// scan); RetainsDeferred the vanished names it left for the next full sync (D14).
+	Paths           []string `json:"paths,omitempty"`
+	RetainsDeferred int64    `json:"retainsDeferred,omitempty"`
 }
 
 // syncRun is the state of one sync job attempt.
@@ -103,18 +126,40 @@ type syncRun struct {
 	displaced    int64
 	reclassified map[[2]jobs.ItemAction]int64
 
+	// expectedMissing and deferred are counted by a targeted sync (targeted.go).
+	expectedMissing int64
+	deferred        int64
+
 	// catalogLive holds each source's live catalog paths, loaded when execution first needs them.
 	catalogLive map[int64]map[string]bool
 	// notCurrent maps, per source, a source directory to a live catalog file in it that has no
 	// current record (not backed up), loaded when the first retain runs (notBackedUp).
 	notCurrent map[int64]map[string]string
+	// notCurrentIn is notCurrent per folder, for a targeted sync (notBackedUpIn).
+	notCurrentIn map[sourceDir]string
 
 	progress     jobs.Progress
 	sinceRecheck int
 }
 
-// Run implements jobs.Runner.
+// Run implements jobs.Runner. A sync that is neither a dry run nor targeted and was not cancelled
+// is followed by a manifest export when Options.ManifestAfterSync allows it (§9.2), also when it
+// failed: the manifest is the only protection of the files that are not copied.
 func (r *SyncRunner) Run(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.Result, error) {
+	res, err := r.run(ctx, job, env)
+	if id := r.queueManifestExport(ctx, job, err); id != 0 {
+		if st, ok := res.Stats.(SyncStats); ok && err == nil {
+			st.ManifestExportJob = id
+			res.Stats = st
+		}
+		if env.Reporter != nil {
+			env.Reporter.Log(slog.LevelInfo, "queued the manifest export that follows the sync", "jobId", id)
+		}
+	}
+	return res, err
+}
+
+func (r *SyncRunner) run(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.Result, error) {
 	started := r.now()
 	if env.Items == nil {
 		return jobs.Result{}, errors.New("sync: the job has no item store")
@@ -132,6 +177,13 @@ func (r *SyncRunner) Run(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.
 	}
 	h, err := r.dests.Open(ctx, destID)
 	if err != nil {
+		if notMounted(err) && isFollowUp(job) {
+			// A follow-up of a webhook or a refresh: the destination may be offline on purpose.
+			msg := fmt.Sprintf("destination %q not mounted; skipped", d.Name)
+			reporterOf(env).Log(slog.LevelWarn, msg, "error", err.Error())
+			return jobs.Result{Stats: SyncStats{DryRun: job.DryRun, Sources: []SourceSummary{}, Targeted: len(job.Params.Paths) > 0,
+				Paths: job.Params.Paths, Skipped: "destination not mounted"}, Warnings: 1, Summary: "Destination not mounted; skipped"}, nil
+		}
 		return jobs.Result{}, fmt.Errorf("sync: %w", err)
 	}
 	defer h.Close()
@@ -285,14 +337,14 @@ func (s *syncRun) openSources() error {
 
 // scanAndPlan scans each source (under its lock) and persists the plan (design §4.1 steps 2-4).
 func (s *syncRun) scanAndPlan(ctx context.Context) error {
-	names := newNameIndex(s.h.Capabilities)
-	err := s.r.store.eachLive(ctx, s.h.Destination.ID, func(rec Record) error {
-		_, planned := s.linked[rec.SourceID]
-		names.addRecord(rec.RelPath, !planned)
-		return nil
-	})
-	if err != nil {
-		return err
+	// A targeted sync of its one source reads only the records its new names can collide with
+	// (planSource, targetNames).
+	var names *nameIndex
+	if !s.targeted() || len(s.sources) != 1 {
+		var err error
+		if names, err = s.destinationNames(ctx); err != nil {
+			return err
+		}
 	}
 	var batch []jobs.Item
 	flush := func(final bool) error {
@@ -322,14 +374,30 @@ func (s *syncRun) scanAndPlan(ctx context.Context) error {
 	return flush(true)
 }
 
-// planSource scans one source and plans it, holding the source's lock so the catalog does not
-// change in between.
-func (s *syncRun) planSource(ctx context.Context, src catalog.Source, names *nameIndex) ([]*planItem, error) {
-	unlock, err := s.r.cat.LockSource(ctx, src.ID)
+// destinationNames returns the name index (S11) of every live record of the destination.
+func (s *syncRun) destinationNames(ctx context.Context) (*nameIndex, error) {
+	names := newNameIndex(s.h.Capabilities)
+	err := s.r.store.eachLive(ctx, s.h.Destination.ID, func(rec Record) error {
+		_, planned := s.linked[rec.SourceID]
+		names.addRecord(rec.RelPath, !planned)
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer unlock()
+	return names, nil
+}
+
+// planSource scans one source and plans it, holding the source's lock so the catalog does not
+// change in between (a webhook sync frees it while it waits for expected files, then scans the
+// targets it waited for again: scanTargets). names is nil for a targeted sync, which builds its
+// own (targetNames).
+func (s *syncRun) planSource(ctx context.Context, src catalog.Source, names *nameIndex) ([]*planItem, error) {
+	lk := &sourceLock{cat: s.r.cat, id: src.ID}
+	if err := lk.acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer lk.release()
 	// The source may have been edited since selectSources (its path and destFolder can change
 	// while its lock is free and it has no backups): plan and execute with what the scan sees.
 	fresh, err := s.r.cat.Get(ctx, src.ID)
@@ -348,7 +416,22 @@ func (s *syncRun) planSource(ctx context.Context, src catalog.Source, names *nam
 	src = fresh
 	s.setSource(src)
 	s.report(jobs.Progress{Phase: "scanning", CurrentFile: src.Name})
-	res, err := s.r.scan.ScanLocked(ctx, src.ID, s.rep)
+	var (
+		res        catalog.ScanResult
+		scopes     []string
+		liveBefore int64
+	)
+	if s.targeted() {
+		res, scopes, liveBefore, err = s.scanTargets(ctx, src, lk)
+	} else {
+		res, err = s.r.scan.ScanLocked(ctx, src.ID, s.rep)
+	}
+	if errors.Is(err, errSourceChanged) {
+		s.rep.Log(slog.LevelInfo, "source was deleted, disabled or edited while the sync waited for the files the *arr expects: not synced",
+			"source", src.Name)
+		s.dropSource(src.ID)
+		return nil, nil
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -361,17 +444,54 @@ func (s *syncRun) planSource(ctx context.Context, src catalog.Source, names *nam
 		Deleted: res.Deleted, Skipped: res.SkippedTotal()}
 
 	s.report(jobs.Progress{Phase: "planning", CurrentFile: src.Name})
-	var files []*planFile
-	err = s.r.cat.Live(ctx, src.ID, func(f catalog.File) error {
-		files = append(files, &planFile{id: f.ID, rel: f.RelPath, size: f.Size, mtimeNs: f.MtimeNs, group: f.HardlinkGroup})
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	recs, err := s.r.store.LiveForSource(ctx, s.h.Destination.ID, src.ID)
-	if err != nil {
-		return nil, err
+	var (
+		files     []*planFile
+		recs      []Record
+		liveFiles int64
+	)
+	if s.targeted() {
+		sum.Paths = append([]string{}, scopes...)
+		if len(scopes) == 0 {
+			s.summaries = append(s.summaries, sum)
+			s.rep.Log(slog.LevelWarn, "none of the paths could be scanned: nothing is planned", "source", src.Name)
+			return nil, nil
+		}
+		if files, recs, err = s.scopedPlanInput(ctx, src, scopes); err != nil {
+			return nil, err
+		}
+		if liveBefore >= 0 {
+			// The files the targets gained or lost while the sync waited (scanTargets).
+			var now int64
+			for _, f := range files {
+				if catalog.UnderAny(f.rel, scopes) {
+					now++
+				}
+			}
+			sum.Files += now - liveBefore
+		}
+		if names == nil {
+			if names, err = s.targetNames(ctx, src, scopes, files); err != nil {
+				return nil, err
+			}
+		}
+		// The mass-change guard counts against the whole source (S10).
+		now, err := s.r.cat.Get(ctx, src.ID)
+		if err != nil {
+			return nil, err
+		}
+		liveFiles = now.Stats.Files
+	} else {
+		err = s.r.cat.Live(ctx, src.ID, func(f catalog.File) error {
+			files = append(files, &planFile{id: f.ID, rel: f.RelPath, size: f.Size, mtimeNs: f.MtimeNs, group: f.HardlinkGroup})
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		if recs, err = s.r.store.LiveForSource(ctx, s.h.Destination.ID, src.ID); err != nil {
+			return nil, err
+		}
+		liveFiles = int64(len(files))
 	}
 	root, err := os.OpenRoot(src.Path)
 	if err != nil {
@@ -379,7 +499,7 @@ func (s *syncRun) planSource(ctx context.Context, src catalog.Source, names *nam
 	}
 	defer root.Close()
 	p := &sourcePlanner{sourceID: src.ID, destFolder: src.DestFolder, caps: s.h.Capabilities, settings: s.h.Settings,
-		names: names, fs: livePlanFS{src: root, dst: s.h.Root}, files: files}
+		names: names, fs: livePlanFS{src: root, dst: s.h.Root}, files: files, targeted: s.targeted()}
 	for i := range recs {
 		p.recs = append(p.recs, &recs[i])
 	}
@@ -387,8 +507,14 @@ func (s *syncRun) planSource(ctx context.Context, src catalog.Source, names *nam
 		return nil, fmt.Errorf("plan source %q: %w", src.Name, err)
 	}
 	items := p.items()
-	g := applyGuard(items, int64(len(files)), s.h.Settings, s.job.Params.AllowChanges)
+	g := applyGuard(items, liveFiles, s.h.Settings, s.job.Params.AllowChanges)
 	sum.Changes, sum.Held = g.changes, g.held
+	sum.RetainsDeferred = p.deferred
+	s.deferred += p.deferred
+	if p.deferred > 0 {
+		s.rep.Log(slog.LevelInfo, fmt.Sprintf("%s gone from folders that got no new content are kept until the next full sync (a targeted sync retains only upgrades and renames)",
+			plural(p.deferred, "file", "files")), "source", src.Name)
+	}
 	s.summaries = append(s.summaries, sum)
 	for _, w := range p.warnings {
 		s.rep.Log(slog.LevelWarn, w, "source", src.Name)
@@ -434,8 +560,18 @@ func (s *syncRun) checkFreeSpace() error {
 }
 
 // inCatalog reports whether a source path is live in the source's catalog. The catalog is read
-// once per source and attempt, the first time a vanished name is found on disk again.
+// once per source and attempt, the first time a vanished name is found on disk again; a targeted
+// sync looks up the one path.
 func (s *syncRun) inCatalog(ctx context.Context, sourceID int64, rel string) (bool, error) {
+	if s.targeted() {
+		loc := catalog.Location{SourceID: sourceID, Rel: rel}
+		live, err := s.r.cat.LiveFilesAt(ctx, nil, []catalog.Location{loc})
+		if err != nil {
+			return false, err
+		}
+		_, ok := live[loc]
+		return ok, nil
+	}
 	live, ok := s.catalogLive[sourceID]
 	if !ok {
 		live = map[string]bool{}
@@ -460,8 +596,12 @@ func (s *syncRun) inCatalog(ctx context.Context, sourceID int64, rel string) (bo
 // had started is copied again by the next sync). It returns "" when there is none. A retain of a
 // vanished name in that directory waits for it (S6: a Radarr upgrade whose new file failed to copy
 // keeps the old version live). The catalog and the records are read once per source and attempt,
-// when the first retain runs: every copy of the job has run by then.
+// when the first retain runs: every copy of the job has run by then. A targeted sync reads them
+// once per folder instead (notBackedUpIn).
 func (s *syncRun) notBackedUp(ctx context.Context, sourceID int64, rel string) (string, error) {
+	if dir := path.Dir(rel); s.targeted() && dir != "." {
+		return s.notBackedUpIn(ctx, sourceID, dir)
+	}
 	dirs, ok := s.notCurrent[sourceID]
 	if !ok {
 		live, err := s.r.store.LiveForSource(ctx, s.h.Destination.ID, sourceID)
@@ -474,18 +614,13 @@ func (s *syncRun) notBackedUp(ctx context.Context, sourceID int64, rel string) (
 		}
 		bySource := make(map[string][]Record, len(live))
 		for _, r := range append(live, kept...) {
-			// A missing record, a damaged version and a displaced file do not hold the source's content.
-			if r.State != StateMissing && r.Reason != ReasonDamaged && r.Reason != ReasonDisplaced {
+			if holdsContent(r) {
 				bySource[r.SourceRelPath] = append(bySource[r.SourceRelPath], r)
 			}
 		}
 		dirs = map[string]string{}
 		err = s.r.cat.Live(ctx, sourceID, func(f catalog.File) error {
-			backedUp := false
-			for _, r := range bySource[f.RelPath] {
-				backedUp = backedUp || (r.Size == f.Size && filecopy.MtimeMatch(r.MtimeNs, f.MtimeNs, s.h.Capabilities.MtimeGranularityNs, 0))
-			}
-			if dir := path.Dir(f.RelPath); !backedUp && dirs[dir] == "" {
+			if dir := path.Dir(f.RelPath); !s.backedUp(bySource[f.RelPath], f) && dirs[dir] == "" {
 				dirs[dir] = f.RelPath
 			}
 			return nil
@@ -499,6 +634,64 @@ func (s *syncRun) notBackedUp(ctx context.Context, sourceID int64, rel string) (
 		s.notCurrent[sourceID] = dirs
 	}
 	return dirs[path.Dir(rel)], nil
+}
+
+// notBackedUpIn is notBackedUp for the folder dir of a source (not the root) that reads only the
+// records and the catalog files in that folder, once per folder and attempt.
+func (s *syncRun) notBackedUpIn(ctx context.Context, sourceID int64, dir string) (string, error) {
+	key := sourceDir{sourceID, dir}
+	if name, ok := s.notCurrentIn[key]; ok {
+		return name, nil
+	}
+	recs, err := s.r.store.forSourceUnder(ctx, s.h.Destination.ID, sourceID, dir)
+	if err != nil {
+		return "", err
+	}
+	bySource := map[string][]Record{}
+	for _, r := range recs {
+		if path.Dir(r.SourceRelPath) == dir && holdsContent(r) {
+			bySource[r.SourceRelPath] = append(bySource[r.SourceRelPath], r)
+		}
+	}
+	files, err := s.r.cat.LiveUnder(ctx, sourceID, []string{dir})
+	if err != nil {
+		return "", err
+	}
+	name := ""
+	for _, f := range files { // by path, as notBackedUp reads them
+		if path.Dir(f.RelPath) == dir && !s.backedUp(bySource[f.RelPath], f) {
+			name = f.RelPath
+			break
+		}
+	}
+	if s.notCurrentIn == nil {
+		s.notCurrentIn = map[sourceDir]string{}
+	}
+	s.notCurrentIn[key] = name
+	return name, nil
+}
+
+// sourceDir is a folder of a source.
+type sourceDir struct {
+	sourceID int64
+	dir      string
+}
+
+// holdsContent reports whether a record (live or retained) keeps its source file's content: a
+// missing record, a damaged version and a displaced file do not.
+func holdsContent(r Record) bool {
+	return r.State != StateMissing && r.Reason != ReasonDamaged && r.Reason != ReasonDisplaced
+}
+
+// backedUp reports whether one of recs (the records of f's source path that hold content) has f's
+// size and mtime.
+func (s *syncRun) backedUp(recs []Record, f catalog.File) bool {
+	for _, r := range recs {
+		if r.Size == f.Size && filecopy.MtimeMatch(r.MtimeNs, f.MtimeNs, s.h.Capabilities.MtimeGranularityNs, 0) {
+			return true
+		}
+	}
+	return false
 }
 
 // reclassify records that a done item of action from had the outcome of action to.
@@ -553,7 +746,8 @@ func (s *syncRun) result(ctx context.Context, started time.Time) (jobs.Result, e
 	if err != nil {
 		return jobs.Result{}, err
 	}
-	st := SyncStats{DryRun: s.job.DryRun, Sources: s.summaries}
+	st := SyncStats{DryRun: s.job.DryRun, Sources: s.summaries, Targeted: s.targeted(), Paths: s.job.Params.Paths,
+		ExpectedMissing: s.expectedMissing, RetainsDeferred: s.deferred}
 	if st.Sources == nil {
 		st.Sources = []SourceSummary{}
 	}

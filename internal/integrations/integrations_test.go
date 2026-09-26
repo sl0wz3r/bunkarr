@@ -88,7 +88,8 @@ func TestCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create sonarr: %v", err)
 	}
-	if other.Enabled || other.HasAPIKey || string(other.Settings) != "{}" || other.URL != "https://sonarr.example/base" {
+	if other.Enabled || other.HasAPIKey || other.URL != "https://sonarr.example/base" ||
+		string(other.Settings) != `{"pathMappings":[],"backupFolder":"","backup":{"destinationId":0,"cron":"","enabled":false,"maxScheduledAgeDays":7,"acceptInsecureModes":false},"refresh":{"cron":"15 */6 * * *","enabled":true,"staleAfterHours":24}}` {
 		t.Fatalf("Create sonarr returned %+v", other)
 	}
 
@@ -320,7 +321,7 @@ func TestCreateValidation(t *testing.T) {
 		wantErr string // "" = accepted
 	}{
 		{"ok", valid(func(*Input) {}), ""},
-		{"every type", valid(func(in *Input) { in.Type = TypeMaintainerr; in.Name = "m" }), ""},
+		{"another type", valid(func(in *Input) { in.Type = TypeSeerr; in.Name = "m" }), ""},
 		{"unknown type", valid(func(in *Input) { in.Type = "emby" }), "type must be one of"},
 		{"empty type", valid(func(in *Input) { in.Type = "" }), "type must be one of"},
 		{"empty name", valid(func(in *Input) { in.Name = "  " }), "name must be 1 to 64"},

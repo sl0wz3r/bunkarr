@@ -1,0 +1,10 @@
+integration,kind,arrId,title,year,tmdbId,tvdbId,imdbId,mbid,season,episode,qualityProfile,rootFolder,monitored,tags,arrPath,located,source,relPath,size,quality,tier,kept,backedUp
+Radarr,movie,1,"'=HYPERLINK(""x"")",1968,10331,,tt0063350,,,,HD-1080p,/movies,true,'+sum;bunkarr-full,"/movies/Night, of the Living Dead/night.mkv",true,Media,"movies/Night, of the Living Dead/night.mkv",3412521,Bluray-1080p,full,false,true
+Radarr,movie,1,"'=HYPERLINK(""x"")",1968,10331,,tt0063350,,,,HD-1080p,/movies,true,'+sum;bunkarr-full,,true,Media,"movies/Night, of the Living Dead/night.en.srt",1200,,full,false,true
+Radarr,movie,1,"'=HYPERLINK(""x"")",1968,10331,,tt0063350,,,,HD-1080p,/movies,true,'+sum;bunkarr-full,,true,Media,"movies/Night, of the Living Dead/-poster.jpg",300,,skip,true,true
+Radarr,movie,4,The General,1926,961,,,,,,HD-1080p,/movies,false,,/movies/The General (1926),true,,,,,,,
+Radarr,movie,5,Nosferatu,1922,653,,,,,,'@Ultra-HD,/movies-4k,true,,/movies-4k/Nosferatu (1922)/n.mkv,false,,,5000,Bluray-2160p,,false,false
+"Sonarr, ""TV""",series,1,The Beverly Hillbillies,1962,1930,71471,tt0055662,,1,4;5,HD-1080p,/tv,true,"line
+break;	tab",/tv/The Beverly Hillbillies/Season 1/S01E04-E05.mkv,true,Media,tv/The Beverly Hillbillies/Season 1/S01E04-E05.mkv,941725,HDTV-720p,manifest,false,false
+,,,,,,,,,,,,,,,,,Media,'-rf/birthday.mp4,5000,,full,false,false
+,,,,,,,,,,,,,,,,,,old source/file.mkv,70,,,false,true

@@ -1,0 +1,53 @@
+{
+  "_note": "A completed blackhole download that matches no series.",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:46:50.784853+00:00",
+  "method": "POST",
+  "path": "/sonarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Sonarr/4.0.20.3014 (alpine 3.24.1)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "895"
+  },
+  "body": {
+    "episodes": [],
+    "downloadInfo": {
+      "quality": "HDTV-720p",
+      "qualityVersion": 1,
+      "title": "Totally.Unknown.Show.S01E01.720p.HDTV.x264-PDGRP",
+      "size": 941725
+    },
+    "downloadClient": "blackhole",
+    "downloadClientType": "Torrent Blackhole",
+    "downloadId": "blackhole_Totally.Unknown.Show.S01E01.720p.HDTV.x264-PDGRP_639259371706454253",
+    "downloadStatus": "Warning",
+    "downloadStatusMessages": [
+      {
+        "title": "Totally.Unknown.Show.S01E01.720p.HDTV.x264-PDGRP",
+        "messages": [
+          "Series title mismatch; automatic import is not possible. Check the download troubleshooting entry on the wiki for common causes."
+        ]
+      }
+    ],
+    "customFormatInfo": {
+      "customFormats": [],
+      "customFormatScore": 0
+    },
+    "release": {
+      "releaseType": "unknown"
+    },
+    "eventType": "ManualInteractionRequired",
+    "instanceName": "Sonarr",
+    "applicationUrl": ""
+  }
+}

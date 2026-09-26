@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/sl0wz3r/bunkarr/internal/logging"
+	"github.com/sl0wz3r/bunkarr/internal/netguard"
 	"github.com/sl0wz3r/bunkarr/internal/version"
 )
 
@@ -35,15 +38,13 @@ type Client struct {
 
 // NewClient returns a client with DefaultTimeout per request and one retry after
 // DefaultRetryDelay. It never follows redirects, so the URLs in a request body only ever go to
-// the configured Apprise API.
+// the configured Apprise API. Its transport dials through internal/netguard (design S16), so an
+// API URL that is, or resolves to, a link-local or cloud metadata address is refused before any
+// byte is sent (also through an HTTP(S) proxy).
 func NewClient() *Client {
-	var transport http.RoundTripper = http.DefaultTransport
-	if t, ok := http.DefaultTransport.(*http.Transport); ok {
-		transport = t.Clone()
-	}
 	return &Client{
 		http: &http.Client{
-			Transport: transport,
+			Transport: netguard.NewTransport(),
 			CheckRedirect: func(*http.Request, []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
@@ -62,6 +63,17 @@ type SendError struct {
 	StatusCode int
 	msg        string
 	err        error
+	// maybeSent: the message may have reached some services (a 424, or an attempt that failed
+	// after the whole request was written, e.g. a timeout). False only when nothing can have been
+	// sent: refused before sending (dial, DNS, netguard) or answered 204, 3xx, 4xx other than 424,
+	// or 5xx.
+	maybeSent bool
+}
+
+// maybeDelivered reports whether err, from Send, leaves open that the message reached someone.
+func maybeDelivered(err error) bool {
+	var se *SendError
+	return errors.As(err, &se) && se.maybeSent
 }
 
 // Error returns the redacted, user-facing message.
@@ -90,7 +102,7 @@ type statefulPayload struct {
 // POST {apiUrl}/notify/{configKey} {title, body, type}. A 5xx response or a network error
 // (including the per-request timeout) is retried once; other failures are not (a 424 means some
 // services already got the message). Errors are a ValidationError for a bad target or message,
-// otherwise a *SendError.
+// otherwise a *SendError; maybeDelivered tells whether one may still have reached some services.
 func (c *Client) Send(ctx context.Context, t Target, m Message) error {
 	endpoint, apiURL, err := t.endpoint()
 	if err != nil {
@@ -116,11 +128,15 @@ func (c *Client) Send(ctx context.Context, t Target, m Message) error {
 	body := buf.Bytes()
 
 	const attempts = 2
+	maybeSent := false
 	for attempt := 1; ; attempt++ {
 		retry, serr := c.post(ctx, endpoint, apiURL, body)
 		if serr == nil {
 			return nil
 		}
+		// A retry refused after an attempt that may have been delivered is still maybe delivered.
+		maybeSent = maybeSent || serr.maybeSent
+		serr.maybeSent = maybeSent
 		if attempt > 1 {
 			serr.msg += " (after one retry)"
 		}
@@ -145,7 +161,15 @@ func (c *Client) post(ctx context.Context, endpoint, apiURL string, body []byte)
 	}
 	actx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(actx, http.MethodPost, endpoint, bytes.NewReader(body))
+	// wrote: the whole request went out, so a failure after it (no answer in time, a reset,
+	// cancellation) may follow a delivery. Set on the transport's goroutine.
+	var wrote atomic.Bool
+	tctx := httptrace.WithClientTrace(actx, &httptrace.ClientTrace{WroteRequest: func(i httptrace.WroteRequestInfo) {
+		if i.Err == nil {
+			wrote.Store(true)
+		}
+	}})
+	req, err := http.NewRequestWithContext(tctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		// The parse error would quote the URL; the API URL was validated, so this is unexpected.
 		return false, fail(0, nil, "invalid request URL")
@@ -156,19 +180,9 @@ func (c *Client) post(ctx context.Context, endpoint, apiURL string, body []byte)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		switch {
-		case ctx.Err() != nil:
-			return false, fail(0, ctx.Err(), "stopped: %s", ctx.Err())
-		case errors.Is(actx.Err(), context.DeadlineExceeded):
-			return true, fail(0, context.DeadlineExceeded, "no response within %s", c.timeout)
-		}
-		// *url.Error quotes the request URL; keep only its cause (dial, DNS, TLS, reset, ...).
-		cause := err
-		var uerr *url.Error
-		if errors.As(err, &uerr) && uerr.Err != nil {
-			cause = uerr.Err
-		}
-		return true, fail(0, cause, "cannot reach the Apprise API: %s", cause.Error())
+		retry, serr := c.transportError(ctx, actx, err, apiURL)
+		serr.maybeSent = wrote.Load()
+		return retry, serr
 	}
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxResponseBytes))
 	_ = resp.Body.Close()
@@ -187,12 +201,39 @@ func (c *Client) post(ctx context.Context, endpoint, apiURL string, body []byte)
 	case code == http.StatusNotFound:
 		return false, fail(code, nil, "not found (%s); check apiUrl points to the Apprise API", status)
 	case code == http.StatusFailedDependency:
-		return false, fail(code, nil, "at least one service could not be notified (%s); see the Apprise logs", status)
+		serr := fail(code, nil, "at least one service could not be notified (%s); see the Apprise logs", status)
+		serr.maybeSent = true // the key's other services got it
+		return false, serr
 	case code >= 500:
 		return true, fail(code, nil, "server error (%s)", status)
 	default:
 		return false, fail(code, nil, "unexpected response (%s)", status)
 	}
+}
+
+// transportError maps an error of http.Client.Do (no response) to a *SendError. retry reports
+// whether the failure is worth one more attempt.
+func (c *Client) transportError(ctx, actx context.Context, err error, apiURL string) (retry bool, _ *SendError) {
+	fail := func(err error, format string, args ...any) *SendError {
+		msg := "apprise " + apiURL + ": " + fmt.Sprintf(format, args...)
+		return &SendError{msg: logging.RedactSecrets(msg), err: err}
+	}
+	switch {
+	case ctx.Err() != nil:
+		return false, fail(ctx.Err(), "stopped: %s", ctx.Err())
+	case errors.Is(actx.Err(), context.DeadlineExceeded):
+		return true, fail(context.DeadlineExceeded, "no response within %s", c.timeout)
+	case errors.Is(err, netguard.ErrBlocked):
+		// Refused by the outbound guard (S16) before anything was sent; a retry cannot help.
+		return false, fail(netguard.ErrBlocked, "Bunkarr does not connect to this address (a link-local or cloud metadata address)")
+	}
+	// *url.Error quotes the request URL; keep only its cause (dial, DNS, TLS, reset, ...).
+	cause := err
+	var uerr *url.Error
+	if errors.As(err, &uerr) && uerr.Err != nil {
+		cause = uerr.Err
+	}
+	return true, fail(cause, "cannot reach the Apprise API: %s", cause.Error())
 }
 
 // endpoint validates t and returns the request URL and the validated API base URL.

@@ -17,6 +17,7 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/auth"
 	"github.com/sl0wz3r/bunkarr/internal/config"
 	"github.com/sl0wz3r/bunkarr/internal/db"
+	"github.com/sl0wz3r/bunkarr/internal/integrations/plex/plextest"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
 )
 
@@ -108,7 +109,9 @@ func documentedStatuses(t *testing.T, doc openAPIDoc, method, path string) map[i
 // operation. Each documented operation gets a malformed id, an unknown id, no body and a
 // malformed body; then requests reach the handlers' specific refusals.
 func TestOpenAPIDocumentsHandlerStatuses(t *testing.T) {
-	e := newEnv(t, nil)
+	// POST /plex/signin reaches plex.tv: a fake one, never the real service.
+	tv := plextest.NewPlexTV(t)
+	e := newEnvWith(t, nil, func(o *AppOptions) { o.Plex.PlexTVURL, o.Plex.ClientsPlexTVURL = tv.URL, tv.URL })
 	doc := loadOpenAPI(t)
 	check := func(method, path string, body any) int {
 		t.Helper()
@@ -164,6 +167,108 @@ func TestOpenAPIDocumentsHandlerStatuses(t *testing.T) {
 		if code := check("POST", fmt.Sprintf("/schedules/%d/run", sc.ID), nil); code != 409 {
 			t.Errorf("run of a blocked schedule: %d, want 409", code)
 		}
+	}
+
+	// Phase 2: the refusals of the *arr, sign-in, webhook and manifest routes.
+	var plexIt, sonarr struct {
+		ID int64 `json:"id"`
+	}
+	e.call(t, 201, "POST", "/integrations", map[string]any{"type": "plex", "name": "Plex", "url": "http://127.0.0.1:9"}, &plexIt)
+	e.call(t, 201, "POST", "/integrations", map[string]any{"type": "sonarr", "name": "Sonarr", "url": "http://127.0.0.1:9"}, &sonarr)
+	for _, c := range []struct {
+		method, path string
+		body         any
+		want         int
+	}{
+		{"POST", fmt.Sprintf("/integrations/%d/refresh", plexIt.ID), nil, 400},
+		{"GET", fmt.Sprintf("/integrations/%d/arr/metadata", plexIt.ID), nil, 400},
+		{"GET", fmt.Sprintf("/integrations/%d/webhook", plexIt.ID), nil, 400},
+		{"POST", fmt.Sprintf("/integrations/%d/arr/backup", sonarr.ID), nil, 400},
+		{"POST", fmt.Sprintf("/integrations/%d/arr/backup", sonarr.ID), map[string]any{"destinationId": destID}, 409},
+		{"GET", fmt.Sprintf("/integrations/%d/arr/rootfolders", sonarr.ID), nil, 502},
+		{"GET", fmt.Sprintf("/integrations/%d/index", sonarr.ID), nil, 200},
+		{"GET", fmt.Sprintf("/integrations/%d/arr/snapshots", sonarr.ID), nil, 200},
+		{"GET", "/catalog/unmapped?integrationId=999999", nil, 404},
+		{"GET", "/webhooks/events?outcome=maybe", nil, 400},
+		{"POST", fmt.Sprintf("/destinations/%d/manifest", destID), nil, 409},
+		{"GET", "/manifest/export?format=xml", nil, 400},
+		{"GET", "/manifest/export?destinationId=999999", nil, 404},
+		{"GET", "/manifest/export?format=csv", nil, 200},
+		{"POST", "/plex/signin", "{\"x\": 1}", 400},
+		{"DELETE", "/plex/signin/" + strings.Repeat("a", 32), nil, 204},
+	} {
+		if code := check(c.method, c.path, c.body); code != c.want {
+			t.Errorf("%s %s: %d, want %d", c.method, c.path, code, c.want)
+		}
+	}
+	var si struct {
+		ID string `json:"id"`
+	}
+	if code, raw := e.raw(t, "POST", "/plex/signin", nil); code != 201 || json.Unmarshal(raw, &si) != nil {
+		t.Fatalf("POST /plex/signin: %d %s", code, raw)
+	}
+	check("POST", "/plex/signin", nil)
+	for _, p := range []string{"/plex/signin/" + si.ID + "/servers", "/plex/signin/" + si.ID + "/servers/abc/test"} {
+		m := "GET"
+		if strings.HasSuffix(p, "/test") {
+			m = "POST"
+		}
+		if code := check(m, p, nil); code != 409 {
+			t.Errorf("%s %s while pending: %d, want 409", m, p, code)
+		}
+	}
+	if code := check("GET", "/plex/signin/"+si.ID, nil); code != 200 {
+		t.Errorf("GET /plex/signin/{id}: %d, want 200", code)
+	}
+
+	// The webhook routes, with the integration's own key.
+	var key struct {
+		Key string `json:"key"`
+	}
+	e.call(t, 200, "POST", fmt.Sprintf("/integrations/%d/webhook/key", sonarr.ID), map[string]any{"rotate": false}, &key)
+	hook := func(path, contentType, body string) int {
+		t.Helper()
+		req, err := http.NewRequest("POST", e.srv.URL+"/api/v1"+path, strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", contentType)
+		req.SetBasicAuth("sonarr", key.Key)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		if !documentedStatuses(t, doc, "POST", path)[res.StatusCode] {
+			t.Errorf("POST %s (%s %q): status %d is not documented: %s", path, contentType, body, res.StatusCode, raw)
+		}
+		return res.StatusCode
+	}
+	own := fmt.Sprintf("/webhook/sonarr/%d", sonarr.ID)
+	for _, c := range []struct {
+		path, contentType, body string
+		want                    int
+	}{
+		{own, "application/json", `{"eventType": "Test"}`, 200},
+		{"/webhook/sonarr", "application/json", `{"eventType": "Test"}`, 200},
+		{own, "text/plain", `{"eventType": "Test"}`, 415},
+		{own, "application/json", `{"no": "eventType"}`, 400},
+		{"/webhook/radarr", "application/json", `{"eventType": "Test"}`, 401},
+		{"/webhook/tautulli/1", "application/json", `{"eventType": "Test"}`, 404},
+		{fmt.Sprintf("/webhook/radarr/%d", sonarr.ID), "application/json", `{"eventType": "Test"}`, 409},
+		{"/webhook/sonarr/999999", "application/json", `{"eventType": "Test"}`, 404},
+	} {
+		if code := hook(c.path, c.contentType, c.body); code != c.want {
+			t.Errorf("POST %s (%s %q): %d, want %d", c.path, c.contentType, c.body, code, c.want)
+		}
+	}
+	e.call(t, 200, "PUT", fmt.Sprintf("/integrations/%d", sonarr.ID), map[string]any{"name": "Sonarr", "url": "http://127.0.0.1:9", "enabled": false}, nil)
+	if code := hook(own, "application/json", `{"eventType": "Test"}`); code != 409 {
+		t.Errorf("webhook of a disabled integration: %d, want 409", code)
+	}
+	if code := check("POST", fmt.Sprintf("/integrations/%d/refresh", sonarr.ID), nil); code != 409 {
+		t.Errorf("refresh of a disabled integration: %d, want 409", code)
 	}
 }
 

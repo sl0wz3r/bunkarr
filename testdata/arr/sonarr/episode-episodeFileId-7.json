@@ -1,0 +1,36 @@
+[
+  {
+    "seriesId": 1,
+    "tvdbId": 46689,
+    "episodeFileId": 7,
+    "seasonNumber": 1,
+    "episodeNumber": 4,
+    "title": "The Clampetts Meet Mrs. Drysdale",
+    "airDate": "1962-10-17",
+    "airDateUtc": "1962-10-17T23:30:00Z",
+    "runtime": 25,
+    "overview": "When Mr. Drysdale describes Mrs. Drysdale as being a hypochondriac, the Clampets assume she must be a drunk.",
+    "hasFile": true,
+    "monitored": true,
+    "absoluteEpisodeNumber": 4,
+    "unverifiedSceneNumbering": false,
+    "id": 16
+  },
+  {
+    "seriesId": 1,
+    "tvdbId": 46690,
+    "episodeFileId": 7,
+    "seasonNumber": 1,
+    "episodeNumber": 5,
+    "title": "Jed Buys Stock",
+    "airDate": "1962-10-24",
+    "airDateUtc": "1962-10-24T23:30:00Z",
+    "runtime": 25,
+    "overview": "Granny prepares her special mash to help cure Mrs. Drysdale of her drinking problem while Jed follows Mr. Drysdale\u2019s suggestion to buy \u201cstock\u201d by buying cows, pigs, and chickens.",
+    "hasFile": true,
+    "monitored": true,
+    "absoluteEpisodeNumber": 5,
+    "unverifiedSceneNumbering": false,
+    "id": 17
+  }
+]

@@ -3,7 +3,7 @@
   "info": {
     "title": "Bunkarr API",
     "version": "1",
-    "description": "Bunkarr REST API. Authenticate with the API key from Settings > General in the X-Api-Key header (or the apikey query parameter), or with a login session cookie. Errors are {\"message\": \"...\"}: 400 invalid input, 401 not authenticated, 403 refused (a cross-site browser request, an action that needs a login session, a directory Bunkarr cannot read), 404 unknown id, 409 conflict with the current state (including safety refusals that need a confirmation or a mounted share), 502 Plex failed, 503 unavailable (the backup routes of a server without backup services, or a request stopped as the server shuts down), 500 anything else. Secrets (Plex tokens, Apprise URLs) are write-only. Job-starting endpoints answer 202 with the queued Job. Sizes are bytes, times RFC 3339.",
+    "description": "Bunkarr REST API. Authenticate with the API key from Settings > General in the X-Api-Key header (or the apikey query parameter), or with a login session cookie. The *arr webhook routes (/webhook/...) accept only an integration's webhook key instead. Errors are {\"message\": \"...\"}: 400 invalid input, 401 not authenticated, 403 refused (a cross-site browser request, an action that needs a login session, a directory Bunkarr cannot read), 404 unknown id, 409 conflict with the current state (including safety refusals that need a confirmation or a mounted share), 429 too many requests (Retry-After), 502 Plex, plex.tv or an *arr failed, 503 unavailable (the backup routes of a server without backup services, or a request stopped as the server shuts down), 500 anything else. Secrets (Plex tokens, *arr API keys, Apprise URLs) are write-only; a webhook key appears only in POST /integrations/{id}/webhook/key. Job-starting endpoints answer 202 with the queued Job. Sizes are bytes, times RFC 3339.",
     "license": {
       "name": "GPL-3.0-or-later",
       "identifier": "GPL-3.0-or-later"
@@ -41,6 +41,23 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "bunkarr_session"
+      },
+      "webhookKeyBasic": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "The integration's webhook key as the Basic password (the user name is ignored)"
+      },
+      "webhookKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key",
+        "description": "The integration's webhook key (never Bunkarr's API key)"
+      },
+      "webhookKeyQuery": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "apikey",
+        "description": "The integration's webhook key (never Bunkarr's API key)"
       }
     },
     "schemas": {
@@ -225,7 +242,10 @@
           "sync",
           "plexdb_backup",
           "retention",
-          "verify"
+          "verify",
+          "refresh",
+          "arr_backup",
+          "manifest_export"
         ]
       },
       "JobStatus": {
@@ -267,7 +287,39 @@
           },
           "allowChanges": {
             "type": "boolean",
-            "description": "Run the changes the mass-change guard would hold (S10b)."
+            "description": "Run the changes the mass-change guard would hold (S10b); on a refresh, the deletions and cache shrinks the refresh guard held."
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "description": "A targeted sync: only these paths inside its one source (sourceIds holds one id)."
+          },
+          "arrItemIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 500,
+            "description": "A targeted refresh: only these *arr items (the *arr's movie, series or artist ids)."
+          },
+          "syncAfter": {
+            "type": "boolean",
+            "description": "A refresh queues follow-up syncs of the changed items' folders when it ends."
+          },
+          "releaseDemoted": {
+            "type": "boolean",
+            "description": "A sync releases files whose tier is no longer full (Phase 3)."
+          },
+          "releaseOf": {
+            "type": "integer",
+            "description": "The dry run whose release items a releaseDemoted run applies."
+          },
+          "releaseRevision": {
+            "type": "integer",
+            "description": "The tier rule revision that dry run evaluated."
           }
         }
       },
@@ -359,7 +411,7 @@
               "object",
               "null"
             ],
-            "description": "Runner-specific counters, e.g. sync: filesPlanned, filesCopied, filesUpdated, filesMoved, filesAdopted, filesLinked, filesRetained, filesDisplaced, filesHeld, filesFailed, filesSkipped, bytesPlanned, bytesCopied, durationMs."
+            "description": "Runner-specific counters, e.g. sync: filesPlanned, filesCopied, filesUpdated, filesMoved, filesAdopted, filesLinked, filesRetained, filesDisplaced, filesHeld, filesFailed, filesSkipped, bytesPlanned, bytesCopied, durationMs; refresh: items, itemsAdded, itemsUpdated, itemsDeleted, files, filesMapped, filesUnmapped, filesMismatched, guardHeld, followUpJobs; arr_backup: method, reusedScheduled, unchanged, bytes, integrity, snapshotId, versionsPruned; manifest_export: items, files, bytes, unchanged, damagedFound, manifestId, versionsPruned."
           },
           "warnings": {
             "type": "integer"
@@ -761,8 +813,18 @@
             "description": "The API key (Plex token) itself is never returned."
           },
           "settings": {
-            "type": "object",
-            "description": "PlexSettings for Plex integrations."
+            "description": "Type-specific: PlexSettings (plex), ArrSettings (sonarr, radarr, lidarr) or MetaSettings (tautulli, seerr, maintainerr).",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlexSettings"
+              },
+              {
+                "$ref": "#/components/schemas/ArrSettings"
+              },
+              {
+                "$ref": "#/components/schemas/MetaSettings"
+              }
+            ]
           },
           "createdAt": {
             "type": "string",
@@ -805,8 +867,26 @@
             "description": "Update only: remove the stored key."
           },
           "settings": {
-            "type": "object",
-            "description": "PlexSettings for Plex integrations; missing on update keeps them."
+            "description": "Type-specific: PlexSettings (plex), ArrSettings (sonarr, radarr, lidarr) or MetaSettings (tautulli, seerr, maintainerr). Missing on update keeps them.",
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlexSettings"
+              },
+              {
+                "$ref": "#/components/schemas/ArrSettings"
+              },
+              {
+                "$ref": "#/components/schemas/MetaSettings"
+              }
+            ]
+          },
+          "plexSignIn": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlexSignInRef"
+              }
+            ],
+            "description": "Plex only, in place of apiKey (not together with apiKey or clearApiKey). A saved integration consumes the sign-in."
           }
         }
       },
@@ -851,6 +931,18 @@
             "type": "integer",
             "description": "A saved integration whose stored key is used when apiKey is empty (0: none)",
             "minimum": 0
+          },
+          "settings": {
+            "type": "object",
+            "description": "Unsaved settings to test with (*arr: pathMappings, backupFolder), validated like a create"
+          },
+          "plexSignIn": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlexSignInRef"
+              }
+            ],
+            "description": "Plex only: test with the chosen server's token (the sign-in is not consumed)"
           }
         }
       },
@@ -882,8 +974,55 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 23
+          },
+          "appName": {
+            "type": "string"
+          },
+          "backup": {
+            "$ref": "#/components/schemas/ArrBackupAccess"
+          },
+          "manualBackups": {
+            "type": "object",
+            "required": [
+              "count",
+              "bytes"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "bytes": {
+                "type": "integer"
+              }
+            },
+            "description": "Manual backups the *arr keeps (it never prunes them)"
+          },
+          "rootFolders": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ArrRootFolderCheck"
+            },
+            "description": "Mapped with the tested path mappings; null when they could not be read"
+          },
+          "recycleBin": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ArrRecycleBin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fileDate": {
+            "type": "string",
+            "description": "The *arr's change-file-date setting; anything but none is a warning"
           }
-        }
+        },
+        "description": "Plex: version, machineIdentifier and the butler window. Sonarr, Radarr, Lidarr: appName, backup, manualBackups, rootFolders, recycleBin, fileDate."
       },
       "PlexLocation": {
         "type": "object",
@@ -1338,6 +1477,10 @@
           "probeVersion": {
             "type": "integer",
             "description": "Version of the probe that found these capabilities (currently 1). 0 or missing: an older probe that did not check unstableInodes; the next sync, verify or retention job that is not a dry run probes the destination again, and until then inode numbers are not trusted."
+          },
+          "enforcesModes": {
+            "type": "boolean",
+            "description": "The destination keeps a file's permission bits (the probe writes a file with mode 0600 and reads the mode back; SMB without POSIX extensions does not). *arr backups need it unless their integration sets backup.acceptInsecureModes. Missing or false until a probe that checks it."
           }
         }
       },
@@ -1396,7 +1539,7 @@
       },
       "Retention": {
         "type": "object",
-        "description": "Missing or zero values take the defaults (30, 14, 8).",
+        "description": "Missing or zero values take the defaults (deletedDays 30, plexDbDaily 14, plexDbWeekly 8, arrDaily 14, arrWeekly 8, manifestDays 30, manifestWeeks 12), except manifestWeeks 0, which keeps no weekly manifest versions.",
         "properties": {
           "deletedDays": {
             "type": "integer",
@@ -1412,6 +1555,30 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 520
+          },
+          "arrDaily": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 365,
+            "description": "Daily *arr backup versions kept per integration"
+          },
+          "arrWeekly": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 520,
+            "description": "ISO weeks that keep their newest *arr backup version"
+          },
+          "manifestDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3650,
+            "description": "Days that keep their newest manifest version"
+          },
+          "manifestWeeks": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 520,
+            "description": "ISO weeks that keep their newest manifest version (0 keeps none; missing is 12)"
           }
         }
       },
@@ -1681,6 +1848,7 @@
         "type": "object",
         "required": [
           "id",
+          "kind",
           "integrationId",
           "path",
           "createdAt",
@@ -1695,6 +1863,13 @@
           },
           "destinationId": {
             "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "plexdb",
+              "arr"
+            ]
           },
           "integrationId": {
             "type": "integer",
@@ -1718,8 +1893,11 @@
             "type": "string",
             "enum": [
               "online_backup",
-              "online_backup_immutable"
-            ]
+              "online_backup_immutable",
+              "arr_api_folder",
+              "arr_api_http"
+            ],
+            "description": "plexdb: online_backup or online_backup_immutable; arr: arr_api_folder (read from the mounted Backups folder) or arr_api_http"
           },
           "integrity": {
             "type": "string",
@@ -1731,7 +1909,8 @@
           "manifest": {
             "type": "object"
           }
-        }
+        },
+        "description": "A recorded version at a destination: a Plex DB version (kind plexdb) or an *arr backup (kind arr, never served)."
       },
       "Notification": {
         "type": "object",
@@ -1888,6 +2067,1054 @@
             "type": "string"
           }
         }
+      },
+      "ArrPathMapping": {
+        "type": "object",
+        "required": [
+          "arr",
+          "local"
+        ],
+        "properties": {
+          "arr": {
+            "type": "string",
+            "description": "Path prefix as the *arr sees it"
+          },
+          "local": {
+            "type": "string",
+            "description": "The same folder as Bunkarr sees it"
+          }
+        }
+      },
+      "ArrBackup": {
+        "type": "object",
+        "description": "The scheduled *arr backup (managed as an arr_backup schedule).",
+        "properties": {
+          "destinationId": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0: none chosen"
+          },
+          "cron": {
+            "type": "string",
+            "description": "Default 30 6 * * 0 (weekly) when enabled without one"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "maxScheduledAgeDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 90,
+            "default": 7,
+            "description": "A scheduled backup of the *arr younger than this is copied instead of asking for a new one"
+          },
+          "acceptInsecureModes": {
+            "type": "boolean",
+            "description": "Allow a destination whose capabilities.enforcesModes is false (the zips hold the *arr's secrets); otherwise saving such a destination is 400"
+          }
+        }
+      },
+      "RefreshSettings": {
+        "type": "object",
+        "description": "The scheduled full refresh of the metadata cache (managed as a refresh schedule).",
+        "properties": {
+          "cron": {
+            "type": "string",
+            "description": "Empty takes the type's default (*arr: 15 */6 * * *)"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "staleAfterHours": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 720,
+            "description": "The cache's facts are unknown this long after its last complete refresh (*arr default 24)"
+          }
+        }
+      },
+      "ArrSettings": {
+        "type": "object",
+        "description": "Settings of a Sonarr, Radarr or Lidarr integration; missing fields take the defaults.",
+        "properties": {
+          "pathMappings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArrPathMapping"
+            }
+          },
+          "backupFolder": {
+            "type": "string",
+            "description": "The *arr's Backups folder as Bunkarr sees it (mounted read-only); empty fetches backups over HTTP"
+          },
+          "backup": {
+            "$ref": "#/components/schemas/ArrBackup"
+          },
+          "refresh": {
+            "$ref": "#/components/schemas/RefreshSettings"
+          }
+        }
+      },
+      "MetaSettings": {
+        "type": "object",
+        "description": "Settings of a Tautulli, Seerr or Maintainerr integration.",
+        "properties": {
+          "plexIntegrationId": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The linked Plex integration (0: none)"
+          },
+          "refresh": {
+            "$ref": "#/components/schemas/RefreshSettings"
+          }
+        }
+      },
+      "PlexSignInRef": {
+        "type": "object",
+        "description": "A server chosen in \"Sign in with Plex\": the server side uses its token (never sent to the browser) after checking that the URL answers /identity as that server.",
+        "required": [
+          "id",
+          "serverId"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          },
+          "serverId": {
+            "type": "string",
+            "pattern": "^[0-9A-Za-z-]{1,128}$"
+          },
+          "useAccountToken": {
+            "type": "boolean",
+            "description": "An owned server that plex.tv lists without a token of its own: use the account token"
+          }
+        }
+      },
+      "ArrBackupAccess": {
+        "type": "object",
+        "required": [
+          "folder",
+          "http"
+        ],
+        "properties": {
+          "folder": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "missing",
+              "unreadable",
+              "not-set"
+            ]
+          },
+          "http": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "login-required",
+              "unknown"
+            ],
+            "description": "Found by a 1-byte range GET of the newest backup; unknown when none exists"
+          }
+        }
+      },
+      "ArrRootFolderCheck": {
+        "type": "object",
+        "required": [
+          "path",
+          "accessible",
+          "localPath",
+          "sourceId",
+          "exists",
+          "reason"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "As the *arr sees it"
+          },
+          "accessible": {
+            "type": "boolean",
+            "description": "The *arr's own report"
+          },
+          "localPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Through the path mappings; null when none applies"
+          },
+          "sourceId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The source localPath lies in; null when none"
+          },
+          "exists": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the folder is not usable; empty when it is"
+          }
+        }
+      },
+      "ArrRecycleBin": {
+        "type": "object",
+        "required": [
+          "path",
+          "sourceId",
+          "relPath",
+          "excluded"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "relPath": {
+            "type": "string"
+          },
+          "excluded": {
+            "type": "boolean",
+            "description": "The source's excludes cover it"
+          }
+        }
+      },
+      "IndexView": {
+        "type": "object",
+        "required": [
+          "status",
+          "refreshedAt",
+          "attemptedAt",
+          "error",
+          "appVersion",
+          "stats",
+          "fresh",
+          "instanceMatches",
+          "staleAfterHours"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "never",
+              "ok",
+              "failed"
+            ],
+            "description": "Outcome of the last refresh (full or targeted)"
+          },
+          "refreshedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Start of the last complete refresh"
+          },
+          "attemptedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Start of the last attempt"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "appVersion": {
+            "type": "string"
+          },
+          "stats": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Counts of the last full refresh (items, files, filesMapped, filesUnmapped, filesMismatched, unmappedFolders, inaccessibleRootFolders, recycleBin, fileDate, guardHeld)"
+          },
+          "fresh": {
+            "type": "boolean"
+          },
+          "instanceMatches": {
+            "type": "boolean",
+            "description": "The cache was built from the integration's current URL"
+          },
+          "staleAfterHours": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the cache is not fresh"
+          }
+        }
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "allowChanges": {
+            "type": "boolean",
+            "description": "Apply the deletions and shrinks the refresh guard would hold"
+          }
+        }
+      },
+      "NamedRef": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ArrTag": {
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "ArrRootFolder": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "accessible",
+          "localPath",
+          "sourceId"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string",
+            "description": "As the *arr sees it"
+          },
+          "accessible": {
+            "type": "boolean"
+          },
+          "localPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Through the path mappings; null when none applies"
+          },
+          "sourceId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The source localPath lies in; null when none"
+          }
+        }
+      },
+      "ArrMetadata": {
+        "type": "object",
+        "description": "An *arr's metadata as indexed by its last refresh.",
+        "required": [
+          "qualityProfiles",
+          "metadataProfiles",
+          "rootFolders",
+          "tags",
+          "refreshedAt"
+        ],
+        "properties": {
+          "qualityProfiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NamedRef"
+            }
+          },
+          "metadataProfiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NamedRef"
+            },
+            "description": "Lidarr only"
+          },
+          "rootFolders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArrRootFolder"
+            }
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArrTag"
+            }
+          },
+          "refreshedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ArrLiveRootFolder": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "accessible",
+          "localPath",
+          "sourceId",
+          "exists"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string",
+            "description": "As the *arr sees it"
+          },
+          "accessible": {
+            "type": "boolean",
+            "description": "The *arr's own report"
+          },
+          "localPath": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Through the stored path mappings; null when none applies"
+          },
+          "sourceId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The source localPath lies in; null when none"
+          },
+          "exists": {
+            "type": "boolean",
+            "description": "localPath is a directory Bunkarr can see"
+          }
+        }
+      },
+      "WebhookKeyRequest": {
+        "type": "object",
+        "properties": {
+          "rotate": {
+            "type": "boolean",
+            "description": "false: reveal the current key; true: replace it (the old key stops working at once)"
+          }
+        }
+      },
+      "WebhookKey": {
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The only response that contains a webhook key"
+          }
+        }
+      },
+      "UnmappedFile": {
+        "type": "object",
+        "required": [
+          "integrationId",
+          "path",
+          "size",
+          "reason"
+        ],
+        "properties": {
+          "integrationId": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string",
+            "description": "As the application sees it"
+          },
+          "localPath": {
+            "type": "string",
+            "description": "Through the path mappings; absent when unmapped"
+          },
+          "size": {
+            "type": "integer",
+            "description": "As the application reports it"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "unmapped",
+              "no-source",
+              "mismatched"
+            ],
+            "description": "unmapped: no path mapping applies; no-source: the mapped path lies in no source; mismatched: no live catalog file has the mapped path and the application's size"
+          },
+          "catalogSize": {
+            "type": "integer",
+            "description": "The size of the catalog file at the path, when the sizes differ"
+          }
+        }
+      },
+      "UnmappedFilePage": {
+        "type": "object",
+        "required": [
+          "page",
+          "pageSize",
+          "totalRecords",
+          "records"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "totalRecords": {
+            "type": "integer"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnmappedFile"
+            }
+          }
+        }
+      },
+      "WebhookEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "integrationId",
+          "source",
+          "eventType",
+          "class",
+          "receivedAt",
+          "processedAt",
+          "outcome",
+          "jobId",
+          "truncated",
+          "summary"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "integrationId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "null once the integration was deleted"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "sonarr",
+              "radarr",
+              "lidarr"
+            ]
+          },
+          "eventType": {
+            "type": "string",
+            "description": "As the *arr sent it, e.g. Download, MovieFileDelete, Test"
+          },
+          "class": {
+            "type": "string",
+            "enum": [
+              "test",
+              "ignored",
+              "change",
+              "download",
+              "delete",
+              "upgrade_delete"
+            ]
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "processedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "test",
+              "ignored",
+              "queued",
+              "coalesced",
+              "failed",
+              null
+            ],
+            "description": "null while the event waits to be processed"
+          },
+          "jobId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The refresh the event went into"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "The body was larger than 64 KiB compacted: only the event type and the item ids were stored"
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "itemIds": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "files": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "description": "Paths as the *arr reports them (shown, never opened)"
+              }
+            }
+          }
+        }
+      },
+      "WebhookEventDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/WebhookEvent"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "payload": {
+                "description": "The body as received (compact JSON) when it is at most 64 KiB; a larger one is stored as {\"truncated\": true, \"eventType\": …, \"ids\": […]}"
+              }
+            }
+          }
+        ]
+      },
+      "WebhookEventPage": {
+        "type": "object",
+        "required": [
+          "page",
+          "pageSize",
+          "totalRecords",
+          "records"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "totalRecords": {
+            "type": "integer"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookEvent"
+            }
+          }
+        }
+      },
+      "WebhookInfo": {
+        "type": "object",
+        "required": [
+          "path",
+          "genericPath",
+          "hasKey",
+          "lastEventAt",
+          "lastTestAt",
+          "last24h",
+          "warnings",
+          "recent"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The integration's own webhook route, e.g. /api/v1/webhook/radarr/3"
+          },
+          "genericPath": {
+            "type": "string",
+            "description": "The app's generic route, e.g. /api/v1/webhook/radarr"
+          },
+          "hasKey": {
+            "type": "boolean"
+          },
+          "lastEventAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastTestAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last24h": {
+            "type": "integer",
+            "description": "Events received in the last 24 hours"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "A linked destination without a sync schedule; another integration of the app that received events on the generic route in the last 7 days"
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookEvent"
+            }
+          }
+        }
+      },
+      "ArrBackupRequest": {
+        "type": "object",
+        "properties": {
+          "destinationId": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0 or missing: the integration's backup destination"
+          },
+          "dryRun": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PlexSignInCreated": {
+        "type": "object",
+        "required": [
+          "id",
+          "authUrl",
+          "expiresAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          },
+          "authUrl": {
+            "type": "string",
+            "description": "Open in a popup: app.plex.tv's approval page (the only place the PIN code appears)"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PlexSignInStatus": {
+        "type": "object",
+        "required": [
+          "status",
+          "expiresAt"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "authenticated",
+              "expired"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "username": {
+            "type": "string",
+            "description": "The plex.tv account, once authenticated"
+          },
+          "warning": {
+            "type": "string"
+          }
+        }
+      },
+      "PlexConnectionChoice": {
+        "type": "object",
+        "required": [
+          "uri",
+          "protocol",
+          "address",
+          "port",
+          "local",
+          "relay",
+          "ipv6"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "local": {
+            "type": "boolean"
+          },
+          "relay": {
+            "type": "boolean"
+          },
+          "ipv6": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PlexServerChoice": {
+        "type": "object",
+        "description": "A server of the signed-in account (no token: hasAccessToken says whether plex.tv lists one).",
+        "required": [
+          "id",
+          "name",
+          "owned",
+          "productVersion",
+          "platform",
+          "hasAccessToken",
+          "connections"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The server's clientIdentifier"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owned": {
+            "type": "boolean"
+          },
+          "productVersion": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "hasAccessToken": {
+            "type": "boolean"
+          },
+          "connections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlexConnectionChoice"
+            }
+          }
+        }
+      },
+      "PlexProbeRequest": {
+        "type": "object",
+        "properties": {
+          "useAccountToken": {
+            "type": "boolean",
+            "description": "An owned server without a token of its own: probe with the account token"
+          }
+        }
+      },
+      "PlexProbeResult": {
+        "type": "object",
+        "required": [
+          "uri",
+          "local",
+          "relay",
+          "derived",
+          "protocol",
+          "ok",
+          "identityMatches",
+          "tokenAccepted",
+          "latencyMs",
+          "message"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string"
+          },
+          "local": {
+            "type": "boolean"
+          },
+          "relay": {
+            "type": "boolean"
+          },
+          "derived": {
+            "type": "boolean",
+            "description": "Not listed by plex.tv: derived from a listed connection"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "identityMatches": {
+            "type": "boolean",
+            "description": "/identity answered as the chosen server (the token is sent only then)"
+          },
+          "tokenAccepted": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
+          },
+          "latencyMs": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "PlexProbeAnswer": {
+        "type": "object",
+        "required": [
+          "recommended",
+          "results"
+        ],
+        "properties": {
+          "recommended": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A working https, non-relay connection to preselect; null when none"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlexProbeResult"
+            },
+            "description": "Best first"
+          }
+        }
+      },
+      "ManifestExportRequest": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean",
+            "description": "Build and count, write nothing"
+          }
+        }
+      },
+      "Manifest": {
+        "type": "object",
+        "description": "A manifest version written to a destination.",
+        "required": [
+          "id",
+          "destinationId",
+          "jobId",
+          "createdAt",
+          "path",
+          "format",
+          "itemCount",
+          "fileCount",
+          "bytes",
+          "checksum",
+          "integrity"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "destinationId": {
+            "type": "integer"
+          },
+          "jobId": {
+            "type": "integer",
+            "description": "0 once that job's history was deleted"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "path": {
+            "type": "string",
+            "description": "Version directory relative to the target"
+          },
+          "format": {
+            "type": "integer",
+            "description": "Manifest format version (1)"
+          },
+          "itemCount": {
+            "type": "integer"
+          },
+          "fileCount": {
+            "type": "integer"
+          },
+          "bytes": {
+            "type": "integer",
+            "description": "Size of the files the manifest lists"
+          },
+          "checksum": {
+            "type": "string",
+            "description": "sha256:<hex> of manifest.json as written"
+          },
+          "integrity": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "damaged"
+            ],
+            "description": "damaged: missing or not matching its checksums when read back; not downloadable"
+          }
+        }
       }
     },
     "responses": {
@@ -1942,7 +3169,7 @@
         }
       },
       "BadGateway": {
-        "description": "Plex answered badly or not at all",
+        "description": "Plex, plex.tv or an *arr answered badly or not at all",
         "content": {
           "application/json": {
             "schema": {
@@ -1989,6 +3216,61 @@
           "minimum": 1,
           "maximum": 500,
           "default": 50
+        }
+      },
+      "signInId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "The sign-in id from POST /plex/signin",
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        }
+      },
+      "serverId": {
+        "name": "serverId",
+        "in": "path",
+        "required": true,
+        "description": "A server id (clientIdentifier) from GET /plex/signin/{id}/servers",
+        "schema": {
+          "type": "string",
+          "pattern": "^[0-9A-Za-z-]{1,128}$"
+        }
+      },
+      "webhookApp": {
+        "name": "app",
+        "in": "path",
+        "required": true,
+        "description": "The posting application; any other value is 404 (after the key check)",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "sonarr",
+            "radarr",
+            "lidarr"
+          ]
+        }
+      },
+      "webhookIntegrationId": {
+        "name": "integrationId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "manifestFormat": {
+        "name": "format",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "json",
+            "csv"
+          ],
+          "default": "json"
         }
       }
     }
@@ -2359,7 +3641,7 @@
       },
       "post": {
         "operationId": "createIntegration",
-        "summary": "Add an integration (a Plex backup schedule is created from settings.backup)",
+        "summary": "Add an integration (its backup and refresh schedules are created from settings; an *arr gets a full refresh)",
         "requestBody": {
           "required": true,
           "content": {
@@ -2390,6 +3672,16 @@
           "500": {
             "$ref": "#/components/responses/ServerError"
           },
+          "502": {
+            "description": "plexSignIn: the URL did not answer /identity (the token was not sent)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
           }
@@ -2402,7 +3694,7 @@
     "/integrations/test": {
       "post": {
         "operationId": "testIntegration",
-        "summary": "Test a URL and API key (Plex: identity, then the token)",
+        "summary": "Test a URL and key: Plex (identity, then the token), Sonarr, Radarr or Lidarr (status, root folders, backups)",
         "requestBody": {
           "required": true,
           "content": {
@@ -2435,6 +3727,16 @@
           },
           "500": {
             "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "description": "plexSignIn: the URL did not answer /identity (the token was not sent)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
@@ -2526,6 +3828,16 @@
           "500": {
             "$ref": "#/components/responses/ServerError"
           },
+          "502": {
+            "description": "plexSignIn: the URL did not answer /identity (the token was not sent)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
           }
@@ -2533,7 +3845,7 @@
         "tags": [
           "Integrations"
         ],
-        "description": "Changing the URL requires the token again (apiKey) or clearApiKey: a stored token is only sent to the URL it was saved with; otherwise 400."
+        "description": "Changing the URL requires the token again (apiKey or plexSignIn) or clearApiKey: a stored token is only sent to the URL it was saved with; otherwise 400. An *arr whose URL, key or path mappings change gets a full refresh."
       },
       "delete": {
         "operationId": "deleteIntegration",
@@ -2557,7 +3869,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "A job of the integration (a Plex DB backup) is queued or running",
+            "description": "A job of the integration (a backup or a refresh) is queued or running",
             "content": {
               "application/json": {
                 "schema": {
@@ -3531,7 +4843,7 @@
     "/destinations/{id}/snapshots": {
       "get": {
         "operationId": "listSnapshots",
-        "summary": "Plex database versions stored at the destination, newest first",
+        "summary": "Plex database and *arr backup versions stored at the destination, newest first",
         "parameters": [
           {
             "$ref": "#/components/parameters/id"
@@ -3604,6 +4916,14 @@
           },
           {
             "name": "destinationId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "integrationId",
             "in": "query",
             "schema": {
               "type": "integer",
@@ -4246,6 +5566,1384 @@
         },
         "tags": [
           "Notifications"
+        ]
+      }
+    },
+    "/integrations/{id}/index": {
+      "get": {
+        "operationId": "getIntegrationIndex",
+        "summary": "The metadata index of an integration: last refresh, counts and freshness",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Index state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexView"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/{id}/refresh": {
+      "post": {
+        "operationId": "refreshIntegration",
+        "summary": "Refresh the *arr index now (full refresh)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The queued job (an identical queued job is returned instead of a new one)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The integration is disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ],
+        "description": "Sonarr, Radarr and Lidarr only; other types are 400."
+      }
+    },
+    "/integrations/{id}/arr/metadata": {
+      "get": {
+        "operationId": "getArrMetadata",
+        "summary": "Quality and metadata profiles, root folders and tags of an *arr, as indexed",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArrMetadata"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/{id}/arr/rootfolders": {
+      "get": {
+        "operationId": "listArrRootFolders",
+        "summary": "The *arr's root folders, fetched live and mapped through the stored path mappings",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Root folders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArrLiveRootFolder"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The integration's URL changed during the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "description": "The *arr answered badly or not at all",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/{id}/arr/backup": {
+      "post": {
+        "operationId": "startArrBackup",
+        "summary": "Back up the *arr's configuration and database now",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArrBackupRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The queued job (an identical queued job is returned instead of a new one)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The integration or destination is disabled, or the destination does not keep file modes and backup.acceptInsecureModes is off",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/{id}/arr/snapshots": {
+      "get": {
+        "operationId": "listArrSnapshots",
+        "summary": "The *arr's backup versions at every destination, newest first (the zips are never served)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Snapshots of kind arr",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Snapshot"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/integrations/{id}/webhook": {
+      "get": {
+        "operationId": "getWebhookInfo",
+        "summary": "The *arr's webhook routes and recent activity (never the key)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook activity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/integrations/{id}/webhook/key": {
+      "post": {
+        "operationId": "webhookKey",
+        "summary": "Reveal or regenerate the *arr's webhook key",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The webhook key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookKey"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/catalog/unmapped": {
+      "get": {
+        "operationId": "listUnmappedFiles",
+        "summary": "Files of the *arrs that do not apply to a catalog file (unmapped, in no source, or mismatched)",
+        "parameters": [
+          {
+            "name": "integrationId",
+            "in": "query",
+            "description": "One integration (missing or 0: every *arr)",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/pageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unmapped files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnmappedFilePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Sources"
+        ]
+      }
+    },
+    "/plex/signin": {
+      "post": {
+        "operationId": "startPlexSignIn",
+        "summary": "Start a \"Sign in with Plex\" (a plex.tv PIN)",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "maxProperties": 0
+              }
+            }
+          },
+          "description": "Empty (or {})"
+        },
+        "responses": {
+          "201": {
+            "description": "The sign-in; open authUrl and poll GET /plex/signin/{id}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlexSignInCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "description": "8 sign-ins are already in progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "description": "plex.tv did not create a PIN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Plex sign-in"
+        ],
+        "description": "Sign-ins live in memory (10 minutes pending, 20 minutes once approved) and belong to the session or API key that started them."
+      }
+    },
+    "/plex/signin/{id}": {
+      "get": {
+        "operationId": "getPlexSignIn",
+        "summary": "Poll a sign-in: pending, authenticated or expired",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/signInId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlexSignInStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Plex sign-in"
+        ],
+        "description": "An unknown id, or another session's, is 404."
+      },
+      "delete": {
+        "operationId": "cancelPlexSignIn",
+        "summary": "Forget a sign-in (idempotent)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/signInId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "The id is not a sign-in id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Plex sign-in"
+        ]
+      }
+    },
+    "/plex/signin/{id}/servers": {
+      "get": {
+        "operationId": "listPlexSignInServers",
+        "summary": "The signed-in account's servers, owned first (no tokens)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/signInId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Servers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlexServerChoice"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The sign-in is still pending or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "description": "plex.tv did not list the servers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Plex sign-in"
+        ]
+      }
+    },
+    "/plex/signin/{id}/servers/{serverId}/test": {
+      "post": {
+        "operationId": "testPlexSignInServer",
+        "summary": "Test every connection of a server (the token is sent only where /identity answers as that server)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/signInId"
+          },
+          {
+            "$ref": "#/components/parameters/serverId"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlexProbeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tested connections",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlexProbeAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The sign-in is still pending or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "description": "plex.tv did not list the servers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Plex sign-in"
+        ]
+      }
+    },
+    "/webhook/{app}": {
+      "post": {
+        "operationId": "receiveWebhook",
+        "summary": "Receive a Sonarr, Radarr or Lidarr webhook (the key picks the integration)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/webhookApp"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "The *arr's webhook payload (at most 16 MiB; at most 64 KiB is stored)"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Received ({})",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not a JSON object with an eventType",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No webhook key, or not this integration's (Bunkarr's API key and sessions are refused)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown app or integration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The integration is of another app, or disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The body is larger than 16 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests without a valid key from this address, or too many events from this integration (Retry-After)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "description": "Too many events are waiting to be processed, the intake is busy (Retry-After), or no backup services are configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Webhooks"
+        ],
+        "description": "Authenticates only with an integration's webhook key (Basic password, X-Api-Key or ?apikey=). Prefer the integration's own route.",
+        "security": [
+          {
+            "webhookKeyBasic": []
+          },
+          {
+            "webhookKeyHeader": []
+          },
+          {
+            "webhookKeyQuery": []
+          }
+        ]
+      }
+    },
+    "/webhook/{app}/{integrationId}": {
+      "post": {
+        "operationId": "receiveIntegrationWebhook",
+        "summary": "Receive a Sonarr, Radarr or Lidarr webhook for one integration",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/webhookApp"
+          },
+          {
+            "$ref": "#/components/parameters/webhookIntegrationId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "The *arr's webhook payload (at most 16 MiB; at most 64 KiB is stored)"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Received ({})",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not a JSON object with an eventType",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No webhook key, or not this integration's (Bunkarr's API key and sessions are refused)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown app or integration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The integration is of another app, or disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The body is larger than 16 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The body is not application/json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests without a valid key from this address, or too many events from this integration (Retry-After)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "description": "Too many events are waiting to be processed, the intake is busy (Retry-After), or no backup services are configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Webhooks"
+        ],
+        "description": "Authenticates only with this integration's webhook key (Basic password, X-Api-Key or ?apikey=).",
+        "security": [
+          {
+            "webhookKeyBasic": []
+          },
+          {
+            "webhookKeyHeader": []
+          },
+          {
+            "webhookKeyQuery": []
+          }
+        ]
+      }
+    },
+    "/webhooks/events": {
+      "get": {
+        "operationId": "listWebhookEvents",
+        "summary": "Received webhook events, newest first",
+        "parameters": [
+          {
+            "name": "integrationId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "eventType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "description": "pending: not processed yet",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "test",
+                "ignored",
+                "queued",
+                "coalesced",
+                "failed"
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/page"
+          },
+          {
+            "$ref": "#/components/parameters/pageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEventPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/webhooks/events/{id}": {
+      "get": {
+        "operationId": "getWebhookEvent",
+        "summary": "A received webhook event with its stored payload",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEventDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/destinations/{id}/manifest": {
+      "post": {
+        "operationId": "startManifestExport",
+        "summary": "Write a manifest version to the destination now",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManifestExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The queued job (an identical queued job is returned instead of a new one)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The destination is disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/destinations/{id}/manifests": {
+      "get": {
+        "operationId": "listManifests",
+        "summary": "Manifest versions written to the destination, newest first",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Manifests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Manifest"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/manifests/{id}/download": {
+      "get": {
+        "operationId": "downloadManifest",
+        "summary": "Download a manifest version, read back from the destination and verified",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "$ref": "#/components/parameters/manifestFormat"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The manifest file (an attachment), staged and hashed before the first byte is sent",
+            "headers": {
+              "X-Bunkarr-SHA256": {
+                "description": "Hex SHA-256 of the body",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "description": "attachment; filename=...",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The version is damaged, or the destination is not mounted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/manifest/export": {
+      "get": {
+        "operationId": "exportManifest",
+        "summary": "Build a manifest on the spot: of every enabled source, or of one destination's view",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/manifestFormat"
+          },
+          {
+            "name": "destinationId",
+            "in": "query",
+            "description": "Missing or 0: every enabled source",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The manifest file (an attachment), staged and hashed before the first byte is sent",
+            "headers": {
+              "X-Bunkarr-SHA256": {
+                "description": "Hex SHA-256 of the body",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "description": "attachment; filename=...",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many exports are running (Retry-After)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
         ]
       }
     }

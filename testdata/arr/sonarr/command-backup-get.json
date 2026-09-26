@@ -1,0 +1,28 @@
+{
+  "name": "Backup",
+  "commandName": "Backup",
+  "message": "Backup zip created",
+  "body": {
+    "type": "manual",
+    "sendUpdatesToClient": true,
+    "updateScheduledTask": false,
+    "requiresDiskAccess": false,
+    "isExclusive": false,
+    "isLongRunning": false,
+    "name": "Backup",
+    "trigger": "manual",
+    "suppressMessages": false
+  },
+  "priority": "normal",
+  "status": "completed",
+  "result": "successful",
+  "queued": "2026-09-25T12:34:53Z",
+  "started": "2026-09-25T12:34:53Z",
+  "ended": "2026-09-25T12:34:53Z",
+  "duration": "00:00:00.1985073",
+  "trigger": "manual",
+  "stateChangeTime": "2026-09-25T12:34:53Z",
+  "sendUpdatesToClient": true,
+  "updateScheduledTask": false,
+  "id": 31
+}

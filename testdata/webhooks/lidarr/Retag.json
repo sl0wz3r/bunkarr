@@ -1,0 +1,82 @@
+{
+  "_note": "command RetagFiles (writeAudioTags=allFiles): the file content changes in place at the same path.",
+  "_observedAtReceipt": [
+    {
+      "field": "artist.path",
+      "path": "/music/Scott Joplin",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": null
+    },
+    {
+      "field": "trackFile.path",
+      "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 01 - Swipesy Cake Walk.flac",
+      "existsAtReceipt": true,
+      "sizeAtReceipt": 37738
+    }
+  ],
+  "receivedAt": "2026-09-25T12:39:09.480817+00:00",
+  "method": "POST",
+  "path": "/lidarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Lidarr/3.1.0.4875 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "1255"
+  },
+  "body": {
+    "artist": {
+      "id": 1,
+      "name": "Scott Joplin",
+      "disambiguation": "composer and pianist",
+      "path": "/music/Scott Joplin",
+      "mbId": "aec8a328-d2e8-4780-b2ea-318c7f8d6f75",
+      "type": "Person",
+      "genres": [
+        "Ragtime",
+        "Contemporary Classical",
+        "Jazz",
+        "Modern Classical"
+      ],
+      "images": [
+        {
+          "coverType": "poster",
+          "url": "/MediaCover/1/poster.jpg?lastWrite=639259360447767938",
+          "remoteUrl": "/config/MediaCover/1/poster.jpg"
+        },
+        {
+          "coverType": "fanart",
+          "url": "/MediaCover/1/fanart.jpg?lastWrite=639259360446771807",
+          "remoteUrl": "/config/MediaCover/1/fanart.jpg"
+        },
+        {
+          "coverType": "clearlogo",
+          "url": "/MediaCover/1/clearlogo.png?lastWrite=639259360446020559",
+          "remoteUrl": "/config/MediaCover/1/clearlogo.png"
+        }
+      ],
+      "tags": [
+        "bunkarr-full"
+      ]
+    },
+    "trackFile": {
+      "id": 20,
+      "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 01 - Swipesy Cake Walk.flac",
+      "quality": "FLAC",
+      "qualityVersion": 1,
+      "size": 37738,
+      "dateAdded": "2026-09-25T12:38:23.1751525Z"
+    },
+    "eventType": "Retag",
+    "instanceName": "Lidarr",
+    "applicationUrl": ""
+  }
+}

@@ -80,6 +80,9 @@ var ErrNotFound = errors.New("destination file record not found")
 // transaction.
 type Store struct {
 	db *db.DB
+	// traceRead, when set (tests only), is called with every read's SQL and arguments before it
+	// runs, so a test can check the query plan of what a function actually runs.
+	traceRead func(query string, args []any)
 }
 
 // NewStore returns a store over d.
@@ -127,8 +130,17 @@ func scanRecord(r rowScanner) (Record, error) {
 	return rec, nil
 }
 
+// reader returns the connection pool for a read of query with args (see traceRead).
+func (s *Store) reader(query string, args []any) *sql.DB {
+	if s.traceRead != nil {
+		s.traceRead(query, args)
+	}
+	return s.db.Reader()
+}
+
 func (s *Store) query(ctx context.Context, q string, args ...any) ([]Record, error) {
-	rows, err := s.db.Reader().QueryContext(ctx, `SELECT `+recordColumns+` FROM destination_files `+q, args...)
+	q = `SELECT ` + recordColumns + ` FROM destination_files ` + q
+	rows, err := s.reader(q, args).QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("read destination files: %w", err)
 	}
@@ -148,7 +160,8 @@ func (s *Store) query(ctx context.Context, q string, args ...any) ([]Record, err
 }
 
 func (s *Store) one(ctx context.Context, q string, args ...any) (Record, bool, error) {
-	rec, err := scanRecord(s.db.Reader().QueryRowContext(ctx, `SELECT `+recordColumns+` FROM destination_files `+q, args...))
+	q = `SELECT ` + recordColumns + ` FROM destination_files ` + q
+	rec, err := scanRecord(s.reader(q, args).QueryRowContext(ctx, q, args...))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Record{}, false, nil
 	}

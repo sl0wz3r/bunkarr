@@ -1,0 +1,312 @@
+[
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 01 - Swipesy Cake Walk.flac",
+    "size": 37738,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 20
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 02 - Lily Queen.flac",
+    "size": 48829,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 21
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 03 - Sunflower Slow Drag.flac",
+    "size": 41798,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 22
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 04 - Something Doing.flac",
+    "size": 43474,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 23
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 05 - Felicity Rag.flac",
+    "size": 40255,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 24
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 06 - Mule-Walk Stomp.flac",
+    "size": 29846,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 25
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 07 - Eccentricity-Syncopated Waltz.flac",
+    "size": 54368,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 26
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 08 - Modernistic (You've Got to Be).flac",
+    "size": 35321,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 27
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 09 - Snowy Morning Blues.flac",
+    "size": 35160,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 28
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 10 - Carolina Shout.flac",
+    "size": 37886,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 29
+  }
+]

@@ -1,0 +1,118 @@
+[
+  {
+    "movieId": 1,
+    "sourceTitle": "/movies/Night of the Living Dead (1968)/Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP.mkv",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 7,
+        "name": "Bluray-1080p",
+        "source": "bluray",
+        "resolution": 1080,
+        "modifier": "none"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": false,
+    "date": "2026-09-25T12:30:18Z",
+    "eventType": "movieFileRenamed",
+    "data": {
+      "sourcePath": "/movies/Night of the Living Dead (1968)/Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP.mkv",
+      "sourceRelativePath": "Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP.mkv",
+      "path": "/movies/Night of the Living Dead (1968)/Night of the Living Dead (1968) [Bluray-1080p].mkv",
+      "relativePath": "Night of the Living Dead (1968) [Bluray-1080p].mkv",
+      "releaseGroup": "PDGRP",
+      "size": "3412521",
+      "indexerFlags": "0"
+    },
+    "id": 5
+  },
+  {
+    "movieId": 1,
+    "sourceTitle": "Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 7,
+        "name": "Bluray-1080p",
+        "source": "bluray",
+        "resolution": 1080,
+        "modifier": "none"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": false,
+    "date": "2026-09-25T12:29:51Z",
+    "eventType": "downloadFolderImported",
+    "data": {
+      "fileId": "4",
+      "droppedPath": "/downloads/radarr/Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP/Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP.mkv",
+      "importedPath": "/movies/Night of the Living Dead (1968)/Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP.mkv",
+      "downloadClient": null,
+      "downloadClientName": null,
+      "releaseGroup": "PDGRP",
+      "customFormatScore": "0",
+      "size": "3412521",
+      "indexerFlags": "0"
+    },
+    "id": 3
+  },
+  {
+    "movieId": 1,
+    "sourceTitle": "/movies/Night of the Living Dead (1968)/Night.of.the.Living.Dead.1968.720p.BluRay.x264-PDGRP.mkv",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "Bluray-720p",
+        "source": "bluray",
+        "resolution": 720,
+        "modifier": "none"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "qualityCutoffNotMet": true,
+    "date": "2026-09-25T12:29:51Z",
+    "eventType": "movieFileDeleted",
+    "data": {
+      "reason": "Upgrade",
+      "releaseGroup": "PDGRP",
+      "size": "3381650",
+      "indexerFlags": "0"
+    },
+    "id": 2
+  }
+]

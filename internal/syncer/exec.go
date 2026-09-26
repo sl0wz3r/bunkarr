@@ -395,6 +395,9 @@ func (x *itemRun) pruneLive(rel string) {
 		return
 	}
 	for dir := path.Dir(rel); dir != "." && strings.HasPrefix(dir, folder+"/"); dir = path.Dir(dir) {
+		if x.s.targeted() && !x.s.inTargets(x.d.SourceID, dir) {
+			return // a targeted sync prunes inside its paths only (§9.1)
+		}
 		st, err := filecopy.Lstat(x.dst, dir)
 		if err != nil || !st.Mode.IsDir() {
 			return

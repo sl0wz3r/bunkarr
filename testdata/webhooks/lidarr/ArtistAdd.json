@@ -1,0 +1,52 @@
+{
+  "_note": "POST /api/v1/artist.",
+  "_observedAtReceipt": [
+    {
+      "field": "artist.path",
+      "path": "/music/Scott Joplin",
+      "existsAtReceipt": false,
+      "sizeAtReceipt": null
+    }
+  ],
+  "receivedAt": "2026-09-25T12:27:24.591792+00:00",
+  "method": "POST",
+  "path": "/lidarr",
+  "query": {
+    "apikey": [
+      "0123456789abcdef0123456789abcdef"
+    ]
+  },
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Lidarr/3.1.0.4875 (alpine 3.24.2)",
+    "Connection": "close",
+    "Accept": "application/json",
+    "X-Api-Key": "0123456789abcdef0123456789abcdef",
+    "Accept-Encoding": "gzip, br",
+    "Content-Type": "application/json",
+    "Content-Length": "467"
+  },
+  "body": {
+    "artist": {
+      "id": 1,
+      "name": "Scott Joplin",
+      "disambiguation": "composer and pianist",
+      "path": "/music/Scott Joplin",
+      "mbId": "aec8a328-d2e8-4780-b2ea-318c7f8d6f75",
+      "type": "Person",
+      "genres": [
+        "Ragtime",
+        "Contemporary Classical",
+        "Jazz",
+        "Modern Classical"
+      ],
+      "images": [],
+      "tags": [
+        "bunkarr-full"
+      ]
+    },
+    "eventType": "ArtistAdd",
+    "instanceName": "Lidarr",
+    "applicationUrl": ""
+  }
+}

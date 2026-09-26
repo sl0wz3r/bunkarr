@@ -1,0 +1,238 @@
+{
+  "title": "Night of the Living Dead",
+  "originalTitle": "Night of the Living Dead",
+  "originalLanguage": {
+    "id": 1,
+    "name": "English"
+  },
+  "alternateTitles": [
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 1,
+      "title": "El\u00e4vien kuolleiden y\u00f6",
+      "id": 1
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 1,
+      "title": "Night of Anubis",
+      "id": 2
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 1,
+      "title": "\u30ca\u30a4\u30c8\u30fb\u30aa\u30d6\u30fb\u30b6\u30fb\u30ea\u30d3\u30f3\u30b0\u30c7\u30c3\u30c9",
+      "id": 3
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 1,
+      "title": "\u30ca\u30a4\u30c8\u30fb\u30aa\u30d6\u30fb\u30b6\u30fb\u30ea\u30d3\u30f3\u30b0\u30c7\u30c3\u30c9\uff0f\u30be\u30f3\u30d3\u306e\u8a95\u751f",
+      "id": 4
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 1,
+      "title": "\u751f\u3051\u308b\u5c4d\u306e\u591c",
+      "id": 5
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 1,
+      "title": "Noc \u017eij\u00edc\u00edch mrtv\u00fdch",
+      "id": 6
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 1,
+      "title": "Monster Flick",
+      "id": 7
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 1,
+      "title": "Night of the Flesh Eaters",
+      "id": 8
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 1,
+      "title": "Ya\u015fayan \u00d6l\u00fcl\u0259rin Gec\u0259si",
+      "id": 9
+    },
+    {
+      "sourceType": "tmdb",
+      "movieMetadataId": 1,
+      "title": "Night of the Living Dead: 30th Anniversary Edition",
+      "id": 10
+    }
+  ],
+  "secondaryYearSourceId": 0,
+  "sortTitle": "night of the living dead",
+  "sizeOnDisk": 3412521,
+  "status": "released",
+  "overview": "A ragtag group barricade themselves in an old Pennsylvania farmhouse to remain safe from a horde of flesh-eating ghouls ravaging the Northeast.",
+  "inCinemas": "1968-10-04T00:00:00Z",
+  "physicalRelease": "1978-10-24T00:00:00Z",
+  "digitalRelease": "2008-02-19T00:00:00Z",
+  "releaseDate": "1978-10-24T00:00:00Z",
+  "images": [
+    {
+      "coverType": "poster",
+      "url": "/MediaCover/1/poster.jpg?h=9ad711db55c0f1f6ef73",
+      "remoteUrl": "https://image.tmdb.org/t/p/original/rb2NWyb008u1EcKCOyXs2Nmj0ra.jpg"
+    },
+    {
+      "coverType": "fanart",
+      "url": "/MediaCover/1/fanart.jpg?h=c829e23111f5706c70ab",
+      "remoteUrl": "https://image.tmdb.org/t/p/original/5KtmBSqFtHY3I9t8lgH27Mc0bqY.jpg"
+    }
+  ],
+  "website": "",
+  "year": 1968,
+  "youTubeTrailerId": "DIuI6T48Sj0",
+  "studio": "Image Ten",
+  "path": "/movies/Night of the Living Dead (1968)",
+  "qualityProfileId": 6,
+  "hasFile": true,
+  "movieFileId": 4,
+  "monitored": true,
+  "minimumAvailability": "released",
+  "isAvailable": true,
+  "folderName": "/movies/Night of the Living Dead (1968)",
+  "runtime": 96,
+  "cleanTitle": "nightlivingdead",
+  "imdbId": "tt0063350",
+  "tmdbId": 10331,
+  "titleSlug": "10331",
+  "rootFolderPath": "/movies",
+  "certification": "NR",
+  "genres": [
+    "Horror",
+    "Thriller",
+    "Science Fiction"
+  ],
+  "keywords": [
+    "barricade",
+    "bitten",
+    "black and white",
+    "cellar",
+    "cemetery",
+    "farm house",
+    "gas station",
+    "gun",
+    "halloween",
+    "house",
+    "intense",
+    "loss of loved one",
+    "pennsylvania, usa",
+    "sibling relationship",
+    "suspenseful",
+    "trapped",
+    "zombie"
+  ],
+  "tags": [
+    1
+  ],
+  "added": "2026-09-25T12:26:17Z",
+  "ratings": {
+    "imdb": {
+      "votes": 152550,
+      "value": 7.8,
+      "type": "user"
+    },
+    "tmdb": {
+      "votes": 2830,
+      "value": 7.6,
+      "type": "user"
+    },
+    "metacritic": {
+      "votes": 0,
+      "value": 89,
+      "type": "user"
+    },
+    "rottenTomatoes": {
+      "votes": 0,
+      "value": 95,
+      "type": "user"
+    },
+    "trakt": {
+      "votes": 3904,
+      "value": 7.58069,
+      "type": "user"
+    }
+  },
+  "movieFile": {
+    "movieId": 1,
+    "relativePath": "Night of the Living Dead (1968) [Bluray-1080p].mkv",
+    "path": "/movies/Night of the Living Dead (1968)/Night of the Living Dead (1968) [Bluray-1080p].mkv",
+    "size": 3412521,
+    "dateAdded": "2026-09-25T12:29:51Z",
+    "sceneName": "Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP",
+    "releaseGroup": "PDGRP",
+    "edition": "",
+    "languages": [
+      {
+        "id": 1,
+        "name": "English"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 7,
+        "name": "Bluray-1080p",
+        "source": "bluray",
+        "resolution": 1080,
+        "modifier": "none"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioBitrate": 0,
+      "audioChannels": 1,
+      "audioCodec": "Opus",
+      "audioLanguages": "",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "x264",
+      "videoFps": 1000,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "1920x1080",
+      "runTime": "1:30:00",
+      "scanType": "Progressive",
+      "subtitles": ""
+    },
+    "originalFilePath": "Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP/Night.of.the.Living.Dead.1968.1080p.BluRay.x264-PDGRP.mkv",
+    "qualityCutoffNotMet": false,
+    "id": 4
+  },
+  "collection": {
+    "title": "Living Dead Collection",
+    "tmdbId": 261590
+  },
+  "popularity": 20.7716,
+  "statistics": {
+    "movieFileCount": 1,
+    "sizeOnDisk": 3412521,
+    "releaseGroups": [
+      "PDGRP"
+    ],
+    "movieFileQualities": [
+      {
+        "id": 7,
+        "name": "Bluray-1080p",
+        "source": "bluray",
+        "resolution": 1080,
+        "modifier": "none"
+      }
+    ]
+  },
+  "id": 1
+}

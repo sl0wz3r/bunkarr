@@ -1,0 +1,52 @@
+[
+  {
+    "movieId": 5,
+    "relativePath": "Nosferatu (1922) [Bluray-2160p].mkv",
+    "path": "/movies-4k/Nosferatu (1922)/Nosferatu (1922) [Bluray-2160p].mkv",
+    "size": 3346400,
+    "dateAdded": "2026-09-25T14:16:56Z",
+    "edition": "",
+    "languages": [
+      {
+        "id": 4,
+        "name": "German"
+      }
+    ],
+    "quality": {
+      "quality": {
+        "id": 19,
+        "name": "Bluray-2160p",
+        "source": "bluray",
+        "resolution": 2160,
+        "modifier": "none"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioBitrate": 0,
+      "audioChannels": 1,
+      "audioCodec": "Opus",
+      "audioLanguages": "",
+      "audioStreamCount": 1,
+      "videoBitDepth": 8,
+      "videoBitrate": 0,
+      "videoCodec": "x264",
+      "videoFps": 0.1,
+      "videoDynamicRange": "",
+      "videoDynamicRangeType": "",
+      "resolution": "3840x2160",
+      "runTime": "1:30:00",
+      "scanType": "Progressive",
+      "subtitles": ""
+    },
+    "qualityCutoffNotMet": false,
+    "id": 5
+  }
+]

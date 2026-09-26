@@ -1,0 +1,39 @@
+{
+  "_note": "POST /api/v1/notification/test with username/password: Authorization: Basic.",
+  "_observedAtReceipt": [],
+  "receivedAt": "2026-09-25T12:29:17.383878+00:00",
+  "method": "POST",
+  "path": "/lidarr-basic",
+  "query": {},
+  "headers": {
+    "Host": "capture:8080",
+    "User-Agent": "Lidarr/3.1.0.4875 (alpine 3.24.2)",
+    "Connection": "close",
+    "Authorization": "Basic YnVua2FycjowMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZg==",
+    "Accept": "application/json",
+    "Accept-Encoding": "gzip, br",
+    "traceparent": "00-10d1af504eebe2844326adc9d4aca81e-b95ff27a9923c999-00",
+    "Content-Type": "application/json",
+    "Content-Length": "312"
+  },
+  "body": {
+    "artist": {
+      "id": 1,
+      "name": "Test Name",
+      "path": "C:\\testpath",
+      "mbId": "aaaaa-aaa-aaaa-aaaaaa",
+      "tags": [
+        "test-tag"
+      ]
+    },
+    "albums": [
+      {
+        "id": 123,
+        "title": "Test title"
+      }
+    ],
+    "eventType": "Test",
+    "instanceName": "Lidarr",
+    "applicationUrl": ""
+  }
+}

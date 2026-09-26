@@ -92,6 +92,43 @@ func TestJobsListingAndValidation(t *testing.T) {
 	}
 }
 
+// TestJobsFilterByIntegration: GET /jobs?integrationId= lists only the jobs of that integration
+// (design phase2-3.md §13), here the refreshes queued when two *arr integrations were created.
+func TestJobsFilterByIntegration(t *testing.T) {
+	e := newEnv(t, nil)
+	// Keep jobs queued: stop the manager.
+	if err := e.app.Jobs.Stop(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	var a, b struct {
+		ID int64 `json:"id"`
+	}
+	e.call(t, 201, "POST", "/integrations", map[string]any{"type": "sonarr", "name": "Sonarr", "url": "http://127.0.0.1:9"}, &a)
+	e.call(t, 201, "POST", "/integrations", map[string]any{"type": "radarr", "name": "Radarr", "url": "http://127.0.0.1:9"}, &b)
+	for _, id := range []int64{a.ID, b.ID} {
+		var page jobqueue.Page[jobs.Job]
+		e.call(t, 200, "GET", fmt.Sprintf("/jobs?state=active&integrationId=%d", id), nil, &page)
+		if page.TotalRecords != 1 || page.Records[0].Type != jobs.TypeRefresh || page.Records[0].Params.IntegrationID != id {
+			t.Fatalf("jobs of integration %d: %+v", id, page)
+		}
+	}
+	var all jobqueue.Page[jobs.Job]
+	e.call(t, 200, "GET", "/jobs?state=active&type=refresh", nil, &all)
+	if all.TotalRecords != 2 {
+		t.Fatalf("refresh jobs: %+v", all)
+	}
+	var none jobqueue.Page[jobs.Job]
+	e.call(t, 200, "GET", "/jobs?integrationId=999", nil, &none)
+	if none.TotalRecords != 0 {
+		t.Fatalf("jobs of an unknown integration: %+v", none)
+	}
+	for _, q := range []string{"integrationId=x", "integrationId=-1"} {
+		if code, _ := e.status(t, "GET", "/jobs?"+q, nil); code != 400 {
+			t.Errorf("jobs?%s: %d, want 400", q, code)
+		}
+	}
+}
+
 func TestSchedules(t *testing.T) {
 	e := newEnv(t, nil)
 	var list []scheduleView

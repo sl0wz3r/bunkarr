@@ -1,0 +1,591 @@
+[
+  {
+    "artistId": 1,
+    "albumId": 13,
+    "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 01 - Maple Leaf Rag.mp3",
+    "size": 191579,
+    "dateAdded": "2026-09-25T12:36:04Z",
+    "quality": {
+      "quality": {
+        "id": 30,
+        "name": "MP3-24"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 5,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 1,
+      "audioBitRate": "24 kbps",
+      "audioCodec": "MP3",
+      "audioBits": "",
+      "audioSampleRate": "8kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 1
+  },
+  {
+    "artistId": 1,
+    "albumId": 13,
+    "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 02 - The Entertainer - A Ragtime Two-Step.mp3",
+    "size": 320625,
+    "dateAdded": "2026-09-25T12:36:04Z",
+    "quality": {
+      "quality": {
+        "id": 30,
+        "name": "MP3-24"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 5,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 1,
+      "audioBitRate": "24 kbps",
+      "audioCodec": "MP3",
+      "audioBits": "",
+      "audioSampleRate": "8kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 2
+  },
+  {
+    "artistId": 1,
+    "albumId": 13,
+    "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 03 - The Easy Winners - The Ragtime Dance.mp3",
+    "size": 250641,
+    "dateAdded": "2026-09-25T12:36:04Z",
+    "quality": {
+      "quality": {
+        "id": 30,
+        "name": "MP3-24"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 5,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 1,
+      "audioBitRate": "24 kbps",
+      "audioCodec": "MP3",
+      "audioBits": "",
+      "audioSampleRate": "8kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 3
+  },
+  {
+    "artistId": 1,
+    "albumId": 13,
+    "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 04 - Gladiolus Rag.mp3",
+    "size": 275602,
+    "dateAdded": "2026-09-25T12:36:04Z",
+    "quality": {
+      "quality": {
+        "id": 30,
+        "name": "MP3-24"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 5,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 1,
+      "audioBitRate": "24 kbps",
+      "audioCodec": "MP3",
+      "audioBits": "",
+      "audioSampleRate": "8kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 4
+  },
+  {
+    "artistId": 1,
+    "albumId": 13,
+    "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 05 - Pine Apple Rag.mp3",
+    "size": 206627,
+    "dateAdded": "2026-09-25T12:36:04Z",
+    "quality": {
+      "quality": {
+        "id": 30,
+        "name": "MP3-24"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 5,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 1,
+      "audioBitRate": "24 kbps",
+      "audioCodec": "MP3",
+      "audioBits": "",
+      "audioSampleRate": "8kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 5
+  },
+  {
+    "artistId": 1,
+    "albumId": 13,
+    "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 06 - Heliotrope Bouquet - A Slow Drag Two-Step.mp3",
+    "size": 355622,
+    "dateAdded": "2026-09-25T12:36:04Z",
+    "quality": {
+      "quality": {
+        "id": 30,
+        "name": "MP3-24"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 5,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 1,
+      "audioBitRate": "24 kbps",
+      "audioCodec": "MP3",
+      "audioBits": "",
+      "audioSampleRate": "8kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 6
+  },
+  {
+    "artistId": 1,
+    "albumId": 13,
+    "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 07 - Paragon Rag.mp3",
+    "size": 230600,
+    "dateAdded": "2026-09-25T12:36:04Z",
+    "quality": {
+      "quality": {
+        "id": 30,
+        "name": "MP3-24"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 5,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 1,
+      "audioBitRate": "24 kbps",
+      "audioCodec": "MP3",
+      "audioBits": "",
+      "audioSampleRate": "8kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 7
+  },
+  {
+    "artistId": 1,
+    "albumId": 13,
+    "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 08 - Solace - A Mexican Serenade.mp3",
+    "size": 430632,
+    "dateAdded": "2026-09-25T12:36:04Z",
+    "quality": {
+      "quality": {
+        "id": 30,
+        "name": "MP3-24"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 5,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 1,
+      "audioBitRate": "24 kbps",
+      "audioCodec": "MP3",
+      "audioBits": "",
+      "audioSampleRate": "8kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 8
+  },
+  {
+    "artistId": 1,
+    "albumId": 13,
+    "path": "/music/Scott Joplin/Piano Rags by Scott Joplin (1970)/Scott Joplin - Piano Rags by Scott Joplin - 09 - Magnetic Rag.mp3",
+    "size": 300585,
+    "dateAdded": "2026-09-25T12:36:04Z",
+    "quality": {
+      "quality": {
+        "id": 30,
+        "name": "MP3-24"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 5,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 1,
+      "audioBitRate": "24 kbps",
+      "audioCodec": "MP3",
+      "audioBits": "",
+      "audioSampleRate": "8kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 9
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 01 - Swipesy Cake Walk.flac",
+    "size": 37738,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 20
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 02 - Lily Queen.flac",
+    "size": 48829,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 21
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 03 - Sunflower Slow Drag.flac",
+    "size": 41798,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 22
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 04 - Something Doing.flac",
+    "size": 43474,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 23
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 05 - Felicity Rag.flac",
+    "size": 40255,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 24
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 06 - Mule-Walk Stomp.flac",
+    "size": 29846,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 25
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 07 - Eccentricity-Syncopated Waltz.flac",
+    "size": 54368,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 26
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 08 - Modernistic (You've Got to Be).flac",
+    "size": 35321,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 27
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 09 - Snowy Morning Blues.flac",
+    "size": 35160,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 28
+  },
+  {
+    "artistId": 1,
+    "albumId": 46,
+    "path": "/music/Scott Joplin/Ragtime (1994)/Scott Joplin - Ragtime - 10 - Carolina Shout.flac",
+    "size": 37886,
+    "dateAdded": "2026-09-25T12:38:23Z",
+    "quality": {
+      "quality": {
+        "id": 6,
+        "name": "FLAC"
+      },
+      "revision": {
+        "version": 1,
+        "real": 0,
+        "isRepack": false
+      }
+    },
+    "qualityWeight": 23,
+    "customFormats": [],
+    "customFormatScore": 0,
+    "indexerFlags": 0,
+    "mediaInfo": {
+      "audioChannels": 2,
+      "audioBitRate": "1 kbps",
+      "audioCodec": "FLAC",
+      "audioBits": "16bit",
+      "audioSampleRate": "44.1kHz"
+    },
+    "qualityCutoffNotMet": false,
+    "id": 29
+  }
+]

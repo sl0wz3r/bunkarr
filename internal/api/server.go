@@ -98,6 +98,8 @@ func (s *Server) apiRoutes(r chi.Router) {
 	r.Post("/auth/setup", s.authSetup)
 	r.Post("/auth/login", s.authLogin)
 	r.Post("/auth/logout", s.authLogout)
+	// The *arrs' webhooks: the integration's webhook key only, never a session or the API key (D7).
+	s.webhookRoutes(r)
 
 	r.Group(func(r chi.Router) {
 		r.Use(s.auth.Require)
@@ -110,8 +112,13 @@ func (s *Server) apiRoutes(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireApp)
 			s.integrationRoutes(r)
+			s.arrIndexRoutes(r)
+			s.webhookInfoRoutes(r)
+			s.arrBackupRoutes(r)
+			s.plexSignInRoutes(r)
 			s.sourceRoutes(r)
 			s.destinationRoutes(r)
+			s.manifestRoutes(r)
 			s.jobRoutes(r)
 			s.notificationRoutes(r)
 		})

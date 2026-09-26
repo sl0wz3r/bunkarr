@@ -1,0 +1,860 @@
+[
+  {
+    "title": "Piano Rags by Scott Joplin",
+    "disambiguation": "",
+    "overview": "",
+    "artistId": 1,
+    "foreignAlbumId": "2fbd7fe8-3844-3347-908b-8033e2af56f1",
+    "monitored": true,
+    "anyReleaseOk": true,
+    "profileId": 1,
+    "duration": 2557000,
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "mediumCount": 1,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "releaseDate": "1970-01-01T00:00:00Z",
+    "releases": [
+      {
+        "id": 19,
+        "albumId": 13,
+        "foreignReleaseId": "03595981-85d8-49e3-b465-256d3915211d",
+        "title": "Piano Rags by Scott Joplin",
+        "status": "Official",
+        "duration": 1955000,
+        "trackCount": 8,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "12\" Vinyl"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [
+          "United Kingdom"
+        ],
+        "label": [
+          "Nonesuch"
+        ],
+        "format": "12\" Vinyl",
+        "monitored": false
+      },
+      {
+        "id": 20,
+        "albumId": 13,
+        "foreignReleaseId": "1cac2c5e-867c-4264-9292-6f9ad3c0bbb0",
+        "title": "Digital Ragtime - Music of Scott Joplin",
+        "status": "Official",
+        "duration": 2557000,
+        "trackCount": 9,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "12\" Vinyl"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [
+          "Germany"
+        ],
+        "label": [
+          "His Master\u2019s Voice"
+        ],
+        "format": "12\" Vinyl",
+        "monitored": true
+      },
+      {
+        "id": 21,
+        "albumId": 13,
+        "foreignReleaseId": "64267a5a-3152-4d59-b9d2-2b1c0557b297",
+        "title": "Piano Rags by Scott Joplin",
+        "status": "Official",
+        "duration": 1955000,
+        "trackCount": 8,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "12\" Vinyl"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [
+          "United States"
+        ],
+        "label": [
+          "Nonesuch"
+        ],
+        "format": "12\" Vinyl",
+        "monitored": false
+      }
+    ],
+    "genres": [
+      "Ragtime",
+      "Jazz"
+    ],
+    "media": [
+      {
+        "mediumNumber": 1,
+        "mediumName": "",
+        "mediumFormat": "12\" Vinyl"
+      }
+    ],
+    "artist": {
+      "status": "ended",
+      "ended": true,
+      "artistName": "Scott Joplin",
+      "foreignArtistId": "aec8a328-d2e8-4780-b2ea-318c7f8d6f75",
+      "tadbId": 0,
+      "discogsId": 0,
+      "artistType": "Person",
+      "disambiguation": "composer and pianist",
+      "links": [
+        {
+          "url": "https://www.discogs.com/artist/272275",
+          "name": "discogs"
+        },
+        {
+          "url": "http://www.scottjoplin.org/",
+          "name": "scottjoplin"
+        },
+        {
+          "url": "http://www.songwritershalloffame.org/exhibits/C297",
+          "name": "songwritershalloffame"
+        },
+        {
+          "url": "https://www.allmusic.com/artist/mn0000843212",
+          "name": "allmusic"
+        },
+        {
+          "url": "http://viaf.org/viaf/56796614",
+          "name": "viaf"
+        },
+        {
+          "url": "https://www.wikidata.org/wiki/Q191499",
+          "name": "wikidata"
+        },
+        {
+          "url": "https://commons.wikimedia.org/wiki/File:Scott_Joplin_19072.jpg",
+          "name": "wikimedia"
+        },
+        {
+          "url": "https://openlibrary.org/works/OL2745948A",
+          "name": "openlibrary"
+        },
+        {
+          "url": "https://d-nb.info/gnd/119174030",
+          "name": "d-nb"
+        },
+        {
+          "url": "https://imslp.org/wiki/Category:Joplin,_Scott",
+          "name": "imslp"
+        },
+        {
+          "url": "https://catalogue.bnf.fr/ark:/12148/cb13895753j",
+          "name": "bnf"
+        },
+        {
+          "url": "http://scottjoplin.org/",
+          "name": "scottjoplin"
+        },
+        {
+          "url": "http://id.loc.gov/authorities/names/n50039880",
+          "name": "loc"
+        },
+        {
+          "url": "https://www.worldcat.org/identities/lccn-n50039880",
+          "name": "worldcat"
+        },
+        {
+          "url": "https://nla.gov.au/nla.party-883541",
+          "name": "gov"
+        },
+        {
+          "url": "https://www.imdb.com/name/nm0429771/",
+          "name": "imdb"
+        },
+        {
+          "url": "https://www.ibdb.com/person.php?id=11962",
+          "name": "ibdb"
+        },
+        {
+          "url": "http://snaccooperative.org/ark:/99166/w6dg7f9f",
+          "name": "snaccooperative"
+        },
+        {
+          "url": "https://music.apple.com/us/artist/178430",
+          "name": "apple"
+        },
+        {
+          "url": "https://open.spotify.com/artist/5FgkTUuCNKDlilidPvZqOq",
+          "name": "spotify"
+        },
+        {
+          "url": "https://www.deezer.com/artist/9140",
+          "name": "deezer"
+        },
+        {
+          "url": "https://tidal.com/artist/30621",
+          "name": "tidal"
+        },
+        {
+          "url": "https://adp.library.ucsb.edu/names/102042",
+          "name": "ucsb"
+        }
+      ],
+      "nextAlbum": null,
+      "lastAlbum": null,
+      "images": [],
+      "path": "/music/Scott Joplin",
+      "qualityProfileId": 1,
+      "metadataProfileId": 1,
+      "monitored": true,
+      "monitorNewItems": "all",
+      "genres": [
+        "Ragtime",
+        "Contemporary Classical",
+        "Jazz",
+        "Modern Classical"
+      ],
+      "cleanName": "scottjoplin",
+      "sortName": "scott joplin",
+      "tags": [
+        1
+      ],
+      "added": "2026-09-25T12:27:17Z",
+      "ratings": {
+        "votes": 1,
+        "value": 8.0
+      },
+      "id": 1
+    },
+    "images": [
+      {
+        "url": "/MediaCover/Albums/13/cover.jpg?lastWrite=639259360395902097",
+        "coverType": "cover",
+        "extension": ".jpg",
+        "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/64267a5a-3152-4d59-b9d2-2b1c0557b297/45832891942-1200.jpg"
+      }
+    ],
+    "links": [],
+    "statistics": {
+      "trackFileCount": 9,
+      "trackCount": 9,
+      "totalTrackCount": 9,
+      "sizeOnDisk": 2562513,
+      "percentOfTracks": 100
+    },
+    "id": 13
+  },
+  {
+    "title": "Ragtime",
+    "disambiguation": "",
+    "overview": "",
+    "artistId": 1,
+    "foreignAlbumId": "bc350371-b6c2-46ab-86dd-57732fb052ee",
+    "monitored": true,
+    "anyReleaseOk": true,
+    "profileId": 1,
+    "duration": 2223102,
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "mediumCount": 1,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "releaseDate": "1994-01-01T00:00:00Z",
+    "releases": [
+      {
+        "id": 63,
+        "albumId": 46,
+        "foreignReleaseId": "a55af591-b363-4344-8f96-cce972322f71",
+        "title": "Ragtime",
+        "status": "Official",
+        "duration": 2223102,
+        "trackCount": 10,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [
+          "United States"
+        ],
+        "label": [
+          "Jazz Heritage"
+        ],
+        "format": "CD",
+        "monitored": true
+      }
+    ],
+    "genres": [
+      "Jazz",
+      "Ragtime"
+    ],
+    "media": [
+      {
+        "mediumNumber": 1,
+        "mediumName": "",
+        "mediumFormat": "CD"
+      }
+    ],
+    "artist": {
+      "status": "ended",
+      "ended": true,
+      "artistName": "Scott Joplin",
+      "foreignArtistId": "aec8a328-d2e8-4780-b2ea-318c7f8d6f75",
+      "tadbId": 0,
+      "discogsId": 0,
+      "artistType": "Person",
+      "disambiguation": "composer and pianist",
+      "links": [
+        {
+          "url": "https://www.discogs.com/artist/272275",
+          "name": "discogs"
+        },
+        {
+          "url": "http://www.scottjoplin.org/",
+          "name": "scottjoplin"
+        },
+        {
+          "url": "http://www.songwritershalloffame.org/exhibits/C297",
+          "name": "songwritershalloffame"
+        },
+        {
+          "url": "https://www.allmusic.com/artist/mn0000843212",
+          "name": "allmusic"
+        },
+        {
+          "url": "http://viaf.org/viaf/56796614",
+          "name": "viaf"
+        },
+        {
+          "url": "https://www.wikidata.org/wiki/Q191499",
+          "name": "wikidata"
+        },
+        {
+          "url": "https://commons.wikimedia.org/wiki/File:Scott_Joplin_19072.jpg",
+          "name": "wikimedia"
+        },
+        {
+          "url": "https://openlibrary.org/works/OL2745948A",
+          "name": "openlibrary"
+        },
+        {
+          "url": "https://d-nb.info/gnd/119174030",
+          "name": "d-nb"
+        },
+        {
+          "url": "https://imslp.org/wiki/Category:Joplin,_Scott",
+          "name": "imslp"
+        },
+        {
+          "url": "https://catalogue.bnf.fr/ark:/12148/cb13895753j",
+          "name": "bnf"
+        },
+        {
+          "url": "http://scottjoplin.org/",
+          "name": "scottjoplin"
+        },
+        {
+          "url": "http://id.loc.gov/authorities/names/n50039880",
+          "name": "loc"
+        },
+        {
+          "url": "https://www.worldcat.org/identities/lccn-n50039880",
+          "name": "worldcat"
+        },
+        {
+          "url": "https://nla.gov.au/nla.party-883541",
+          "name": "gov"
+        },
+        {
+          "url": "https://www.imdb.com/name/nm0429771/",
+          "name": "imdb"
+        },
+        {
+          "url": "https://www.ibdb.com/person.php?id=11962",
+          "name": "ibdb"
+        },
+        {
+          "url": "http://snaccooperative.org/ark:/99166/w6dg7f9f",
+          "name": "snaccooperative"
+        },
+        {
+          "url": "https://music.apple.com/us/artist/178430",
+          "name": "apple"
+        },
+        {
+          "url": "https://open.spotify.com/artist/5FgkTUuCNKDlilidPvZqOq",
+          "name": "spotify"
+        },
+        {
+          "url": "https://www.deezer.com/artist/9140",
+          "name": "deezer"
+        },
+        {
+          "url": "https://tidal.com/artist/30621",
+          "name": "tidal"
+        },
+        {
+          "url": "https://adp.library.ucsb.edu/names/102042",
+          "name": "ucsb"
+        }
+      ],
+      "nextAlbum": null,
+      "lastAlbum": null,
+      "images": [],
+      "path": "/music/Scott Joplin",
+      "qualityProfileId": 1,
+      "metadataProfileId": 1,
+      "monitored": true,
+      "monitorNewItems": "all",
+      "genres": [
+        "Ragtime",
+        "Contemporary Classical",
+        "Jazz",
+        "Modern Classical"
+      ],
+      "cleanName": "scottjoplin",
+      "sortName": "scott joplin",
+      "tags": [
+        1
+      ],
+      "added": "2026-09-25T12:27:17Z",
+      "ratings": {
+        "votes": 1,
+        "value": 8.0
+      },
+      "id": 1
+    },
+    "images": [],
+    "links": [],
+    "statistics": {
+      "trackFileCount": 10,
+      "trackCount": 10,
+      "totalTrackCount": 10,
+      "sizeOnDisk": 404675,
+      "percentOfTracks": 100
+    },
+    "id": 46
+  },
+  {
+    "title": "The Entertainer",
+    "disambiguation": "",
+    "overview": "",
+    "artistId": 1,
+    "foreignAlbumId": "4ad1a2f0-0b1c-3cdf-b403-ccc573a790aa",
+    "monitored": true,
+    "anyReleaseOk": true,
+    "profileId": 1,
+    "duration": 4080461,
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "mediumCount": 1,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "releaseDate": "1999-01-01T00:00:00Z",
+    "releases": [
+      {
+        "id": 1,
+        "albumId": 1,
+        "foreignReleaseId": "a97427c0-3e20-4191-a3eb-3d8a0335d9da",
+        "title": "The Entertainer",
+        "status": "Official",
+        "duration": 4080461,
+        "trackCount": 20,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "CD"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [
+          "United Kingdom"
+        ],
+        "label": [
+          "Going for a Song"
+        ],
+        "format": "CD",
+        "monitored": true
+      }
+    ],
+    "genres": [
+      "Jazz",
+      "Ragtime"
+    ],
+    "media": [
+      {
+        "mediumNumber": 1,
+        "mediumName": "",
+        "mediumFormat": "CD"
+      }
+    ],
+    "artist": {
+      "status": "ended",
+      "ended": true,
+      "artistName": "Scott Joplin",
+      "foreignArtistId": "aec8a328-d2e8-4780-b2ea-318c7f8d6f75",
+      "tadbId": 0,
+      "discogsId": 0,
+      "artistType": "Person",
+      "disambiguation": "composer and pianist",
+      "links": [
+        {
+          "url": "https://www.discogs.com/artist/272275",
+          "name": "discogs"
+        },
+        {
+          "url": "http://www.scottjoplin.org/",
+          "name": "scottjoplin"
+        },
+        {
+          "url": "http://www.songwritershalloffame.org/exhibits/C297",
+          "name": "songwritershalloffame"
+        },
+        {
+          "url": "https://www.allmusic.com/artist/mn0000843212",
+          "name": "allmusic"
+        },
+        {
+          "url": "http://viaf.org/viaf/56796614",
+          "name": "viaf"
+        },
+        {
+          "url": "https://www.wikidata.org/wiki/Q191499",
+          "name": "wikidata"
+        },
+        {
+          "url": "https://commons.wikimedia.org/wiki/File:Scott_Joplin_19072.jpg",
+          "name": "wikimedia"
+        },
+        {
+          "url": "https://openlibrary.org/works/OL2745948A",
+          "name": "openlibrary"
+        },
+        {
+          "url": "https://d-nb.info/gnd/119174030",
+          "name": "d-nb"
+        },
+        {
+          "url": "https://imslp.org/wiki/Category:Joplin,_Scott",
+          "name": "imslp"
+        },
+        {
+          "url": "https://catalogue.bnf.fr/ark:/12148/cb13895753j",
+          "name": "bnf"
+        },
+        {
+          "url": "http://scottjoplin.org/",
+          "name": "scottjoplin"
+        },
+        {
+          "url": "http://id.loc.gov/authorities/names/n50039880",
+          "name": "loc"
+        },
+        {
+          "url": "https://www.worldcat.org/identities/lccn-n50039880",
+          "name": "worldcat"
+        },
+        {
+          "url": "https://nla.gov.au/nla.party-883541",
+          "name": "gov"
+        },
+        {
+          "url": "https://www.imdb.com/name/nm0429771/",
+          "name": "imdb"
+        },
+        {
+          "url": "https://www.ibdb.com/person.php?id=11962",
+          "name": "ibdb"
+        },
+        {
+          "url": "http://snaccooperative.org/ark:/99166/w6dg7f9f",
+          "name": "snaccooperative"
+        },
+        {
+          "url": "https://music.apple.com/us/artist/178430",
+          "name": "apple"
+        },
+        {
+          "url": "https://open.spotify.com/artist/5FgkTUuCNKDlilidPvZqOq",
+          "name": "spotify"
+        },
+        {
+          "url": "https://www.deezer.com/artist/9140",
+          "name": "deezer"
+        },
+        {
+          "url": "https://tidal.com/artist/30621",
+          "name": "tidal"
+        },
+        {
+          "url": "https://adp.library.ucsb.edu/names/102042",
+          "name": "ucsb"
+        }
+      ],
+      "nextAlbum": null,
+      "lastAlbum": null,
+      "images": [],
+      "path": "/music/Scott Joplin",
+      "qualityProfileId": 1,
+      "metadataProfileId": 1,
+      "monitored": true,
+      "monitorNewItems": "all",
+      "genres": [
+        "Ragtime",
+        "Contemporary Classical",
+        "Jazz",
+        "Modern Classical"
+      ],
+      "cleanName": "scottjoplin",
+      "sortName": "scott joplin",
+      "tags": [
+        1
+      ],
+      "added": "2026-09-25T12:27:17Z",
+      "ratings": {
+        "votes": 1,
+        "value": 8.0
+      },
+      "id": 1
+    },
+    "images": [
+      {
+        "url": "/MediaCover/Albums/1/cover.jpg?lastWrite=639259360379228396",
+        "coverType": "cover",
+        "extension": ".jpg",
+        "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/a97427c0-3e20-4191-a3eb-3d8a0335d9da/28525126035-1200.jpg"
+      }
+    ],
+    "links": [],
+    "statistics": {
+      "trackFileCount": 0,
+      "trackCount": 20,
+      "totalTrackCount": 20,
+      "sizeOnDisk": 0,
+      "percentOfTracks": 0
+    },
+    "id": 1
+  },
+  {
+    "title": "The Entertainer - The Very Best of Scott Joplin",
+    "disambiguation": "",
+    "overview": "",
+    "artistId": 1,
+    "foreignAlbumId": "ac2bcd8a-fe2b-4cea-8987-e3c1df7f0e0f",
+    "monitored": true,
+    "anyReleaseOk": true,
+    "profileId": 1,
+    "duration": 16347785,
+    "albumType": "Album",
+    "secondaryTypes": [],
+    "mediumCount": 1,
+    "ratings": {
+      "votes": 0,
+      "value": 0
+    },
+    "releaseDate": "2009-10-01T00:00:00Z",
+    "releases": [
+      {
+        "id": 2,
+        "albumId": 2,
+        "foreignReleaseId": "cbb26675-ec45-4f41-af3b-1c17f6f04b6e",
+        "title": "The Entertainer - The Very Best of Scott Joplin",
+        "status": "Official",
+        "duration": 16347785,
+        "trackCount": 67,
+        "media": [
+          {
+            "mediumNumber": 1,
+            "mediumName": "",
+            "mediumFormat": "Digital Media"
+          }
+        ],
+        "mediumCount": 1,
+        "disambiguation": "",
+        "country": [],
+        "label": [
+          "Master Classics Records"
+        ],
+        "format": "Digital Media",
+        "monitored": true
+      }
+    ],
+    "genres": [
+      "Ragtime"
+    ],
+    "media": [
+      {
+        "mediumNumber": 1,
+        "mediumName": "",
+        "mediumFormat": "Digital Media"
+      }
+    ],
+    "artist": {
+      "status": "ended",
+      "ended": true,
+      "artistName": "Scott Joplin",
+      "foreignArtistId": "aec8a328-d2e8-4780-b2ea-318c7f8d6f75",
+      "tadbId": 0,
+      "discogsId": 0,
+      "artistType": "Person",
+      "disambiguation": "composer and pianist",
+      "links": [
+        {
+          "url": "https://www.discogs.com/artist/272275",
+          "name": "discogs"
+        },
+        {
+          "url": "http://www.scottjoplin.org/",
+          "name": "scottjoplin"
+        },
+        {
+          "url": "http://www.songwritershalloffame.org/exhibits/C297",
+          "name": "songwritershalloffame"
+        },
+        {
+          "url": "https://www.allmusic.com/artist/mn0000843212",
+          "name": "allmusic"
+        },
+        {
+          "url": "http://viaf.org/viaf/56796614",
+          "name": "viaf"
+        },
+        {
+          "url": "https://www.wikidata.org/wiki/Q191499",
+          "name": "wikidata"
+        },
+        {
+          "url": "https://commons.wikimedia.org/wiki/File:Scott_Joplin_19072.jpg",
+          "name": "wikimedia"
+        },
+        {
+          "url": "https://openlibrary.org/works/OL2745948A",
+          "name": "openlibrary"
+        },
+        {
+          "url": "https://d-nb.info/gnd/119174030",
+          "name": "d-nb"
+        },
+        {
+          "url": "https://imslp.org/wiki/Category:Joplin,_Scott",
+          "name": "imslp"
+        },
+        {
+          "url": "https://catalogue.bnf.fr/ark:/12148/cb13895753j",
+          "name": "bnf"
+        },
+        {
+          "url": "http://scottjoplin.org/",
+          "name": "scottjoplin"
+        },
+        {
+          "url": "http://id.loc.gov/authorities/names/n50039880",
+          "name": "loc"
+        },
+        {
+          "url": "https://www.worldcat.org/identities/lccn-n50039880",
+          "name": "worldcat"
+        },
+        {
+          "url": "https://nla.gov.au/nla.party-883541",
+          "name": "gov"
+        },
+        {
+          "url": "https://www.imdb.com/name/nm0429771/",
+          "name": "imdb"
+        },
+        {
+          "url": "https://www.ibdb.com/person.php?id=11962",
+          "name": "ibdb"
+        },
+        {
+          "url": "http://snaccooperative.org/ark:/99166/w6dg7f9f",
+          "name": "snaccooperative"
+        },
+        {
+          "url": "https://music.apple.com/us/artist/178430",
+          "name": "apple"
+        },
+        {
+          "url": "https://open.spotify.com/artist/5FgkTUuCNKDlilidPvZqOq",
+          "name": "spotify"
+        },
+        {
+          "url": "https://www.deezer.com/artist/9140",
+          "name": "deezer"
+        },
+        {
+          "url": "https://tidal.com/artist/30621",
+          "name": "tidal"
+        },
+        {
+          "url": "https://adp.library.ucsb.edu/names/102042",
+          "name": "ucsb"
+        }
+      ],
+      "nextAlbum": null,
+      "lastAlbum": null,
+      "images": [],
+      "path": "/music/Scott Joplin",
+      "qualityProfileId": 1,
+      "metadataProfileId": 1,
+      "monitored": true,
+      "monitorNewItems": "all",
+      "genres": [
+        "Ragtime",
+        "Contemporary Classical",
+        "Jazz",
+        "Modern Classical"
+      ],
+      "cleanName": "scottjoplin",
+      "sortName": "scott joplin",
+      "tags": [
+        1
+      ],
+      "added": "2026-09-25T12:27:17Z",
+      "ratings": {
+        "votes": 1,
+        "value": 8.0
+      },
+      "id": 1
+    },
+    "images": [
+      {
+        "url": "/MediaCover/Albums/2/cover.jpg?lastWrite=639259360380938002",
+        "coverType": "cover",
+        "extension": ".jpg",
+        "remoteUrl": "https://images.lidarr.audio/cache/https://coverartarchive.org/release/cbb26675-ec45-4f41-af3b-1c17f6f04b6e/10091237797-1200.jpg"
+      }
+    ],
+    "links": [],
+    "statistics": {
+      "trackFileCount": 0,
+      "trackCount": 67,
+      "totalTrackCount": 67,
+      "sizeOnDisk": 0,
+      "percentOfTracks": 0
+    },
+    "id": 2
+  }
+]
