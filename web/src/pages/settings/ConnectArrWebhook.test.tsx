@@ -4,9 +4,6 @@ import type { IndexView } from '@/api/arr';
 import type { Integration } from '@/api/types';
 import { callsTo } from '@/test/fetch';
 import { renderApp } from '@/test/render';
-import { slowPage } from '@/test/slow';
-
-slowPage();
 
 // Poll quickly in tests (the panel polls every 5 s).
 vi.mock('@/api/arr', async (importOriginal) => ({

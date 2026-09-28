@@ -594,6 +594,16 @@ func TestUpdatePathAfterRemount(t *testing.T) {
 			writeFiles(t, root, map[string]string{"a.mkv": "a", "b.mkv": "b", "c/d.mkv": "d"})
 			other := filepath.Join(base, "other")
 			writeFiles(t, other, map[string]string{"a.mkv": "x", "b.mkv": "y", "c/d.mkv": "z"})
+			// The same names and sizes as root's files, so only the mtimes tell them apart, and
+			// written right after root's they can share them: Linux stamps a new file with the clock
+			// of the last timer tick (before 6.13, and on filesystems without multigrain timestamps
+			// such as ramfs), and holdsCatalog then takes this other directory for the source.
+			old := time.Now().Add(-time.Hour)
+			for _, rel := range []string{"a.mkv", "b.mkv", "c/d.mkv"} {
+				if err := os.Chtimes(filepath.Join(other, rel), old, old); err != nil {
+					t.Fatal(err)
+				}
+			}
 			src := createSource(t, st, "Movies", root)
 			mustScan(t, NewScanner(st, ScannerOptions{}), src.ID)
 			rec, err := st.identity(ctx, src.ID)

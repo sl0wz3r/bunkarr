@@ -7,13 +7,10 @@ import { validateCron } from '@/lib/cron';
 import { callsTo, type Handler } from '@/test/fetch';
 import { destination, plexIntegration, rcloneDestination, resticDestination } from '@/test/fixtures';
 import { renderApp } from '@/test/render';
-import { slowPage } from '@/test/slow';
 
 // Backup targets of Plex and *arr backups (docs/design/phase4.md §8.5, §15): up to four
 // destinations each with a schedule; a new off-site target needs the password (S29), and the
 // server's 400 for an unencrypted off-site target is shown on its row.
-
-slowPage();
 
 const LOGIN = 'my-login-password';
 const unas = destination({ capabilities: { ...destination().capabilities!, enforcesModes: true } });

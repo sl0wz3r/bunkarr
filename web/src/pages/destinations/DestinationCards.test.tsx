@@ -4,15 +4,12 @@ import type { Snapshot } from '@/api/types';
 import { callsTo, type Handler } from '@/test/fetch';
 import { GiB, job, rcloneDestination, resticDestination, source } from '@/test/fixtures';
 import { renderApp } from '@/test/render';
-import { slowPage } from '@/test/slow';
 import { formatClock, QUEUED_POLLS } from '@/lib/bandwidth';
 
 // The destination list of restic and rclone destinations (docs/design/phase4.md §15): kind, engine
 // and encryption badges, the recovery kit state with its red banner and the actions it disables,
 // the waiting state, the repository figures, restic's prune and locks, the delete that would lose
 // the secret, the stored test and the media snapshots.
-
-slowPage();
 
 const confirmed = { mode: 'restic' as const, origin: 'generated' as const, kitExportedAt: '2026-09-20T10:00:00Z', kitConfirmedAt: '2026-09-20T10:05:00Z' };
 
@@ -180,7 +177,7 @@ describe('Destination cards', () => {
     const row = await rowOf('Offsite');
     await user.click(row.getByRole('button', { name: 'Sync Offsite now' }));
     expect(await screen.findByText(/Sync of Offsite queued\./)).toBeInTheDocument();
-    expect(await screen.findByText(`Sync of Offsite queued: it waits for the transfer window and starts at ${formatClock(until)}.`, { exact: false }, { timeout: 4000 })).toBeInTheDocument();
+    expect(await screen.findByText(`Sync of Offsite queued: it waits for the transfer window and starts at ${formatClock(until)}.`, { exact: false })).toBeInTheDocument();
     // The list is read again after the job deferred, for the card's waiting time.
     await waitFor(() => {
       const deferredAt = calls.findIndex((c, i) => c.key === 'GET /api/v1/jobs/44' && calls.slice(0, i).filter((x) => x.key === 'GET /api/v1/jobs/44').length === 1);

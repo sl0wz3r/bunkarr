@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -377,7 +378,8 @@ func TestRetryExit5(t *testing.T) {
 }
 
 // TestTransferOutcomes: a cutoff (exit 10), Bunkarr's interrupt, per-object errors, --max-delete
-// reached (exit 7) and an overlap are told apart; the result is filled in every case.
+// reached (exit 7), an overlap and a cancellation (rclone running or not yet started) are told
+// apart; the result is filled in every case.
 func TestTransferOutcomes(t *testing.T) {
 	in := func() CopyInput {
 		return CopyInput{SourceRoot: "/src", DestFolder: "M", Files: []string{"big.mkv", "big2.mkv"}, RetentionDir: testRun, MaxDelete: 2}
@@ -446,14 +448,41 @@ func TestTransferOutcomes(t *testing.T) {
 			t.Fatalf("current files %q", current)
 		}
 	})
+	// The job is cancelled while rclone runs: cancelled from the running command's hook, not by a
+	// timer, which on a busy runner can fire before Start (that refuses a cancelled context and
+	// runs nothing: "cancel-before-start").
 	t.Run("cancel", func(t *testing.T) {
 		d, f := newTestDriver(t)
 		dest, sec := jobS3(false)
-		f.Expect(proc.Rclone, enginetest.Prefix("copy"), enginetest.Script{UntilInterrupted: true})
 		ctx, cancel := context.WithCancel(context.Background())
-		time.AfterFunc(20*time.Millisecond, cancel)
-		if _, err := connect(t, d, dest, sec).Copy(ctx, in()); !errors.Is(err, context.Canceled) {
-			t.Fatalf("%v", err)
+		defer cancel()
+		f.Expect(proc.Rclone, enginetest.Prefix("copy"), enginetest.Script{UntilInterrupted: true,
+			Hook: func(*enginetest.Call) { cancel() }})
+		res, err := connect(t, d, dest, sec).Copy(ctx, in())
+		calls := f.CallsOf(proc.Rclone, "copy")
+		if !errors.Is(err, context.Canceled) || res.Interrupted || len(calls) != 1 || !calls[0].Status.Cancelled {
+			t.Fatalf("%+v %v (%d copy commands)", res, err, len(calls))
+		}
+	})
+	// The job is cancelled before rclone starts: nothing runs, the run directory is removed and
+	// the cancellation is returned (the caller lists the batch and keeps it pending).
+	t.Run("cancel-before-start", func(t *testing.T) {
+		d, f := newTestDriver(t)
+		cfg, shm := t.TempDir(), t.TempDir()
+		d.RunDirs = proc.NewRunDirs(cfg, proc.RunDirOptions{ShmDir: shm, StatFS: func(string) (int64, error) {
+			return 0x01021994, nil // tmpfs, as enginetest.RunDirs
+		}})
+		dest, sec := jobS3(false)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		res, err := connect(t, d, dest, sec).Copy(ctx, in())
+		if !errors.Is(err, context.Canceled) || res.Interrupted || res.Cutoff || len(f.Calls()) != 0 {
+			t.Fatalf("%+v %v (%d commands)", res, err, len(f.Calls()))
+		}
+		for _, dir := range []string{filepath.Join(cfg, "run"), filepath.Join(shm, "bunkarr-run")} {
+			if ents, _ := os.ReadDir(dir); len(ents) != 0 {
+				t.Errorf("run directory left in %s: %v", dir, ents)
+			}
 		}
 	})
 }

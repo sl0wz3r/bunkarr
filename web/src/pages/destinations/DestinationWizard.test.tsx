@@ -5,13 +5,10 @@ import type { DestinationInput, EngineTestInput, EngineTestResult } from '@/api/
 import { callsTo, type Handler } from '@/test/fetch';
 import { destination, GiB, hostKeys, rcloneDestination, resticDestination, source } from '@/test/fixtures';
 import { renderApp } from '@/test/render';
-import { slowPage } from '@/test/slow';
 
 // The add wizard and Edit of restic and rclone destinations (docs/design/phase4.md §15, §14.1
 // web): the flow per kind and engine, write-only credentials, host-key confirmation, the "no
 // encryption" acknowledgement, the recovery kit download and confirmation, and S29's password.
-
-slowPage();
 
 const LOGIN = 'my-login-password';
 const pinned = hostKeys.map(({ type, key }) => ({ type, key }));
