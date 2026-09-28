@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -136,6 +137,8 @@ type Store struct {
 	now func() time.Time
 	// hooks is the webhook key map (webhookkeys.go).
 	hooks *webhookKeys
+	// validate checks the destinations of backup targets (SetValidateOptions).
+	validate atomic.Pointer[ValidateOptions]
 }
 
 // NewStore returns a store over d that seals API keys and webhook keys with kr.
@@ -286,6 +289,9 @@ func (s *Store) Create(ctx context.Context, in Input) (Integration, error) {
 	if err != nil {
 		return Integration{}, err
 	}
+	if err := s.checkTargets(ctx, in.Type, settings); err != nil {
+		return Integration{}, err
+	}
 	enabled := true
 	if in.Enabled != nil {
 		enabled = *in.Enabled
@@ -375,6 +381,13 @@ func (s *Store) Update(ctx context.Context, id int64, in Input) (Integration, er
 		settings := string(cur.Settings)
 		if !settingsAbsent(in.Settings) {
 			if settings, err = normalizeSettings(cur.Type, in.Settings); err != nil {
+				return err
+			}
+			// A client that sends only the single backup form keeps the other targets.
+			if settings, err = mergeSingleForm(cur.Type, string(cur.Settings), in.Settings, settings); err != nil {
+				return err
+			}
+			if err := s.checkTargets(ctx, cur.Type, settings); err != nil {
 				return err
 			}
 		}

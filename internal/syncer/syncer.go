@@ -25,6 +25,12 @@
 //     stops being full keeps what the destination holds until an explicit release, and a copy that
 //     is full only because a fact is unknown is a change for the mass-change guard (tiers.go).
 //
+// Phase 4 (docs/design/phase4.md §3.3, §9): the planner is shared by every engine (planner.go:
+// Planner, Plan); the restic and rclone executors of internal/enginerun record their outcomes
+// through the Store's engine operations (store_engine.go: content read back, replaced rows,
+// references, intents). Filecopy jobs run inside the destination's transfer window and at its
+// bandwidth limit (window.go, S27).
+//
 // Records whose source is no longer linked to the destination (or was deleted) are orphans: a
 // sync never retains, moves or modifies them.
 //
@@ -130,6 +136,9 @@ type Options struct {
 	// Tiers decides each file's tier at the destination (phase2-3.md §8.5, tiers.go); nil makes
 	// every file full and the plan Phase 1's.
 	Tiers Tiers
+	// Location is the container's time zone, in which transfer windows and bandwidth timetables
+	// are read (phase4.md §9); nil means time.Local.
+	Location *time.Location
 }
 
 // base is what every runner shares.

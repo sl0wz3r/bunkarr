@@ -61,8 +61,9 @@ test-e2e: ## End-to-end tests of the real binary (syncs, hardlinks, kill -9 + re
 	go test -tags e2e -count=1 -timeout 20m ./internal/e2e/...
 
 .PHONY: test-docker
-test-docker: docker ## Docker suite: image smoke test, container kill test, Plex restore test, SMB/NFS shares
+test-docker: docker ## Docker suite: image smoke test, compose file, container kill test, Plex restore test, SMB/NFS shares
 	sh docker/test-image.sh $(IMAGE)
+	sh docker/test-compose.sh
 	sh docker/test-kill.sh $(IMAGE)
 	sh docker/test-plex-restore.sh $(IMAGE)
 	sh docker/test-shares.sh $(IMAGE)
@@ -78,6 +79,22 @@ test-arr: docker ## *arr suite: real Radarr/Sonarr/Lidarr imports, upgrades, bac
 .PHONY: test-shares
 test-shares: docker ## Sync and kill tests on SMB and NFS shares only (privileged containers)
 	sh docker/test-shares.sh $(IMAGE)
+
+# Real restic and rclone (docs/design/phase4.md D30, §14.4): the enginebin tests run in a
+# golang:1.27-alpine container with alpine's restic and rclone (the versions of
+# docker/engines/versions.env, as in the image) against MinIO and an SFTP server.
+# Needs no Bunkarr image; the binaries are not needed on the host.
+.PHONY: test-engines
+test-engines: ## Real restic/rclone tests in containers (MinIO + SFTP; go test -tags enginebin)
+	sh docker/test-engines.sh
+
+# Off-site acceptance (docs/design/phase4.md §14.6, acceptance 1-9): restic and rclone destinations
+# of $(IMAGE) on MinIO and an SFTP server, driven over HTTP by the Go tests TestDockerOffsite*
+# (internal/e2e, tag e2e). They build a derived test image with an e2e build of this checkout, the
+# argv shims of docker/offsite and curl. Needs Docker, Go and network access (apk, image pulls).
+.PHONY: test-offsite
+test-offsite: docker ## Off-site acceptance: restic/rclone destinations on MinIO + SFTP (Docker and Go)
+	sh docker/test-offsite.sh $(IMAGE)
 
 # Maintainer only: mirror the private repository to the public one through the sanitizing
 # export (scripts/public/ is not part of the public tree).

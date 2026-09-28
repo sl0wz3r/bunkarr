@@ -8,11 +8,9 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -26,78 +24,27 @@ import (
 // and stats of a dry run), every file is full by the built-in fallback, and a second sync plans
 // nothing. Without an *arr integration no job type that Phase 1 did not run is queued.
 
-// phase2Commit is the Phase 2 release ("feat: phase 2 — *arr awareness and Sign in with Plex").
-const phase2Commit = "dce143f3af4c898965a3b0d1caf96eee56b24d30"
+// phase2Commit is the Phase 2 release ("feat: phase 2 — *arr awareness and Sign in with Plex"), and
+// phase2PublicCommit its public counterpart (release_test.go).
+const (
+	phase2Commit       = "dce143f3af4c898965a3b0d1caf96eee56b24d30"
+	phase2PublicCommit = "29a9280ef003a20d1605923c3e2fe784e348a1da"
+)
 
 // previous is the Phase 2 binary, built once on first use; TestMain removes its directory.
-var previous struct {
-	once sync.Once
-	dir  string
-	path string
-	skip string
-	err  error
+var previous = &releaseBuild{
+	name:    "Phase 2",
+	env:     "BUNKARR_E2E_PREVIOUS_BINARY",
+	commits: []string{phase2Commit, phase2PublicCommit},
+	sources: releaseSources,
 }
 
-// previousBinary returns the Phase 2 binary: $BUNKARR_E2E_PREVIOUS_BINARY when set, else
-// phase2Commit of this repository, exported with `git archive` (the checkout is not touched) and
-// built with -tags e2e. The test skips when git or that commit is not available.
+// previousBinary returns the Phase 2 binary: $BUNKARR_E2E_PREVIOUS_BINARY when set, else the Phase 2
+// release built from its commit (fetched in CI). It skips when that is not available, except in CI,
+// where it fails (release_test.go).
 func previousBinary(t *testing.T) string {
 	t.Helper()
-	previous.once.Do(func() {
-		if p := os.Getenv("BUNKARR_E2E_PREVIOUS_BINARY"); p != "" {
-			previous.path, previous.err = filepath.Abs(p)
-			return
-		}
-		root, err := moduleRoot()
-		if err != nil {
-			previous.err = err
-			return
-		}
-		if _, err := exec.LookPath("git"); err != nil {
-			previous.skip = "git is not installed (set BUNKARR_E2E_PREVIOUS_BINARY to a Phase 2 binary)"
-			return
-		}
-		if err := exec.Command("git", "-C", root, "cat-file", "-e", phase2Commit+"^{commit}").Run(); err != nil {
-			previous.skip = fmt.Sprintf("the Phase 2 commit %.12s is not in this checkout (set BUNKARR_E2E_PREVIOUS_BINARY to a Phase 2 binary)", phase2Commit)
-			return
-		}
-		dir, err := os.MkdirTemp("", "bunkarr-e2e-phase2-")
-		if err != nil {
-			previous.err = err
-			return
-		}
-		previous.dir = dir
-		src := filepath.Join(dir, "src")
-		if err := os.Mkdir(src, 0o755); err != nil {
-			previous.err = err
-			return
-		}
-		tarball := filepath.Join(dir, "phase2.tar")
-		if out, err := exec.Command("git", "-C", root, "archive", "--format=tar", "-o", tarball, phase2Commit).CombinedOutput(); err != nil {
-			previous.err = fmt.Errorf("git archive %.12s: %w\n%s", phase2Commit, err, out)
-			return
-		}
-		if out, err := exec.Command("tar", "-x", "-f", tarball, "-C", src).CombinedOutput(); err != nil {
-			previous.err = fmt.Errorf("tar: %w\n%s", err, out)
-			return
-		}
-		out := filepath.Join(dir, "bunkarr-phase2")
-		build := exec.Command("go", "build", "-trimpath", "-tags", "e2e", "-o", out, "./cmd/bunkarr")
-		build.Dir = src
-		build.Env = append(os.Environ(), "CGO_ENABLED=0")
-		if b, err := build.CombinedOutput(); err != nil {
-			previous.err = fmt.Errorf("build the Phase 2 binary: %w\n%s", err, b)
-			return
-		}
-		previous.path = out
-	})
-	if previous.skip != "" {
-		t.Skip(previous.skip)
-	}
-	if previous.err != nil {
-		t.Fatal(previous.err)
-	}
-	return previous.path
+	return previous.binary(t)
 }
 
 // copyTree copies the regular files and directories under from to to.

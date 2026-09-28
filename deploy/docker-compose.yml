@@ -11,6 +11,10 @@
 #      MEDIA_DIR=/mnt/user/data
 #      PLEX_DIR="/mnt/user/appdata/plex/Library/Application Support/Plex Media Server"
 #      BACKUP_DIR=/mnt/remotes/UNAS_backup
+#      SERVER_NAME=tower
+#
+#    SERVER_NAME names this install: the container's host name becomes bunkarr-<SERVER_NAME>
+#    (bunkarr-tower here). Give every install, test or dev container its own (see hostname below).
 #
 #    Optional, for the *arr backups (uncomment the matching volume lines below):
 #
@@ -44,6 +48,12 @@ services:
     build:
       context: ..
     container_name: bunkarr
+    # A unique, stable host name per install (docs/design/phase4.md §6.7): restic decides whether a
+    # repository lock is stale by the host name that wrote it. Never give two containers that can
+    # reach the same off-site repository the same host name (a second install, a dev container,
+    # or the old and new container during an update). Required, like PUID and TZ: no default that
+    # every install would share.
+    hostname: "bunkarr-${SERVER_NAME:?set SERVER_NAME in deploy/.env (your server's name, unique per install)}"
     environment:
       # Run as the user Plex runs as (Unraid: 99/100), so Bunkarr can read Plex's
       # Preferences.xml, which Plex keeps at mode 0600.
@@ -52,6 +62,11 @@ services:
       - "UMASK=${UMASK:-022}"
       # Same time zone as Plex: the Plex backup checks Plex's maintenance hours in this zone.
       - "TZ=${TZ:?set TZ in deploy/.env (e.g. America/New_York, the time zone Plex uses)}"
+      # Optional: other restic or rclone programs than the image's (/usr/bin/restic, /usr/bin/rclone),
+      # as an absolute path the Bunkarr user cannot write, without spaces. The program receives
+      # every off-site destination's secrets, so it is only ever chosen here, never in the UI.
+      # - "BUNKARR_RESTIC_PATH=/usr/local/bin/restic"
+      # - "BUNKARR_RCLONE_PATH=/usr/local/bin/rclone"
     volumes:
       - "${BUNKARR_CONFIG:-/mnt/user/appdata/bunkarr}:/config"
       - "${MEDIA_DIR:?set MEDIA_DIR in deploy/.env (the folder holding downloads and library)}:/media:ro"
@@ -76,7 +91,10 @@ services:
     # reach Bunkarr as http://bunkarr:8787; otherwise use the host's address.
     ports:
       - "8787:8787"
-    # Time for a clean stop: running jobs get 20 s to stop and are queued to resume. A killed
-    # container resumes its jobs too, but a job killed three times in a row fails.
-    stop_grace_period: 1m
+    # Time for a clean stop: running jobs get 20 s to stop and are queued to resume. restic
+    # removes its lock from a local repository then; an off-site (S3, B2, SFTP) repository keeps
+    # the stopped job's lock (its rclone backend stops with restic), and Bunkarr removes that lock
+    # before its next retention or verify step. A killed container resumes its jobs too, but a job
+    # killed three times in a row fails.
+    stop_grace_period: 60s
     restart: unless-stopped

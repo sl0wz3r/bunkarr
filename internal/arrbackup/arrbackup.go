@@ -258,4 +258,8 @@ type Stats struct {
 	Recovered      int64 `json:"recovered,omitempty"`
 	VersionsPruned int64 `json:"versionsPruned"`
 	DurationMs     int64 `json:"durationMs"`
+	// Engine and EngineRef are set for a version at a restic or rclone destination (phase4.md
+	// §8): the engine and the version's reference (the restic snapshot id, or the rclone path).
+	Engine    string `json:"engine,omitempty"`
+	EngineRef string `json:"engineRef,omitempty"`
 }

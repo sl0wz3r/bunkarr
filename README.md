@@ -12,22 +12,26 @@ and the *arr stack. It knows which media can be re-downloaded:
 
 Bunkarr never modifies or deletes your source media.
 
-> **Status: early development. Phase 3 (tiering) is complete; Phase 4 (restic, rclone and
-> remote destinations) is next.** Bunkarr mirrors your libraries to a mounted share (such as a
-> UniFi UNAS over NFS or SMB), backs up the Plex database and the Sonarr, Radarr and Lidarr
-> configuration, backs up an *arr import within a minute through its webhook, and writes
-> manifests of every *arr item. Tier rules decide, per destination, which files are copied in
-> full and which are only listed in the manifests; with no rules (the default) every file is
-> still copied in full. The restore wizard comes in Phase 5. See [the roadmap](#roadmap).
+> **Status: early development. Phase 4 (restic, rclone and remote destinations) is complete;
+> Phase 5 (restore) is next.** Bunkarr mirrors your libraries to a mounted share (such as a
+> UniFi UNAS over NFS or SMB) and, encrypted, to off-site storage (Backblaze B2, any
+> S3-compatible service or an SFTP server) through restic or rclone; it backs up the Plex
+> database and the Sonarr, Radarr and Lidarr configuration, backs up an *arr import within a
+> minute through its webhook, and writes manifests of every *arr item. Tier rules decide, per
+> destination, which files are copied in full and which are only listed in the manifests; with
+> no rules (the default) every file is still copied in full. The restore wizard comes in Phase 5.
+> See [the roadmap](#roadmap).
 
 ## Screenshots
 
 The screenshots show a demo setup, not a real library: public-domain films and TV series as files
 of random bytes, a scratch Plex Media Server and real Sonarr, Radarr and Lidarr in Docker (the
 imports are tiny generated videos), and an NFS share ("UNAS") and an SMB share ("Offsite NAS")
-served by containers. Tautulli, Seerr and Maintainerr are the fakes from the test suite, serving
-their recorded answers with demo plays, requests and users; "Sign in with Plex" ran against a fake
-plex.tv. No real media and no real account were involved.
+served by containers. The off-site destinations are containers too: "Cloud bucket" is a restic
+repository in a MinIO bucket (S3), "Friend's server" an rclone crypt remote on an OpenSSH SFTP
+server; their keys and passwords were throwaway values. Tautulli, Seerr and Maintainerr are the
+fakes from the test suite, serving their recorded answers with demo plays, requests and users;
+"Sign in with Plex" ran against a fake plex.tv. No real media and no real account were involved.
 
 <table>
   <tr>
@@ -96,8 +100,38 @@ plex.tv. No real media and no real account were involved.
       <p align="center"><b>Settings → Plex</b>: connection test, sign-in or URL and token, data path</p>
     </td>
     <td width="50%" valign="top">
-      <a href="docs/images/destinations.png"><img src="docs/images/destinations.png" alt="Destinations list: an NFS and an SMB share with their capability badges, schedules, last sync, and buttons for snapshots and manifests"></a>
-      <p align="center"><b>Destinations</b>: each share with the capabilities Bunkarr probed, its schedules and last sync</p>
+      <a href="docs/images/destinations.png"><img src="docs/images/destinations.png" alt="Destinations list: a restic repository in an S3 bucket and an rclone crypt remote on an SFTP server, both encrypted with their recovery kits confirmed, their schedules, transfer window, upload limits and snapshot count, then an NFS and an SMB share with their capability badges; each with its last sync and buttons for test, preview, sync, verify, prune, locks, recovery kit, snapshots and manifests"></a>
+      <p align="center"><b>Destinations</b>: off-site restic and rclone destinations next to the NAS shares, with schedules, window, limits and last sync</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/images/offsite-destination.png"><img src="docs/images/offsite-destination.png" alt="Add destination: where (S3-compatible storage chosen from a local folder, SFTP, S3 and Backblaze B2), how (restic, the default, or rclone), the MinIO endpoint, region, bucket and prefix, the access key ID and secret access key as masked password fields, a generated encryption password, and the test required before saving"></a>
+      <p align="center"><b>Add an off-site destination</b>: S3 through restic; the keys are masked and stored encrypted, the password is generated</p>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/bandwidth.png"><img src="docs/images/bandwidth.png" alt="The bandwidth section of an off-site destination: a 12 MiB/s upload limit, a weekday 07:00 to 23:00 timetable line at 2 MiB/s, and a transfer window every day from 23:00 to 07:00 with 15 minutes of grace"></a>
+      <p align="center"><b>Bandwidth</b>: upload and download limits, a weekly timetable and a nightly transfer window</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/images/recovery-kit.png"><img src="docs/images/recovery-kit.png" alt="Recovery kit of the Cloud bucket destination: not confirmed yet, so no backup runs; the kit was just downloaded after the Bunkarr password was typed (the storage credentials left out), and the check code printed in it is asked for next"></a>
+      <p align="center"><b>Recovery kit</b>: download it with your password, then type its check code; until then no backup runs</p>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/queue-offsite.png"><img src="docs/images/queue-offsite.png" alt="Activity queue: a sync to the SFTP server uploading an episode at 5.4 MiB/s under its 6 MiB/s limit with its ETA, and a sync to the S3 bucket waiting for its transfer window, which opens at 01:30"></a>
+      <p align="center"><b>Off-site sync</b>: upload speed under the limit, and a sync waiting for its transfer window</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/images/snapshots.png"><img src="docs/images/snapshots.png" alt="Snapshots of the restic destination per source: the batches of the first backup (partial) and the complete snapshots of later syncs, with files, data added and snapshot id, then a verified Plex database backup stored in the same repository"></a>
+      <p align="center"><b>restic snapshots</b>: per source, a long first backup in batches, and the Plex DB versions in the same repository</p>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/retention-preview.png"><img src="docs/images/retention-preview.png" alt="Retention preview of the restic destination: nothing was deleted; ten snapshots the retention no longer keeps would be forgotten and two kept, each listed with its snapshot id and reason"></a>
+      <p align="center"><b>Retention preview</b>: which snapshots the next retention run would forget, and which it keeps</p>
     </td>
   </tr>
   <tr>
@@ -138,6 +172,13 @@ plex.tv. No real media and no real account were involved.
 - **Destinations**: a mounted folder, mirrored with the `filecopy` engine: one folder per source,
   every file written to a temp file, hashed, fsynced and renamed into place, hardlinks recreated
   where the share supports them.
+- **Off-site destinations**: Backblaze B2, S3-compatible storage and SFTP servers (and restic
+  repositories on a mounted folder), through **restic** (deduplicated, versioned snapshots) or
+  **rclone** (a plain copy of the files). Encrypted by default (restic's own encryption, or rclone
+  crypt) with a **recovery kit** that restores without Bunkarr; per-destination retention,
+  bandwidth limits, timetables and transfer windows; verify jobs that read the data back. The Plex
+  database, the *arr backups and the manifests can go off-site too. See
+  [Off-site destinations](#off-site-destinations).
 - **Nothing is lost**: files deleted at the source and old versions of changed files move into
   `.bunkarr/retention/` and are kept 30 days (per destination). A file Bunkarr did not write is
   never overwritten or deleted. When a Radarr/Sonarr upgrade's new file cannot be backed up, the
@@ -199,6 +240,8 @@ plex.tv. No real media and no real account were involved.
    MEDIA_DIR=/mnt/user/data
    PLEX_DIR="/mnt/user/appdata/plex/Library/Application Support/Plex Media Server"
    BACKUP_DIR=/mnt/remotes/UNAS_backup
+   # this install's name, unique per install: the container's host name becomes bunkarr-tower
+   SERVER_NAME=tower
    # optional: the *arr apps' Backups folders (uncomment their lines in the compose file too)
    SONARR_BACKUPS=/mnt/user/appdata/sonarr/Backups
    RADARR_BACKUPS=/mnt/user/appdata/radarr/Backups
@@ -206,10 +249,11 @@ plex.tv. No real media and no real account were involved.
    ```
 
    [`deploy/docker-compose.yml`](deploy/docker-compose.yml) refuses to start while `PUID`,
-   `PGID`, `TZ`, `MEDIA_DIR`, `PLEX_DIR` or `BACKUP_DIR` is missing, so Docker never creates
-   empty folders at guessed paths. `BUNKARR_CONFIG` defaults to `/mnt/user/appdata/bunkarr`. Not
-   using the Plex DB backup? Delete the `/plex` line from the compose file. Git ignores `.env`;
-   a variable set in your shell (often `TZ`) takes precedence over it.
+   `PGID`, `TZ`, `SERVER_NAME`, `MEDIA_DIR`, `PLEX_DIR` or `BACKUP_DIR` is missing, so Docker
+   never creates empty folders at guessed paths and no two installs share a host name.
+   `BUNKARR_CONFIG` defaults to `/mnt/user/appdata/bunkarr`. Not using the Plex DB backup? Delete
+   the `/plex` line from the compose file. Git ignores `.env`; a variable set in your shell (often
+   `TZ`) takes precedence over it.
 
 3. Check what Compose will run, then start it:
 
@@ -238,9 +282,15 @@ plex.tv. No real media and no real account were involved.
 | `BUNKARR_BIND` | — | all interfaces | Listen address. |
 | `BUNKARR_LOG_LEVEL` | — | `info` | `debug`, `info`, `warn`, `error`. |
 | `BUNKARR_LOG_FORMAT` | — | `text` | stdout format (`text` or `json`); `/config/logs/bunkarr.log` is always JSON. |
+| `BUNKARR_RESTIC_PATH` / `BUNKARR_RCLONE_PATH` | optional | the image's `restic` / `rclone` | Another restic or rclone program: an absolute path to a file the Bunkarr user cannot write, without spaces or quotes. It receives every off-site destination's secrets, so it is only ever set here, never in the UI. |
 
-The example sets `stop_grace_period: 1m`: on a clean stop running jobs are queued to resume. A
-killed container resumes its jobs as well, but a job killed three times in a row fails.
+The example sets `stop_grace_period: 60s`: on a clean stop running jobs are queued to resume, and
+restic gets the time to remove its lock from a local repository. An off-site (S3, B2, SFTP)
+repository keeps the stopped job's lock (its rclone backend stops with restic); Bunkarr removes
+that lock before its next retention or verify step. A killed container resumes its jobs as well,
+but a job killed three times in a row fails. It also sets `hostname: bunkarr-<server name>`: with
+off-site restic destinations every install needs its own, **stable host name** (see
+[One host name per install](#one-host-name-per-install)).
 
 ### Storage notes
 
@@ -634,11 +684,237 @@ Settings → Plex → **Sign in with Plex**, instead of pasting a token:
   sign-in; afterwards sign in again or enter a token manually.
 - Entering the URL and token manually works as before (see [First run](#first-run)).
 
+## Off-site destinations
+
+Destinations → Add → **Where** offers a local or mounted folder, an **SFTP server**,
+**S3-compatible storage** (AWS, MinIO, Wasabi, Cloudflare R2 and others) or **Backblaze B2**;
+**How** picks the engine. A mounted folder keeps the Phase 1 `filecopy` mirror by default (a
+restic repository on it is possible too). Remote destinations use:
+
+- **restic** (the default): a deduplicated, encrypted repository. Each sync adds one snapshot per
+  source; unchanged data is never uploaded again, renamed files cost nothing, and restic compresses.
+  Restores go through restic (a file, a folder, or a whole source at any snapshot).
+- **rclone**: a plain copy of your files under the same layout as a mounted destination
+  (`<destination folder>/<path>`, `.bunkarr/retention/`, `.bunkarr/links.tsv`), wrapped in rclone
+  crypt by default. A restore is a plain `rclone copy`; renames are server-side moves; there is no
+  deduplication.
+
+Both engines keep the Phase 1 promises: a file deleted at the source stays at the destination for
+the retention period (30 days by default), an update keeps the old version for as long, the
+mass-change guard holds unusually large changes, and nothing is recorded as backed up until it was
+read back from the destination. On restic, retention also keeps whole snapshots: the newest one of
+each of the last 7 days, 4 weeks and 6 months that have one (per destination, 0 to turn a bucket
+off), and always the newest snapshot and every snapshot a retained file still needs.
+
+**Kept files** (a file that stopped being `full`, see [Tiers](#tiers)) behave differently on
+restic: a snapshot cannot keep one old file without keeping the whole snapshot, so a kept file
+whose source changed is backed up again, and its old version is kept like any replaced version
+(for the retention period). On rclone and on mounted folders a kept file stays exactly as it was
+until you release it.
+
+Every change that chooses **where data goes** needs your password, in the UI session: creating an
+off-site destination, changing its credentials, SFTP host keys or CA certificate, linking a
+source or a Plex/*arr backup target to it, and accepting no encryption. The API key and the
+local-address bypass cannot do these (403); they can still run the jobs of existing destinations.
+
+### Encryption and the recovery kit
+
+Off-site destinations are encrypted by default: restic always encrypts, and rclone wraps the
+remote in `crypt` (file contents and names; sizes, times and the folder shape stay visible to the
+provider). Bunkarr generates the secret (or you type your own, at least 16 characters); it is
+sealed in the database with `bunkarr.key` and **can never change**.
+
+Without that secret the backup cannot be read, and Bunkarr keeps it only in `/config`. So after
+creating an off-site destination, **export its recovery kit** (the destination card → Recovery
+kit, with your password) and **type the check code** printed in it. Until you do, the destination
+runs nothing but previews, its card shows a red banner, and a daily notification reminds you
+(a secret you typed at create is confirmed by typing it again instead). The kit is a text file
+with the destination's location, the secret (and, if you tick the box, the storage credentials),
+the check code, the layout, and step-by-step commands to list and restore without Bunkarr.
+
+- Keep the kit **in a password manager and on paper**, away from the server. Whoever holds the kit
+  (and access to the storage) can read the whole backup; every export sends a notification.
+- **Bunkarr cannot recover a lost kit** once `/config` is gone: there is no reset. Export it again
+  while you still have the server.
+
+### Restoring without Bunkarr
+
+In an empty folder on any machine with restic and rclone installed, paste the kit's shell block
+(between `BEGIN SHELL` and `END SHELL`) into a POSIX shell; it writes the password file, the
+`rclone.conf` and, for SFTP, the pinned host keys. Then:
+
+```sh
+# restic
+restic snapshots --tag 'bunkarr-dest:<tag from the kit>'
+restic restore <snapshot>:<source path> --target <directory>      # a whole source
+restic dump <snapshot> '<source path>/<file>' > <file>             # one file
+# rclone crypt
+rclone lsd bunkarr-crypt:
+rclone copy 'bunkarr-crypt:<destination folder>' <directory>
+```
+
+Hardlinked names are recreated from `.bunkarr/links.tsv` as described in [Restoring](#restoring)
+(restic restores hardlinks within one restore by itself). The Plex DB, *arr and manifest versions
+are snapshots tagged `bunkarr-kind:plexdb|arr|manifest` (restic) or folders under
+`.bunkarr/plex`, `.bunkarr/arr` and `.bunkarr/manifests` (rclone). After losing `/config`,
+**attach** the destination to a new Bunkarr (create it with *Attach* and the kit's secret): the
+first sync reads your sources again and uploads only what is missing. The old snapshots stay in
+the repository under their old tag.
+
+**Test the kit once**, on another machine: restore one file as above. That is the only proof that
+the kit you keep is complete.
+
+### Verifying
+
+Every off-site destination gets a verify job (weekly by default; the card's **Verify** runs one
+now). Nothing counts as verified from a listing alone: the job reads data back from the provider.
+
+- **restic**: `restic check` reads a rotating share of the repository's packs (the verify sample,
+  5 % by default, reads every pack once in 20 runs), then restores a sample of files into
+  `<config>/staging` and compares each with its source's SHA-256.
+- **rclone**: every object is listed and compared with Bunkarr's records (a missing one, or one of
+  another size, is uploaded again by the next sync), then a sample is downloaded with
+  `rclone check --download` and compared with the sources. One version of each Plex DB, *arr and
+  manifest kind is downloaded and hashed too.
+- The content sample is capped by `settings.verify.sampleMaxBytes` (4 GiB on restic, 16 GiB on
+  rclone). To read everything once, `POST /api/v1/destinations/<id>/verify` with
+  `{"readData": true}` (all of it is downloaded: mind the egress).
+- A failed check or a mismatch fails the job's item and sends a notification. On restic, see
+  [When restic reports damage](#when-restic-reports-damage); a new sync does not repair it.
+
+### Costs
+
+- **B2 and S3 charge for requests**, not only storage: uploads and deletes are cheap (B2 class A
+  is free), listings and downloads are class B and C transactions (B2 includes 2,500 of each per
+  day). restic packs data into 64 MiB files on remote destinations
+  (`settings.restic.packSizeMiB`), which keeps the object count, and so the transactions, low;
+  rclone stores one object per file (plus the `.bunkarr/` files).
+- **Egress**: a verify job downloads its sample (a share of the files per run, capped by
+  `settings.verify.sampleMaxBytes`), and `restic prune` downloads and rewrites packs that are
+  partly unused (at most weekly by default, `settings.restic.pruneEveryDays`). B2's egress is free
+  up to three times the data you store per month; other providers charge for it. Check your
+  provider's current prices.
+- **The restic cache** lives in `<config>/cache/restic/<destination id>`. It holds encrypted
+  metadata only (indexes, snapshots, trees) and can reach several GiB for large repositories; it
+  saves most of the listing and download transactions. It is safe to delete (restic rebuilds it).
+
+### Bandwidth and transfer windows
+
+Per destination (the **Bandwidth** tab): an upload and download limit (KiB/s, 0 = unlimited), up
+to 16 timetable entries that change the limit by day and time (rclone switches the rate during a
+transfer, and restic's traffic to remote destinations goes through rclone too), and a **transfer
+window** (days, from–to, in the container's time zone) outside which the destination's syncs,
+verifies and retention jobs do not run. A job that reaches the window's end stops cleanly (no
+file fails and nothing partial is recorded), waits, and resumes in the next window with the same
+plan ("Waiting for the transfer window until 01:00"). The Plex DB, *arr and manifest backups ignore
+the window (they are small; the limits apply). At most two off-site syncs upload at a time
+(`engines.uploadSlots`, `PUT /api/v1/settings/engines`, applied after a restart). They run on
+these upload slots, not on the two job workers of every other job, so an off-site seed that
+uploads for days does not hold back the nightly sync to the NAS or the Plex and *arr backups.
+
+**A file larger than the window** (it cannot be uploaded within one whole window at the rate in
+force, for example a 60 GB remux at 2 MiB/s in a 6-hour window) fails its item with a warning each
+run, and the rest of the job completes. Raise the limit, widen the window, or turn on *Let a file
+larger than the window run past its end*.
+
+### B2, S3 and SFTP notes
+
+- **Backblaze B2**: create an **application key restricted to the bucket**, never the master key,
+  with the capabilities `listBuckets`, `listFiles`, `readFiles`, `writeFiles` and `deleteFiles`.
+  Bunkarr warns when a key is not restricted to one bucket: whoever obtains `/config` could then
+  erase every bucket of the account. Bunkarr's deletes (expired retention, `restic prune`) are
+  **hard deletes**, so B2 keeps no hidden versions to pay for, and a deleted file cannot be
+  undeleted. For a copy that survives a compromise of `/config`, turn on **Object Lock** for the
+  bucket with a retention longer than your retention settings (deletes of locked files then fail
+  until the lock expires). Set the bucket's **lifecycle** to *Keep only the last version of the
+  file* (B2's default keeps all versions): it removes, after a day, the previous versions of the
+  few files Bunkarr rewrites in place (such as `.bunkarr/links.tsv` on rclone). Never add a rule
+  that hides or deletes current files after some days (`daysFromUploadingToHiding`): it would
+  remove backed-up data behind Bunkarr's back, and restic would report a damaged repository.
+- **S3**: an endpoint with a self-signed certificate needs its CA certificate in the destination's
+  *CA certificate* field; TLS verification is never turned off. Plain `http://` endpoints are
+  accepted only on a private network, with a warning. Two destinations may not share a bucket
+  prefix (one inside the other).
+- **SFTP**: "Fetch host keys" shows the server's key fingerprints; compare them with the server's
+  own (`ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub` on the server) before you confirm. A changed
+  host key stops every job until you pin the new one. The folder must exist on the server. Use an
+  SSH key (a password must be at least 8 characters). File names get about 1.6 times longer
+  under crypt, so very long names can exceed the server's 255-byte limit (that file then fails).
+
+### One host name per install
+
+restic decides whether a repository lock is stale by the host name that wrote it. Give every
+Bunkarr install its **own, stable host name** (`hostname: bunkarr-<server name>` in the compose
+file) and **never run two containers with the same host name against the same repository**: a
+second install, a test or dev container, or the old and new container during an Unraid
+update/replace. Bunkarr refuses to remove a lock of its own host name that a process it does not
+know holds ("another restic process with host name … is using this repository"), so such a clash
+stops the retention job instead of damaging data; fix the host names and run it again. On Unraid,
+set the host name in the container template (Advanced View → Extra Parameters:
+`--hostname=bunkarr-tower`) and keep it when you edit the container.
+
+### When restic reports damage
+
+A verify job runs `restic check` (reading a rotating share of the packs; everything with
+`readData`) and restores a sample of files to compare with the sources. If it reports errors, a sync
+alone cannot fix them: restic deduplicates, so while the index lists the damaged data a backup
+reuses it. Pause Bunkarr's jobs of that destination (Destinations → Edit → disable) and repair
+from inside the container, where the sources are mounted at the paths Bunkarr backs up. Open the
+shell **as Bunkarr's user**: `docker exec -it -u <PUID>:<PGID> bunkarr sh` (Unraid: `-u 99:100`).
+Never use a plain `docker exec -it bunkarr sh`: it is a root shell, and restic run as root writes
+index and pack files that Bunkarr cannot read, so every later job of the destination fails until
+you give them back to `PUID`:`PGID` (root can also be refused reading sources on NFS). Then
+`mkdir /tmp/repair && cd /tmp/repair`, paste the kit's shell block, and run:
+
+```sh
+export RESTIC_CACHE_DIR=/tmp/repair/cache  # not /config (the home of Bunkarr's user)
+restic check                    # see what is damaged
+restic repair index             # rebuild the index from the packs
+restic repair packs <pack id>…  # salvage what can be read from damaged packs
+restic repair snapshots --dry-run | tee damage.txt  # what is lost; changes nothing
+sed -n 's/^ *file "\(.*\)": removed missing content$/\1/p' damage.txt | sort -u > heal.txt
+restic backup --host bunkarr --tag repair --files-from-verbatim heal.txt  # re-upload those files
+restic check                    # "no errors were found": repaired
+```
+
+In `damage.txt`, a `file "…": removed missing content` line is a file whose data is gone and a
+`dir "…"` line is a lost folder listing. The backup reads again only the files in `heal.txt` (a
+name printed with a `\` escape must be written out by hand; skip the backup if the list is empty)
+and uploads their data, which makes the damaged snapshots whole under their own ids: Bunkarr keeps
+every version it recorded. Never back up whole source paths here: that ignores Bunkarr's tiers and
+excludes and uploads everything the repository does not hold. restic here also ignores the
+destination's bandwidth limits and transfer window: on a remote destination add
+`--limit-upload <KiB/s>` to the backup. Bunkarr never forgets a snapshot without its tags, so once
+`check` is clean run `restic forget <id of the repair snapshot>` (the data stays: the old snapshots
+use it).
+
+If `check` still reports errors, some lost data cannot be uploaded again: a lost folder listing (a
+backup never recreates it), or a file that is no longer at the sources as it was (deleted or changed
+since, an older version, a Plex DB, *arr or manifest version). The backup names the files it could
+not read ("at least one source file could not be read"); if one is still at its source (a permission
+error), fix that and run the backup again first. Only then run `restic repair snapshots --forget`:
+it replaces each damaged snapshot with a copy without the lost files, under a **new id** that
+Bunkarr has not recorded. The next sync treats every replaced snapshot as removed outside Bunkarr:
+the current files it held are uploaded again, but the older versions and deleted files Bunkarr kept
+in it are dropped ("version lost"), **including those the repair kept intact**, and retention later
+forgets the copies. So before you enable the destination, restore what you still need from the new
+snapshots (the ids the command prints) as in
+[Restoring without Bunkarr](#restoring-without-bunkarr).
+
+Remove the working folder (`cd / && rm -rf /tmp/repair`: it holds the repository password), then
+enable the destination and run a sync. Stale locks after a crash are removed by Bunkarr
+before its next exclusive step (or with Destinations → Remove stale locks).
+
 ## Upgrading and downgrading
 
 Update the checkout (`git pull`) and run the Quick start's `up -d --build` again, or pull a
 released image (`docker compose -f deploy/docker-compose.yml pull`, then `up -d`). Running jobs
 are queued to resume.
+
+**From Phase 1-3 (compose).** The compose example now requires `SERVER_NAME` (the container's
+host name becomes `bunkarr-<SERVER_NAME>`; restic uses it to tell stale locks apart, so it must
+be unique per install). Add `SERVER_NAME=<your server's name>` to `deploy/.env` before `up`, or
+compose refuses with "required variable SERVER_NAME is missing a value".
 
 **Pre-migration copy.** Before a new version changes the database schema, Bunkarr writes a copy
 of the database to `/config/backups/bunkarr-v<old schema version>-<time>.db` (mode 0600; the new
@@ -732,6 +1008,8 @@ still go to retention first. Preview shows what would be held.
   The same caution applies: the zips hold the app's API key and passwords.
 - **The *arr library itself** (to acquire media again): the newest version under
   `<target>/.bunkarr/manifests/` (see [Manifests](#manifests)).
+- **Off-site destinations** (restic, rclone) are restored with restic or rclone and the
+  destination's recovery kit; see [Restoring without Bunkarr](#restoring-without-bunkarr).
 
 ## API
 
@@ -753,6 +1031,11 @@ curl -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' -d '{"dryRun":true
   based on), `GET /tiers/fields`, `GET /tiers/presets`, `POST /tiers/preview` (and
   `GET /tiers/preview/{id}/items`) and the irreplaceable flags (`/tiers/flags`). A release is a
   sync with `releaseDemoted` (see the OpenAPI description).
+- `/api/v1/destinations/…` for off-site destinations (Phase 4, [`docs/design/phase4.md`](docs/design/phase4.md)
+  §12): `kind`, `engine`, `remote`, write-only `credentials`, `encryption` and `bandwidth` on
+  create; `POST /destinations/test`, `POST /destinations/sftp/hostkeys`,
+  `POST /destinations/{id}/recovery-kit` (and `/confirm`), `/unlock` and `/retention`. The routes
+  that choose where data goes need a UI session and `currentPassword` (403 with the API key).
 - `POST /api/v1/webhook/{app}/{integrationId}` — the *arr webhooks. They take only that
   connection's webhook key (Basic auth password, `X-Api-Key` or `apikey`), never the API key
   above; see [Webhook](#webhook).
@@ -765,7 +1048,7 @@ curl -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' -d '{"dryRun":true
 | 1 | MVP: Plex integration, scanner with hardlink detection, file-copy engine, scheduled syncs, Plex DB backup, activity/history, Apprise notifications ✅ |
 | 2 | *arr awareness: Sonarr/Radarr/Lidarr APIs and webhooks, *arr config backups, manifest export, Sign in with Plex ✅ |
 | 3 | Tiering: rule engine (tags, quality, Plex libraries, Tautulli, Seerr, Maintainerr), presets, preview, release of demoted files, irreplaceable flags ✅ |
-| 4 | Destinations & versioning: restic and rclone engines, B2/S3/SFTP, bandwidth windows |
+| 4 | Destinations & versioning: restic and rclone engines, B2/S3/SFTP, encryption and recovery kits, bandwidth limits and transfer windows ✅ |
 | 5 | Restore & disaster recovery: restore wizard, manifest re-acquisition, restore tests |
 | 6 | Release polish: Unraid CA template, metrics, notifications, docs site, hardening |
 
@@ -786,6 +1069,8 @@ make test-docker      # image smoke, container kill, Plex backup/restore and SMB
 make test-plex        # the Plex backup/restore test only (slow; pulls plexinc/pms-docker once)
 make test-shares      # syncs and kill + resume on Samba (CIFS) and NFS shares (privileged containers)
 make test-arr         # real Sonarr, Radarr and Lidarr: imports, upgrades, webhooks, backups, manifests, tiers (needs internet)
+make test-engines     # real restic and rclone against MinIO and an SFTP server, in containers (no Bunkarr image)
+make test-offsite     # off-site acceptance: restic/rclone destinations of the image on MinIO + SFTP, kits, windows, secrets audit
 cd web && npm run dev # UI dev server on :5173, proxying /api to :8787
 ```
 

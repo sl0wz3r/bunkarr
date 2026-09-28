@@ -18,6 +18,7 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/catalog"
 	"github.com/sl0wz3r/bunkarr/internal/db"
 	"github.com/sl0wz3r/bunkarr/internal/destinations"
+	"github.com/sl0wz3r/bunkarr/internal/engines"
 	"github.com/sl0wz3r/bunkarr/internal/engines/filecopy"
 	"github.com/sl0wz3r/bunkarr/internal/faultinject"
 	"github.com/sl0wz3r/bunkarr/internal/integrations"
@@ -76,6 +77,10 @@ type Options struct {
 	// MaxBuilds bounds the manifests being built and written at once, by jobs of every
 	// destination and on-the-spot exports together (default DefaultMaxBuilds).
 	MaxBuilds int
+	// OpenVersions opens the version store of a restic or rclone destination for one job or
+	// download (enginerun's, wired by the api; phase4.md §8.4, §8.6). nil: manifests of engine
+	// destinations fail.
+	OpenVersions engines.VersionOpener
 }
 
 // DefaultMaxExports is how many on-the-spot exports may run at once.
@@ -103,7 +108,8 @@ type Runner struct {
 	loc          *time.Location
 	exports      chan struct{}
 	// builds holds a token per manifest being built and written (MaxBuilds).
-	builds chan struct{}
+	builds       chan struct{}
+	openVersions engines.VersionOpener
 }
 
 var _ jobs.Runner = (*Runner)(nil)
@@ -122,7 +128,7 @@ func NewRunner(o Options) (*Runner, error) {
 		return nil, err
 	}
 	r := &Runner{store: NewStore(o.DB), builder: b, destinations: o.Destinations, db: o.DB, configDir: o.ConfigDir,
-		log: o.Log, now: b.o.Now, loc: o.Location}
+		log: o.Log, now: b.o.Now, loc: o.Location, openVersions: o.OpenVersions}
 	if r.log == nil {
 		r.log = slog.New(slog.DiscardHandler)
 	}
@@ -195,14 +201,23 @@ type Stats struct {
 	Recovered      int64 `json:"recovered,omitempty"`
 	VersionsPruned int64 `json:"versionsPruned"`
 	DurationMs     int64 `json:"durationMs"`
+	// Engine and EngineRef are set at a restic or rclone destination (phase4.md §8): the engine
+	// and the version's reference (the restic snapshot id, or the rclone path).
+	Engine    string `json:"engine,omitempty"`
+	EngineRef string `json:"engineRef,omitempty"`
 }
 
 // run is one job's state.
 type run struct {
-	r       *Runner
-	job     jobs.Job
-	rep     jobs.Reporter
-	h       *destinations.Handle
+	r   *Runner
+	job jobs.Job
+	rep jobs.Reporter
+	h   *destinations.Handle
+	// dest is the job's destination (both paths); h is nil on the engine path, where ev keeps
+	// the versions through the destination's VersionStore and listing is what it holds.
+	dest    destinations.Destination
+	ev      *snapshots.EngineVersions
+	listing *snapshots.Listing
 	started time.Time
 	stats   Stats
 	warns   int
@@ -236,13 +251,16 @@ func (r *Runner) Run(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.Resu
 	}
 	h, err := r.destinations.Open(ctx, job.Params.DestinationID)
 	if err != nil {
+		if errors.Is(err, destinations.ErrEngineDestination) {
+			return w.runEngine(ctx)
+		}
 		return jobs.Result{}, err
 	}
 	defer h.Close()
 	if !h.Destination.Enabled {
 		return jobs.Result{}, fmt.Errorf("destination %q is disabled", h.Destination.Name)
 	}
-	w.h = h
+	w.h, w.dest = h, h.Destination
 	if job.DryRun {
 		return w.dryRun(ctx)
 	}
@@ -266,7 +284,7 @@ func (w *run) jobRef() *JobRef { return &JobRef{ID: w.job.ID, QueuedAt: w.job.Qu
 // build builds the destination's manifest and records its counts and warnings.
 func (w *run) build(ctx context.Context) (*Manifest, string, error) {
 	w.rep.Progress(jobs.Progress{Phase: "building"})
-	m, err := w.r.builder.Build(ctx, BuildScope{Destination: &w.h.Destination, Job: w.jobRef()})
+	m, err := w.r.builder.Build(ctx, BuildScope{Destination: &w.dest, Job: w.jobRef()})
 	if err != nil {
 		return nil, "", err
 	}
@@ -307,11 +325,15 @@ func appName(t string) string { return integrations.Type(t).AppName() }
 // unchanged reports whether the newest ok version holds content hash and reads back intact
 // (design §11.2 step 3). A damaged one is marked (not in a dry run) and counted.
 func (w *run) unchanged(ctx context.Context, hash string, dryRun bool) (bool, error) {
-	v, ok, err := w.r.store.NewestOK(ctx, w.h.Destination.ID)
+	v, ok, err := w.r.store.NewestOK(ctx, w.dest.ID)
 	if err != nil || !ok || v.ContentHash != hash {
 		return false, err
 	}
-	_, err = CheckVersion(w.h.Root, v.Path, v.Checksum)
+	if w.ev != nil {
+		err = w.checkEngineVersion(ctx, v)
+	} else {
+		_, err = CheckVersion(w.h.Root, v.Path, v.Checksum)
+	}
 	switch {
 	case err == nil:
 		w.stats.Unchanged, w.stats.ManifestID, w.stats.Path = true, v.ID, v.Path
@@ -352,12 +374,15 @@ func (w *run) dryRun(ctx context.Context) (jobs.Result, error) {
 	if unchanged {
 		what = "unchanged since the newest version"
 	}
-	return w.result(fmt.Sprintf("Dry run: the manifest of %q lists %d items and %d files (%s); %s", w.h.Destination.Name,
+	return w.result(fmt.Sprintf("Dry run: the manifest of %q lists %d items and %d files (%s); %s", w.dest.Name,
 		w.stats.Items, w.stats.Files, formatBytes(w.stats.Bytes), what)), nil
 }
 
 // export runs a real export (see Run).
 func (w *run) export(ctx context.Context) (res jobs.Result, err error) {
+	if w.ev != nil {
+		return w.exportEngine(ctx)
+	}
 	partial := Root + "/" + snapshots.PartialName(w.job.ID)
 	defer func() {
 		// A failed or cancelled job leaves nothing but what it recorded. (A crash panics past
@@ -392,7 +417,7 @@ func (w *run) export(ctx context.Context) (res jobs.Result, err error) {
 		release()
 		w.rep.Log(slog.LevelInfo, "The manifest is unchanged since the newest version, which read back intact", "path", w.stats.Path)
 		w.prune(ctx)
-		return w.result(fmt.Sprintf("The manifest of %q is unchanged: %d items, %d files (%s)", w.h.Destination.Name,
+		return w.result(fmt.Sprintf("The manifest of %q is unchanged: %d items, %d files (%s)", w.dest.Name,
 			w.stats.Items, w.stats.Files, formatBytes(w.stats.Bytes))), nil
 	}
 	v, err := w.write(ctx, m, hash, partial)
@@ -408,7 +433,7 @@ func (w *run) export(ctx context.Context) (res jobs.Result, err error) {
 
 // summary is a written version's summary sentence.
 func (w *run) summary() string {
-	s := fmt.Sprintf("Wrote the manifest of %q: %d items, %d files (%s)", w.h.Destination.Name, w.stats.Items, w.stats.Files,
+	s := fmt.Sprintf("Wrote the manifest of %q: %d items, %d files (%s)", w.dest.Name, w.stats.Items, w.stats.Files,
 		formatBytes(w.stats.Bytes))
 	if w.stats.VersionsPruned > 0 {
 		s += fmt.Sprintf("; %d old versions pruned", w.stats.VersionsPruned)
@@ -632,6 +657,10 @@ func (w *run) finishOwn(ctx context.Context, own *ownVersion) (jobs.Result, erro
 // versions gone from the destination are removed first. Problems are warnings: the export
 // itself succeeded.
 func (w *run) prune(ctx context.Context) {
+	if w.ev != nil {
+		w.pruneEngine(ctx)
+		return
+	}
 	if err := w.h.Recheck(); err != nil {
 		w.warn("Old manifest versions were not pruned", "error", err.Error())
 		return

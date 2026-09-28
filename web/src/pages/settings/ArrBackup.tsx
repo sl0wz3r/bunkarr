@@ -13,7 +13,8 @@ import {
   type ArrBackupSettings,
 } from '@/api/arrBackup';
 import { errorMessage } from '@/api/client';
-import type { CronSchedule, Destination, Integration, Snapshot } from '@/api/types';
+import type { BackupTarget, CronSchedule, Integration, Snapshot } from '@/api/types';
+import { BackupTargetsEditor, insecureModesApply, targetsOf, targetsProblem } from '@/components/BackupTargetsEditor';
 import { Button } from '@/components/Button';
 import { CronInput } from '@/components/CronInput';
 import { DataTable, type Column } from '@/components/DataTable';
@@ -24,6 +25,7 @@ import { PathField } from '@/components/PathPicker';
 import { Badge } from '@/components/StatusBadge';
 import { describeCron, validateCron } from '@/lib/cron';
 import { formatBytes, formatDateTime, formatNumber, formatRelative } from '@/lib/format';
+import { isEncrypted, isRemoteKind } from '@/lib/destinationKinds';
 import { keys, useDestinations } from '@/lib/lookups';
 
 // The *arr backup parts of Settings → Connect (design phase2-3 §10, §16): the backup fields of the
@@ -32,10 +34,13 @@ import { keys, useDestinations } from '@/lib/lookups';
 /** ArrBackupValue is what the form edits: the backup folder and settings.backup. */
 export interface ArrBackupValue {
   backupFolder: string;
+  /** The first backup target (the single form). */
   destinationId: number;
   schedule: CronSchedule;
   maxScheduledAgeDays: number;
   acceptInsecureModes: boolean;
+  /** The targets after the first (phase4.md §8.5: up to four in all). */
+  extraTargets: BackupTarget[];
 }
 
 /** arrBackupValue is the form's starting value for an integration (or a new one). */
@@ -47,7 +52,14 @@ export function arrBackupValue(it: Integration | null): ArrBackupValue {
     schedule: backup.destinationId > 0 ? { cron: backup.cron, enabled: backup.enabled } : { cron: DEFAULT_ARR_BACKUP_CRON, enabled: true },
     maxScheduledAgeDays: backup.maxScheduledAgeDays,
     acceptInsecureModes: backup.acceptInsecureModes,
+    extraTargets: targetsOf(backup).slice(1),
   };
+}
+
+/** arrTargets are all the value's targets, the first one (the single form) first. */
+export function arrTargets(v: ArrBackupValue): BackupTarget[] {
+  if (v.destinationId <= 0) return [];
+  return [{ destinationId: v.destinationId, cron: v.schedule.cron.trim(), enabled: v.schedule.enabled, acceptInsecureModes: v.acceptInsecureModes }, ...v.extraTargets];
 }
 
 /** validateArrBackup returns the first problem with the backup fields, or null. */
@@ -64,6 +76,9 @@ export function validateArrBackup(v: ArrBackupValue): string | null {
     const err = validateCron(cron);
     if (err) return `The backup schedule is invalid: ${err}`;
   }
+  if (v.destinationId > 0 && v.extraTargets.length > 0) {
+    return targetsProblem(arrTargets(v), validateCron);
+  }
   return null;
 }
 
@@ -78,13 +93,12 @@ export function arrBackupSettings(v: ArrBackupValue): { backupFolder: string; ba
       enabled: has && v.schedule.enabled,
       maxScheduledAgeDays: v.maxScheduledAgeDays,
       acceptInsecureModes: v.acceptInsecureModes,
+      // Always the whole targets list ([] without a destination; the fields above mirror the
+      // first): without one the server keeps the stored targets after the first, so a removed
+      // target, or every target after "None", would stay.
+      targets: arrTargets(v),
     },
   };
-}
-
-/** keepsModesPrivate reports whether a destination's last probe found that it keeps file modes. */
-function keepsModesPrivate(d: Destination | undefined): boolean {
-  return d?.capabilities?.enforcesModes === true;
 }
 
 const FOLDER_STATUS: Record<string, string> = {
@@ -110,17 +124,21 @@ export function ArrBackupFields({
   value,
   onChange,
   test,
+  targetError,
 }: {
   type: ArrType;
   value: ArrBackupValue;
   onChange: (v: ArrBackupValue) => void;
   test: ArrTestResult | null;
+  /** The server's 400 about one target (backup.targets[i]), shown on its row. */
+  targetError?: { index: number; message: string } | null;
 }) {
   const app = ARR_NAMES[type];
   const destinations = useDestinations();
   const set = (patch: Partial<ArrBackupValue>) => onChange({ ...value, ...patch });
   const dest = destinations.data?.find((d) => d.id === value.destinationId);
-  const insecure = value.destinationId > 0 && !!dest && !keepsModesPrivate(dest);
+  const insecure = value.destinationId > 0 && insecureModesApply(dest);
+  const unencryptedRemote = !!dest && isRemoteKind(dest.kind) && !isEncrypted(dest);
   const options = [{ value: '0', label: 'None (no backup)' }, ...(destinations.data ?? []).map((d) => ({ value: String(d.id), label: d.name }))];
   const manual = test?.manualBackups;
   return (
@@ -197,6 +215,29 @@ export function ArrBackupFields({
               />
             </>
           )}
+          {unencryptedRemote && (
+            <p className="-mt-2 mb-4 text-xs text-danger sm:ml-[12rem]">
+              {dest.name} is off this server and not encrypted: the backup holds {app}&apos;s API key and passwords, so Bunkarr refuses this target. Choose an
+              encrypted destination.
+            </p>
+          )}
+          {targetError && targetError.index === 0 && (
+            <p role="alert" className="-mt-2 mb-4 text-xs text-danger sm:ml-[12rem]">
+              {targetError.message}
+            </p>
+          )}
+          <FormRow label="More targets" group help="Up to four destinations in all, each with its own schedule (for example the NAS nightly and B2 weekly).">
+            <BackupTargetsEditor
+              targets={value.extraTargets}
+              onChange={(extraTargets) => set({ extraTargets })}
+              destinations={(destinations.data ?? []).filter((d) => d.id !== value.destinationId)}
+              presets={ARR_BACKUP_PRESETS}
+              defaultCron={DEFAULT_ARR_BACKUP_CRON}
+              app={app}
+              offset={1}
+              rowError={targetError && targetError.index > 0 ? { index: targetError.index - 1, message: targetError.message } : null}
+            />
+          </FormRow>
           <p className="mb-4 text-xs text-ink-muted sm:ml-[12rem]">
             Versions kept are set per destination (Destinations → Retention, *arr daily and weekly versions).
           </p>
@@ -239,6 +280,13 @@ export function ArrBackupSummary({ integration: i, onNotice }: { integration: In
           <>
             to {destName(backup.destinationId)}, {backup.enabled && backup.cron ? describeCron(backup.cron) : 'manual only'},{' '}
             {backupFolder ? <>from {backupFolder}</> : 'over HTTP'}
+            {targetsOf(backup)
+              .slice(1)
+              .map((t) => (
+                <div key={t.destinationId}>
+                  and to {destName(t.destinationId)}, {t.enabled && t.cron ? describeCron(t.cron) : 'manual only'}
+                </div>
+              ))}
           </>
         ) : (
           <span className="text-ink-muted">not set up</span>

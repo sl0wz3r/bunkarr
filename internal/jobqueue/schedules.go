@@ -1,6 +1,7 @@
 package jobqueue
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -254,4 +255,120 @@ func (s *Store) MarkRun(ctx context.Context, id int64, at time.Time) error {
 		return fmt.Errorf("mark schedule %d run: %w", id, err)
 	}
 	return nil
+}
+
+// ScheduleSpec is one schedule SyncSchedules wants.
+type ScheduleSpec struct {
+	Params  jobs.Params
+	Cron    string
+	Enabled bool
+}
+
+// SyncSchedules makes the schedules of jobType whose params match (paramsMatch, as
+// DeleteSchedulesFor) exactly want, in one transaction: a wanted schedule that exists (same
+// canonical params) gets want's cron and enabled flag and keeps its id and last_run_at; a missing
+// one is created; a matching one that is not wanted is deleted. It is how the backup targets of
+// an integration (up to 4, one plexdb_backup or arr_backup schedule per target, phase4.md §8.5)
+// are mirrored. Every wanted params must match match, and no two may be equal; each is validated
+// like UpsertSchedule's (ValidationError). A match with no non-zero selector is refused. It
+// returns the matching schedules after the change, ordered by id; call Scheduler.Reload
+// afterwards.
+func (s *Store) SyncSchedules(ctx context.Context, jobType jobs.Type, match jobs.Params, want []ScheduleSpec) ([]Schedule, error) {
+	if match.DestinationID == 0 && match.IntegrationID == 0 && len(match.SourceIDs) == 0 {
+		return nil, ValidationError("SyncSchedules needs a destinationId, integrationId or sourceIds to match")
+	}
+	type wanted struct {
+		params  string
+		cron    string
+		enabled bool
+	}
+	ws := make([]wanted, 0, len(want))
+	seen := map[string]bool{}
+	for _, w := range want {
+		if err := validateParams(jobType, w.Params, false); err != nil {
+			return nil, err
+		}
+		if !paramsMatch(normalizeParams(w.Params), match) {
+			return nil, ValidationError(fmt.Sprintf("a %s schedule's params do not match the schedules being set", jobType))
+		}
+		cron := strings.TrimSpace(w.Cron)
+		if err := ValidateCron(cron); err != nil {
+			return nil, err
+		}
+		p, err := canonicalParams(w.Params)
+		if err != nil {
+			return nil, err
+		}
+		if seen[p] {
+			return nil, ValidationError(fmt.Sprintf("two %s schedules with the same params", jobType))
+		}
+		seen[p] = true
+		ws = append(ws, wanted{params: p, cron: cron, enabled: w.Enabled})
+	}
+	now := db.FormatTime(s.now())
+	var out []Schedule
+	err := s.db.Write(ctx, func(tx *sql.Tx) error {
+		out = nil
+		rows, err := tx.QueryContext(ctx, `SELECT id, params FROM schedules WHERE job_type = ?`, string(jobType))
+		if err != nil {
+			return err
+		}
+		var drop []int64
+		for rows.Next() {
+			var id int64
+			var raw string
+			if err := rows.Scan(&id, &raw); err != nil {
+				_ = rows.Close()
+				return err
+			}
+			p, err := parseParams(raw)
+			if err != nil {
+				_ = rows.Close()
+				return fmt.Errorf("schedule %d: %w", id, err)
+			}
+			if !paramsMatch(p, match) {
+				continue
+			}
+			c, err := canonicalParams(p)
+			if err != nil {
+				_ = rows.Close()
+				return err
+			}
+			if !seen[c] {
+				drop = append(drop, id)
+			}
+		}
+		if err := rows.Close(); err != nil {
+			return err
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		for _, id := range drop {
+			if _, err := tx.ExecContext(ctx, `DELETE FROM schedules WHERE id = ?`, id); err != nil {
+				return err
+			}
+		}
+		for _, w := range ws {
+			sc, err := scanSchedule(tx.QueryRowContext(ctx, `INSERT INTO schedules (job_type, params, cron, enabled, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?)
+				ON CONFLICT (job_type, params) DO UPDATE SET cron = excluded.cron, enabled = excluded.enabled,
+					updated_at = CASE WHEN schedules.cron = excluded.cron AND schedules.enabled = excluded.enabled
+						THEN schedules.updated_at ELSE excluded.updated_at END
+				RETURNING `+scheduleColumns, string(jobType), w.params, w.cron, w.enabled, now, now))
+			if err != nil {
+				return err
+			}
+			out = append(out, sc)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("set %s schedules: %w", jobType, err)
+	}
+	slices.SortFunc(out, func(a, b Schedule) int { return cmp.Compare(a.ID, b.ID) })
+	if out == nil {
+		out = []Schedule{}
+	}
+	return out, nil
 }

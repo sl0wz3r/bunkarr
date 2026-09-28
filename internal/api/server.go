@@ -25,6 +25,7 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/auth"
 	"github.com/sl0wz3r/bunkarr/internal/config"
 	"github.com/sl0wz3r/bunkarr/internal/db"
+	"github.com/sl0wz3r/bunkarr/internal/engines"
 	"github.com/sl0wz3r/bunkarr/internal/version"
 )
 
@@ -119,6 +120,7 @@ func (s *Server) apiRoutes(r chi.Router) {
 			s.plexSignInRoutes(r)
 			s.sourceRoutes(r)
 			s.destinationRoutes(r)
+			s.engineSettingsRoutes(r)
 			s.manifestRoutes(r)
 			s.tierRoutes(r)
 			s.jobRoutes(r)
@@ -169,6 +171,9 @@ type SystemStatus struct {
 	IsDocker      bool      `json:"isDocker"`
 	AuthMethod    string    `json:"authenticationMethod"`
 	AuthRequired  auth.Mode `json:"authenticationRequired"`
+	// Engines is what start-up found for the restic and rclone binaries (docs/design/phase4.md
+	// §10.1): availability, version, resolved path, and why an engine is unavailable.
+	Engines engines.Availability `json:"engines"`
 }
 
 func (s *Server) systemStatus(w http.ResponseWriter, r *http.Request) {
@@ -192,7 +197,17 @@ func (s *Server) systemStatus(w http.ResponseWriter, r *http.Request) {
 		IsDocker:      s.env.Docker,
 		AuthMethod:    "forms",
 		AuthRequired:  s.auth.Mode(),
+		Engines:       s.engineAvailability(),
 	})
+}
+
+// engineAvailability is SystemStatus.Engines: the App's, or both unavailable without one.
+func (s *Server) engineAvailability() engines.Availability {
+	if s.app == nil {
+		const reason = "this server has no backup services configured"
+		return engines.Availability{Restic: engines.BinaryStatus{Reason: reason}, Rclone: engines.BinaryStatus{Reason: reason}}
+	}
+	return s.app.EngineAvailability()
 }
 
 // AuthStatus is GET /api/v1/auth/status: what the UI needs before it can render.
@@ -368,16 +383,26 @@ func (s *Server) changeCredentials(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	// The current password also gates off-site targets and the recovery kit (S29, §5.2), so a
+	// wrong guess here counts against the login limiter like a failed login, and a blocked client
+	// gets 429 before any password check.
+	if s.limited(w, r) {
+		return
+	}
+	client := auth.ClientIP(r).String()
 	u, err := s.auth.ChangeCredentials(r.Context(), p.User.ID, body.CurrentPassword, body.Username, body.NewPassword, p.Token)
 	var verr auth.ValidationError
 	switch {
 	case errors.Is(err, auth.ErrInvalidCredentials):
+		s.auth.Limiter.Fail(client)
+		s.log.Warn("Wrong current password when changing credentials", "remote", client)
 		writeError(w, http.StatusBadRequest, "current password is incorrect")
 	case errors.As(err, &verr):
 		writeError(w, http.StatusBadRequest, verr.Error())
 	case err != nil:
 		s.internalError(w, "change credentials", err)
 	default:
+		s.auth.Limiter.Success(client)
 		writeJSON(w, http.StatusOK, map[string]string{"username": u.Username})
 	}
 }

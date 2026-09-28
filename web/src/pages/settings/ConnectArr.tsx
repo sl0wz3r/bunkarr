@@ -27,7 +27,7 @@ import {
   type IndexView,
   type RefreshSettings,
 } from '@/api/arr';
-import { errorMessage } from '@/api/client';
+import { ApiError, errorMessage } from '@/api/client';
 import { deleteIntegration } from '@/api/integrations';
 import { updateSource } from '@/api/library';
 import type { CronSchedule, Integration, Source } from '@/api/types';
@@ -37,6 +37,8 @@ import { CronInput } from '@/components/CronInput';
 import { CheckboxField, FormRow, FormSection, NumberField, SecretField, TextField, inputClass } from '@/components/Form';
 import { Modal } from '@/components/Modal';
 import { ErrorNotice, Notice } from '@/components/Notice';
+import { isPasswordError, PasswordConfirm } from '@/components/PasswordConfirm';
+import { targetIndexOf, targetsNeedPassword } from '@/components/BackupTargetsEditor';
 import { Pagination } from '@/components/Pagination';
 import { PathPicker } from '@/components/PathPicker';
 import { Badge } from '@/components/StatusBadge';
@@ -44,8 +46,8 @@ import { DeletedIntegrations } from '@/components/tiers/DeletedIntegrations';
 import { copyText } from '@/lib/clipboard';
 import { describeCron, validateCron, type CronPreset } from '@/lib/cron';
 import { formatBytes, formatNumber, formatRelative } from '@/lib/format';
-import { keys, useIntegrations, useSources } from '@/lib/lookups';
-import { ArrBackupFields, ArrBackupSummary, arrBackupSettings, arrBackupValue, validateArrBackup } from './ArrBackup';
+import { keys, useDestinations, useIntegrations, useSources } from '@/lib/lookups';
+import { ArrBackupFields, ArrBackupSummary, arrBackupSettings, arrBackupValue, arrTargets, validateArrBackup } from './ArrBackup';
 
 /** ARR_REFRESH_PRESETS are the offered full-refresh schedules (the default first). */
 export const ARR_REFRESH_PRESETS: CronPreset[] = [
@@ -416,6 +418,10 @@ function ArrForm({ integration, type, onClose }: { integration: Integration | nu
   const [schedule, setSchedule] = useState<CronSchedule>({ cron: initial.refresh.cron, enabled: initial.refresh.enabled });
   const [staleAfter, setStaleAfter] = useState(initial.refresh.staleAfterHours);
   const [backup, setBackup] = useState(() => arrBackupValue(integration));
+  // The targets as stored: S29 asks for the password for a new off-site target or insecure modes.
+  const [storedTargets] = useState(() => (integration ? arrTargets(arrBackupValue(integration)) : []));
+  const [password, setPassword] = useState('');
+  const destinations = useDestinations();
   // The last Test result with the inputs it tested: it speaks only for those (a changed URL, key,
   // mapping or backup folder hides it until the next Test).
   const [test, setTest] = useState<{ key: string; result: ArrTestResult } | null>(null);
@@ -439,8 +445,9 @@ function ArrForm({ integration, type, onClose }: { integration: Integration | nu
   });
   const current = test?.key === inputKey ? test.result : null;
   const testError = tester.variables?.key === inputKey ? tester.error : null;
+  const needsPassword = targetsNeedPassword(arrTargets(backup), storedTargets, destinations.data);
   const saver = useMutation({
-    mutationFn: (body: ArrIntegrationInput) => (integration ? updateArr(integration.id, body) : createArr(body)),
+    mutationFn: (body: ArrIntegrationInput & { currentPassword?: string }) => (integration ? updateArr(integration.id, body) : createArr(body)),
     onSuccess: async (saved) => {
       await qc.invalidateQueries({ queryKey: keys.integrations });
       await qc.invalidateQueries({ queryKey: keys.schedules });
@@ -448,6 +455,10 @@ function ArrForm({ integration, type, onClose }: { integration: Integration | nu
       onClose();
     },
   });
+
+  // The server names the target a 400 is about (backup.targets[i]): shown on that row.
+  const targetError = saver.error instanceof ApiError && saver.error.status === 400 ? targetIndexOf(saver.error.message) : -1;
+  const generalSaveError = saver.error && !isPasswordError(saver.error) && targetError < 0 ? saver.error : null;
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -482,7 +493,7 @@ function ArrForm({ integration, type, onClose }: { integration: Integration | nu
       setFormError(backupError);
       return;
     }
-    const body: ArrIntegrationInput = {
+    const body: ArrIntegrationInput & { currentPassword?: string } = {
       type,
       name: name.trim(),
       url: url.trim(),
@@ -491,6 +502,13 @@ function ArrForm({ integration, type, onClose }: { integration: Integration | nu
     };
     if (apiKey.trim()) {
       body.apiKey = apiKey.trim();
+    }
+    if (needsPassword) {
+      if (!password) {
+        setFormError('Enter your Bunkarr password to confirm the backup target (at the end of the form).');
+        return;
+      }
+      body.currentPassword = password;
     }
     saver.mutate(body);
   }
@@ -519,7 +537,7 @@ function ArrForm({ integration, type, onClose }: { integration: Integration | nu
             {formError}
           </Notice>
         )}
-        <ErrorNotice error={saver.error ?? testError} />
+        <ErrorNotice error={generalSaveError ?? testError} />
         {current && <ArrTestView result={current} app={app} />}
         <FormSection title={app}>
           <TextField label="Name" value={name} onChange={setName} autoFocus={!integration} />
@@ -562,7 +580,21 @@ function ArrForm({ integration, type, onClose }: { integration: Integration | nu
           />
           {integration && <IndexSection integration={integration} type={type} />}
         </FormSection>
-        <ArrBackupFields type={type} value={backup} onChange={setBackup} test={current} />
+        <ArrBackupFields
+          type={type}
+          value={backup}
+          onChange={setBackup}
+          test={current}
+          targetError={targetError >= 0 && saver.error ? { index: targetError, message: errorMessage(saver.error) } : null}
+        />
+        {needsPassword && (
+          <PasswordConfirm
+            value={password}
+            onChange={setPassword}
+            error={saver.error}
+            reason={`A backup target off this server, or accepting insecure file modes, needs your password: the backup holds ${app}'s API key and passwords.`}
+          />
+        )}
         {integration ? (
           <WebhookPanel integration={integration} type={type} />
         ) : (

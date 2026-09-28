@@ -42,12 +42,13 @@ type RetentionRunner struct {
 	historyDays  func(ctx context.Context) (int, error)
 	planBatch    int
 	recheckEvery int
+	win          windowOptions
 }
 
 // NewRetentionRunner returns the retention job runner.
 func NewRetentionRunner(o RetentionOptions) *RetentionRunner {
 	return &RetentionRunner{base: newBase(o.Options), enq: o.Enqueuer, prune: o.PruneHistory, historyDays: o.HistoryDays,
-		planBatch: planBatch, recheckEvery: recheckEvery}
+		planBatch: planBatch, recheckEvery: recheckEvery, win: newWindowOptions(o.Options)}
 }
 
 var _ jobs.Runner = (*RetentionRunner)(nil)
@@ -80,12 +81,12 @@ func (r *RetentionRunner) Run(ctx context.Context, job jobs.Job, env jobs.Env) (
 	if env.Items == nil {
 		return jobs.Result{}, errors.New("retention: the job has no item store")
 	}
-	h, err := openEnabled(ctx, r.dests, job.Params.DestinationID, "retention")
+	h, win, err := openInWindow(ctx, r.dests, r.win, job, "retention", r.now)
 	if err != nil {
 		return jobs.Result{}, err
 	}
 	defer h.Close()
-	rr := &retentionRun{r: r, job: job, env: env, rep: reporterOf(env), h: h}
+	rr := &retentionRun{r: r, job: job, env: env, rep: reporterOf(env), h: h, win: win}
 	rr.rep.Log(slog.LevelInfo, "retention started", "destination", h.Destination.Name, "deletedDays", h.Retention.DeletedDays)
 	if err := prepareIdentity(ctx, h, rr.rep, job.DryRun, &rr.unsettled); err != nil {
 		return jobs.Result{}, err
@@ -143,6 +144,13 @@ func (r *RetentionRunner) runGlobal(ctx context.Context, job jobs.Job, env jobs.
 		if !d.Enabled {
 			continue
 		}
+		// A destination that may run nothing but dry runs (a create that did not finish, or a
+		// recovery kit whose custody is not confirmed; phase4.md S21, S25) gets no job, as its own
+		// schedules get none: it would only fail every day. The daily kit reminder says why.
+		if reason := destinations.Blocked(d); reason != "" && !job.DryRun {
+			rep.Log(slog.LevelInfo, "retention not queued", "destination", d.Name, "reason", reason)
+			continue
+		}
 		q, err := r.enq.Enqueue(ctx, jobs.Spec{Type: jobs.TypeRetention, Trigger: trigger, DryRun: job.DryRun,
 			Params: jobs.Params{DestinationID: d.ID}})
 		if err != nil {
@@ -189,6 +197,8 @@ type retentionRun struct {
 	progress  jobs.Progress
 	// covered is the irreplaceable-flag coverage, loaded at the first expiry (flagHold).
 	covered func(sourceID int64, rel string) (int64, bool)
+	// win is the destination's transfer window, checked between steps (nil: none).
+	win *windowRun
 }
 
 // linked reports whether a source is linked to the destination (orphan rows are never expired).
@@ -251,6 +261,9 @@ func (rr *retentionRun) execute(ctx context.Context) error {
 			}
 			if it.Action != jobs.ActionExpire {
 				continue
+			}
+			if err := checkWindow(rr.win, rr.r.now()); err != nil {
+				return err
 			}
 			if err := rr.expire(ctx, it); err != nil {
 				return err

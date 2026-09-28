@@ -41,22 +41,12 @@ func manifestPath(p string) string {
 // writeLinkManifest writes LinkManifestRel at the end of a sync (not a dry run) through the job's
 // root: a temp file renamed over the old manifest. An unchanged manifest is not rewritten.
 func writeLinkManifest(ctx context.Context, store *Store, h *destinations.Handle) error {
-	links, err := store.links(context.WithoutCancel(ctx), h.Destination.ID)
+	b, err := store.LinkManifest(ctx, h.Destination.ID)
 	if err != nil {
 		return err
 	}
-	var b bytes.Buffer
-	b.WriteString(linkManifestHeader)
-	for _, l := range links {
-		b.WriteString(manifestPath(l.name))
-		b.WriteByte('\t')
-		b.WriteString(manifestPath(l.primary))
-		b.WriteByte('\t')
-		b.WriteString(string(l.state))
-		b.WriteByte('\n')
-	}
-	if old, err := h.Root.ReadFile(LinkManifestRel); err == nil && bytes.Equal(old, b.Bytes()) {
+	if old, err := h.Root.ReadFile(LinkManifestRel); err == nil && bytes.Equal(old, b) {
 		return nil
 	}
-	return filecopy.WriteFileAtomic(h.Root, LinkManifestRel, b.Bytes(), 0, false)
+	return filecopy.WriteFileAtomic(h.Root, LinkManifestRel, b, 0, false)
 }

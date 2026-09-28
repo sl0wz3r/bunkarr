@@ -63,10 +63,20 @@ func New(o Options) (*slog.Logger, io.Closer, error) {
 // Redacted replaces secret values in logs, API responses and diagnostics.
 const Redacted = "[REDACTED]"
 
+// sensitiveNames are the parts of an attribute, header, field or query parameter name that mark
+// its value as a secret (matched case-insensitively anywhere in the name). The Phase 4 names cover
+// the destination credentials (docs/design/phase4.md §4.3, S22): an SFTP privateKey and its
+// privateKeyPassphrase, rclone's key_pem, a B2 applicationKey and an S3 secretAccessKey.
+var sensitiveNames = []string{
+	"password", "passwd", "apikey", "api_key", "api-key", "token", "secret", "authorization", "cookie",
+	"credential", "privatekey", "private_key", "passphrase", "applicationkey", "keypem", "key_pem",
+	"secretaccesskey",
+}
+
 // sensitiveKey reports whether an attribute, header or query parameter name holds a secret.
 func sensitiveKey(k string) bool {
 	k = strings.ToLower(k)
-	for _, s := range []string{"password", "passwd", "apikey", "api_key", "api-key", "token", "secret", "authorization", "cookie", "credential"} {
+	for _, s := range sensitiveNames {
 		if strings.Contains(k, s) {
 			return true
 		}
@@ -74,6 +84,9 @@ func sensitiveKey(k string) bool {
 	return false
 }
 
+// redactAttr is the handlers' ReplaceAttr. slog resolves LogValuers before it calls ReplaceAttr
+// and calls it for each member of a group, so a secret-bearing type that implements
+// slog.LogValuer is seen here as the values it chose to show.
 func redactAttr(_ []string, a slog.Attr) slog.Attr {
 	if a.Value.Kind() == slog.KindGroup {
 		return a
@@ -88,7 +101,8 @@ func redactAttr(_ []string, a slog.Attr) slog.Attr {
 		}
 	case slog.KindAny:
 		// Errors and Stringers are rendered to text, so a secret inside (e.g. a token in a URL
-		// of a *url.Error) cannot slip through.
+		// of a *url.Error) cannot slip through. Any other value (a struct, a map, a slice) is
+		// redacted as its JSON form: fields named like secrets and registered values at any depth.
 		switch v := a.Value.Any().(type) {
 		case error:
 			if s := v.Error(); ContainsSecret(s) {
@@ -97,6 +111,10 @@ func redactAttr(_ []string, a slog.Attr) slog.Attr {
 		case fmt.Stringer:
 			if s := v.String(); ContainsSecret(s) {
 				return slog.String(a.Key, RedactSecrets(s))
+			}
+		default:
+			if r, changed := redactAny(v); changed {
+				return slog.Any(a.Key, r)
 			}
 		}
 	}
@@ -203,8 +221,9 @@ func (r *secretRegistry) trim() {
 
 // RegisterSecret adds a secret VALUE (a Plex token, an Apprise URL, an API key) to the set that is
 // replaced by [REDACTED] wherever it appears in a log message or attribute, in addition to the
-// key-based redaction, for good. Values shorter than 8 characters are ignored. Safe for concurrent
-// use.
+// key-based redaction, for good. Its JSON-escaped forms (EscapedForms) are registered with it, so
+// the value is also redacted inside JSON text such as an engine's log line. Values shorter than 8
+// characters are ignored. Safe for concurrent use.
 //
 // Use it for a secret Bunkarr reads but does not store (a PlexOnlineToken in Plex's
 // Preferences.xml). A secret stored in a row goes through SetSecrets, so it is released when the
@@ -216,16 +235,20 @@ func RegisterSecret(value string) {
 	}
 	secretsMu.Lock()
 	defer secretsMu.Unlock()
-	if secrets.pinned[value] {
-		return
+	var added []string
+	for _, v := range secretForms(value) {
+		if len(v) < minSecretLen || secrets.pinned[v] {
+			continue
+		}
+		if secrets.pinned == nil {
+			secrets.pinned = make(map[string]bool)
+		}
+		secrets.pinned[v] = true
+		if secrets.hold(v) {
+			added = append(added, v)
+		}
 	}
-	if secrets.pinned == nil {
-		secrets.pinned = make(map[string]bool)
-	}
-	secrets.pinned[value] = true
-	if secrets.hold(value) {
-		secrets.add([]string{value})
-	}
+	secrets.add(added)
 }
 
 // SetSecrets makes values the secret values owner holds, in place of the ones it held before.
@@ -233,15 +256,21 @@ func RegisterSecret(value string) {
 // it held (the row was deleted or its secret removed). Held values are redacted like registered
 // ones and are never dropped. A released value that nothing else holds stays redacted among the
 // most recently released values (maxReleased at most), so a request that still uses a replaced
-// token cannot log it, while the registry stays bounded by the secrets that are stored. Values
-// shorter than 8 characters are ignored. Safe for concurrent use.
+// token cannot log it, while the registry stays bounded by the secrets that are stored. Each
+// value's JSON-escaped forms (EscapedForms) are held with it. Values shorter than 8 characters are
+// ignored. Safe for concurrent use.
 func SetSecrets(owner string, values ...string) {
 	next := make([]string, 0, len(values))
 	seen := make(map[string]bool, len(values))
-	for _, v := range values {
-		if len(v) >= minSecretLen && !seen[v] {
-			seen[v] = true
-			next = append(next, v)
+	for _, value := range values {
+		if len(value) < minSecretLen {
+			continue
+		}
+		for _, v := range secretForms(value) {
+			if len(v) >= minSecretLen && !seen[v] {
+				seen[v] = true
+				next = append(next, v)
+			}
 		}
 	}
 	secretsMu.Lock()
@@ -308,29 +337,7 @@ func RedactValues(s string, values ...string) string {
 	if len(s) < minSecretLen {
 		return s
 	}
-	local := make([]string, 0, len(values))
-	for _, v := range values {
-		if len(v) >= minSecretLen {
-			local = append(local, v)
-		}
-	}
-	slices.SortFunc(local, compareSecrets)
-	secretsMu.RLock()
-	defer secretsMu.RUnlock()
-	// Merge both lists longest first, so a value that contains another is replaced whole.
-	i, j := 0, 0
-	for i < len(secrets.sorted) || j < len(local) {
-		var v string
-		if j == len(local) || (i < len(secrets.sorted) && compareSecrets(secrets.sorted[i], local[j]) <= 0) {
-			v, i = secrets.sorted[i], i+1
-		} else {
-			v, j = local[j], j+1
-		}
-		if strings.Contains(s, v) {
-			s = strings.ReplaceAll(s, v, Redacted)
-		}
-	}
-	return s
+	return redactSpans(s, -1, false, values)
 }
 
 // RedactURL renders u with the values of secret-looking query parameters and any userinfo

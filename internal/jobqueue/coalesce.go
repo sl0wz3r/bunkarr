@@ -53,8 +53,8 @@ func (o enqueueOutcome) String() string {
 // coalesce applies phase2-3.md §12.2 to a targeted spec (Params.Targeted) that is not a dry run
 // and has no identical queued job, inside CreateJob's write transaction. Only queued jobs that are
 // not dry runs and have never started are considered: a running job is never merged into, and a
-// job re-queued after a crash or a shutdown may already have its plan, which a merge would not
-// change. In queue order it looks for:
+// job re-queued after a crash or a shutdown, or deferred by its transfer window (phase4.md
+// §11.2), may already have its plan, which a merge would not change. In queue order it looks for:
 //
 //  1. a queued untargeted job of the same type and scope that covers the spec (coversSpec): it is
 //     returned unchanged (outcomeCovered);
@@ -78,7 +78,8 @@ func coalesce(ctx context.Context, tx *sql.Tx, spec jobs.Spec, now time.Time) (j
 		return jobs.Job{}, outcomeCreated, nil
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT `+jobColumns+` FROM jobs
-		WHERE status = 'queued' AND started_at IS NULL AND dry_run = 0 AND type = ? AND `+cond+`
+		WHERE status = 'queued' AND started_at IS NULL AND dry_run = 0 AND deferrals = 0 AND not_before IS NULL
+		AND type = ? AND `+cond+`
 		ORDER BY queued_at, id`, string(spec.Type), arg)
 	if err != nil {
 		return jobs.Job{}, 0, fmt.Errorf("find queued %s jobs to coalesce with: %w", spec.Type, err)

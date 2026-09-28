@@ -81,10 +81,12 @@ type Dispatcher struct {
 	pending sync.WaitGroup
 }
 
-// queued is a job waiting for a worker, with the §12.5 slot admit took for it (nil: none).
+// queued is a job waiting for a worker, with the §12.5 slot admit took for it (nil: none), or a
+// warning that belongs to no job (Warn: msg set, job zero).
 type queued struct {
 	job jobs.Job
 	res *reservation
+	msg *Message
 }
 
 // New starts a Dispatcher's workers.
@@ -442,12 +444,20 @@ func (d *Dispatcher) Close(ctx context.Context) error {
 func (d *Dispatcher) worker() {
 	for q := range d.queue {
 		if d.ctx.Err() != nil {
-			d.log.Warn("Notification dropped: notifications are shutting down", "job", q.job.ID, "status", string(q.job.Status))
+			if q.msg != nil {
+				d.log.Warn("Notification dropped: notifications are shutting down", "title", q.msg.Title)
+			} else {
+				d.log.Warn("Notification dropped: notifications are shutting down", "job", q.job.ID, "status", string(q.job.Status))
+			}
 			d.release(q.res)
 			d.pending.Done()
 			continue
 		}
-		d.process(q.job, q.res)
+		if q.msg != nil {
+			d.sendWarning(*q.msg)
+		} else {
+			d.process(q.job, q.res)
+		}
 		d.pending.Done()
 	}
 }

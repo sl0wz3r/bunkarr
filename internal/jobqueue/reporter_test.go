@@ -138,6 +138,8 @@ func TestReporterLogRedaction(t *testing.T) {
 		env.Reporter.Log(slog.LevelWarn, "request to http://plex:32400/?X-Plex-Token="+secret+" failed",
 			"token", "plain-token-by-key",
 			"apiKey", 12345,
+			"privateKey", "plain-private-key-by-key",
+			"secretAccessKey", "plain-s3-key-by-key",
 			"url", "http://plex:32400/library?X-Plex-Token="+secret,
 			"error", errors.New("dial: "+secret),
 			"who", secretStringer{secret},
@@ -162,7 +164,8 @@ func TestReporterLogRedaction(t *testing.T) {
 			line = &logs[i]
 		}
 		if raw, _ := json.Marshal(logs[i]); strings.Contains(string(raw), secret) || strings.Contains(string(raw), "hunter22") ||
-			strings.Contains(string(raw), "plain-token-by-key") || strings.Contains(string(raw), "Bearer abc") {
+			strings.Contains(string(raw), "plain-token-by-key") || strings.Contains(string(raw), "Bearer abc") ||
+			strings.Contains(string(raw), "-by-key") {
 			t.Fatalf("secret in job log: %s", raw)
 		}
 	}
@@ -176,7 +179,8 @@ func TestReporterLogRedaction(t *testing.T) {
 	if err := json.Unmarshal(line.Fields, &f); err != nil {
 		t.Fatal(err)
 	}
-	if f["token"] != logging.Redacted || f["apiKey"] != logging.Redacted {
+	if f["token"] != logging.Redacted || f["apiKey"] != logging.Redacted || f["privateKey"] != logging.Redacted ||
+		f["secretAccessKey"] != logging.Redacted {
 		t.Fatalf("sensitive keys not redacted: %v", f)
 	}
 	if f["count"] != float64(3) || f["ok"] != true || f["took"] != "1.5s" {

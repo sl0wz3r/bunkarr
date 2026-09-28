@@ -272,6 +272,10 @@ func (w *run) finishRecovered(ctx context.Context, snap snapshots.Snapshot) (job
 // destination after a successful backup; rows of versions gone from the destination are removed
 // first (dropLost). Problems are warnings: the backup itself succeeded.
 func (w *run) prune(ctx context.Context) {
+	if w.ev != nil {
+		w.pruneEngine(ctx)
+		return
+	}
 	if err := w.h.Recheck(); err != nil {
 		w.warn("Old *arr backup versions were not pruned", "error", err.Error())
 		return

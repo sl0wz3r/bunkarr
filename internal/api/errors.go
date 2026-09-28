@@ -8,6 +8,7 @@ import (
 
 	"github.com/sl0wz3r/bunkarr/internal/catalog"
 	"github.com/sl0wz3r/bunkarr/internal/destinations"
+	"github.com/sl0wz3r/bunkarr/internal/engines"
 	"github.com/sl0wz3r/bunkarr/internal/integrations"
 	"github.com/sl0wz3r/bunkarr/internal/integrations/plex"
 	"github.com/sl0wz3r/bunkarr/internal/jobqueue"
@@ -36,6 +37,10 @@ func errorf(status int, format string, args ...any) error {
 //     that is immutable, a marker already present, a job that is no longer active) → 409;
 //   - safety rule S3 refusals: a local filesystem without allowLocal → 400, a destination that is
 //     not mounted (marker missing or foreign, filesystem changed) → 409;
+//   - Phase 4: a filecopy destination given to an engine route (or the reverse) and a wrong
+//     recovery kit confirmation → 400; a delete that would lose an unconfirmed encryption secret,
+//     a lock held by a running job, and an engine destination whose identity check failed, whose
+//     create did not finish or whose engine is unavailable → 409;
 //   - Plex answering badly or not at all → 502;
 //   - everything else → 500.
 func statusOf(err error) int {
@@ -58,9 +63,18 @@ func statusOf(err error) int {
 		errors.Is(err, jobqueue.ErrNotFound), errors.Is(err, notify.ErrNotFound), errors.Is(err, snapshots.ErrNotFound),
 		errors.Is(err, syncer.ErrNotFound):
 		return http.StatusNotFound
+	case errors.Is(err, destinations.ErrNotEngine), errors.Is(err, destinations.ErrEngineDestination),
+		errors.Is(err, destinations.ErrWrongCheckCode), errors.Is(err, destinations.ErrWrongSecret):
+		return http.StatusBadRequest
 	case errors.Is(err, catalog.ErrConflict), errors.Is(err, destinations.ErrNameTaken), errors.Is(err, destinations.ErrMarkerExists),
 		errors.Is(err, destinations.ErrNotMounted), errors.Is(err, destinations.ErrMarkerMismatch), errors.Is(err, destinations.ErrFSChanged),
-		errors.Is(err, jobqueue.ErrNotActive):
+		errors.Is(err, jobqueue.ErrNotActive), errors.Is(err, destinations.ErrSecretNotConfirmed), errors.Is(err, jobqueue.ErrBusy):
+		return http.StatusConflict
+	case errors.Is(err, engines.ErrRepositoryMissing), errors.Is(err, engines.ErrWrongPassword), errors.Is(err, engines.ErrAnotherRepository),
+		errors.Is(err, engines.ErrMarkerMissing), errors.Is(err, engines.ErrMarkerMismatch), errors.Is(err, engines.ErrHostKeyChanged),
+		errors.Is(err, engines.ErrLocked), errors.Is(err, engines.ErrPending), errors.Is(err, engines.ErrEngineUnavailable):
+		// An engine destination that is not the one recorded, not reachable as recorded, or not
+		// usable now (S25, §10.1).
 		return http.StatusConflict
 	case errors.As(err, &perr):
 		return http.StatusBadGateway

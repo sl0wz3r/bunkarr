@@ -128,11 +128,24 @@ describe('*arr backups on Settings → Connect', () => {
     const age = form.getByLabelText('Reuse scheduled backups');
     await user.clear(age);
     await user.type(age, '3');
+    // Accepting insecure modes needs the user's password (phase4.md S29), in this dialog.
+    await user.click(form.getByRole('button', { name: 'Save' }));
+    expect(await form.findByText(/Enter your Bunkarr password/)).toBeInTheDocument();
+    expect(callsTo(calls, 'PUT /api/v1/integrations/7')).toHaveLength(0);
+    await user.type(form.getByLabelText('Your Bunkarr password'), 'hunter2hunter2');
     await user.click(form.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(callsTo(calls, 'PUT /api/v1/integrations/7')).toHaveLength(1));
-    const body = callsTo(calls, 'PUT /api/v1/integrations/7')[0].body as ArrIntegrationInput;
+    const body = callsTo(calls, 'PUT /api/v1/integrations/7')[0].body as ArrIntegrationInput & { currentPassword?: string };
     expect(body.settings.backupFolder).toBe('/arr/radarr-backups');
-    expect(body.settings.backup).toEqual({ destinationId: 2, cron: '30 6 * * 0', enabled: true, maxScheduledAgeDays: 3, acceptInsecureModes: true });
+    expect(body.settings.backup).toEqual({
+      destinationId: 2,
+      cron: '30 6 * * 0',
+      enabled: true,
+      maxScheduledAgeDays: 3,
+      acceptInsecureModes: true,
+      targets: [{ destinationId: 2, cron: '30 6 * * 0', enabled: true, acceptInsecureModes: true }],
+    });
+    expect(body.currentPassword).toBe('hunter2hunter2');
   });
 
   it('refuses an out-of-range reuse age before anything is sent', async () => {
@@ -153,9 +166,19 @@ describe('arrBackupSettings', () => {
     const v = arrBackupValue(radarr({ cron: '0 3 * * *' }));
     expect(arrBackupSettings(v)).toEqual({
       backupFolder: '/arr/radarr-backups',
-      backup: { destinationId: 1, cron: '0 3 * * *', enabled: true, maxScheduledAgeDays: 7, acceptInsecureModes: false },
+      backup: {
+        destinationId: 1,
+        cron: '0 3 * * *',
+        enabled: true,
+        maxScheduledAgeDays: 7,
+        acceptInsecureModes: false,
+        targets: [{ destinationId: 1, cron: '0 3 * * *', enabled: true, acceptInsecureModes: false }],
+      },
     });
-    expect(arrBackupSettings({ ...v, destinationId: 0 }).backup).toEqual({ destinationId: 0, cron: '', enabled: false, maxScheduledAgeDays: 7, acceptInsecureModes: false });
+    // "None" sends an empty targets list: without one the server would keep the stored targets
+    // after the first one (and make the second the first).
+    expect(arrBackupSettings({ ...v, destinationId: 0 }).backup).toEqual({ destinationId: 0, cron: '', enabled: false, maxScheduledAgeDays: 7, acceptInsecureModes: false, targets: [] });
+    expect(arrBackupSettings({ ...v, destinationId: 0, extraTargets: [{ destinationId: 11, cron: '0 6 * * *', enabled: true, acceptInsecureModes: false }] }).backup.targets).toEqual([]);
     // A new integration offers the weekly default once a destination is chosen.
     expect(arrBackupValue(null).schedule).toEqual({ cron: '30 6 * * 0', enabled: true });
   });

@@ -1,0 +1,9 @@
+using temporary cache in /tmp/restic-cache/restic-check-cache-1026121565
+create exclusive lock for repository
+load indexes
+check all packs
+check snapshots, trees and blobs
+[0:00] 100.00%  8 / 8 snapshots
+read 25.0% of data packs
+[0:00] 100.00%  1 / 1 packs
+no errors were found

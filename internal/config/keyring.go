@@ -91,9 +91,11 @@ func readMasterKey(path string) ([]byte, error) {
 	return key, nil
 }
 
-// Keyring seals and opens secrets with a key derived from the master key.
+// Keyring seals and opens secrets with a key derived from the master key, and derives other keys
+// from it (Derive).
 type Keyring struct {
-	aead cipher.AEAD
+	aead   cipher.AEAD
+	master []byte
 }
 
 // NewKeyring derives the settings encryption key from master (HKDF-SHA256).
@@ -113,7 +115,20 @@ func NewKeyring(master []byte) (*Keyring, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Keyring{aead: aead}, nil
+	return &Keyring{aead: aead, master: bytes.Clone(master)}, nil
+}
+
+// Derive returns an n-byte key for one purpose, named by info, derived from the master key with
+// HKDF-SHA256 (RFC 5869, no salt). Different infos give independent keys, and the same info always
+// gives the same key for one master key: rclone.Obscure's IV key is
+// Derive("bunkarr rclone obscure v1", 32) (docs/design/phase4.md §4.4). n is 1 to 255*32; any
+// other n is a programming error and panics.
+func (k *Keyring) Derive(info string, n int) []byte {
+	out, err := hkdf.Key(sha256.New, k.master, nil, info, n)
+	if err != nil {
+		panic(fmt.Sprintf("config: derive %d bytes for %q: %v", n, info, err))
+	}
+	return out
 }
 
 // Seal encrypts plaintext. aad binds the ciphertext to its context (e.g. the setting's key), so a

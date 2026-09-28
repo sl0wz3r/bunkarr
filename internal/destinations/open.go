@@ -32,11 +32,15 @@ type Handle struct {
 // the marker is present and carries the destination's id and that the filesystem type is the one
 // recorded at creation (S3). Failures return ErrNotMounted, ErrMarkerMismatch or ErrFSChanged
 // (all saying "destination not mounted?"); nothing is written, not even for the check. The
-// caller closes the Handle.
+// caller closes the Handle. A restic or rclone destination is refused (ErrEngineDestination): only
+// filecopy destinations have a Handle, so filecopy-only code cannot take an engine destination.
 func (s *Store) Open(ctx context.Context, id int64) (*Handle, error) {
 	d, err := s.Get(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	if d.IsEngine() {
+		return nil, fmt.Errorf("destination %q: %w", d.Name, ErrEngineDestination)
 	}
 	root, err := os.OpenRoot(d.Target)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 	"reflect"
+	"slices"
 	"strings"
 )
 
@@ -60,7 +61,8 @@ type PathMapping struct {
 	Local string `json:"local"`
 }
 
-// PlexBackup is the Plex DB backup schedule of an integration.
+// PlexBackup is the Plex DB backup schedule of an integration: the single form (Phase 1) or up to
+// MaxBackupTargets targets (phase4.md §8.5; the single form then mirrors targets[0]).
 type PlexBackup struct {
 	// DestinationID is the destination the backups are written to (0 = none chosen).
 	DestinationID int64 `json:"destinationId"`
@@ -68,6 +70,41 @@ type PlexBackup struct {
 	// (jobqueue.ValidateCron); Validate only requires it when the backup is enabled.
 	Cron    string `json:"cron"`
 	Enabled bool   `json:"enabled"`
+	// Targets are the backup's destinations, each with its schedule and its own
+	// acceptInsecureModes for Preferences.xml (which holds the PlexOnlineToken). nil: the single
+	// form above is the only target (EffectiveTargets). omitzero, not omitempty: nil is left out
+	// but [] (the targets form with none, "None" on the Plex page) is kept, so settings the API
+	// re-encodes (preparePlexSettings) still tell "no targets" from the single form, which
+	// mergeSingleForm would merge into the stored targets[1:].
+	Targets []BackupTarget `json:"targets,omitzero"`
+}
+
+// EffectiveTargets returns the backup's targets: Targets, or the single form's one target (none
+// without a destination).
+func (b PlexBackup) EffectiveTargets() []BackupTarget {
+	if b.Targets != nil {
+		return slices.Clone(b.Targets)
+	}
+	return singleTarget(b.DestinationID, b.Cron, b.Enabled, false)
+}
+
+// TargetFor returns the target a backup job to destinationID writes to (0: the first target, a
+// manual backup without a destination) and whether there is one.
+func (b PlexBackup) TargetFor(destinationID int64) (BackupTarget, bool) {
+	return targetFor(b.EffectiveTargets(), destinationID)
+}
+
+// setTargets stores ts as the targets form, the single form mirroring ts[0].
+func (b *PlexBackup) setTargets(ts []BackupTarget) {
+	b.Targets = ts
+	if b.Targets == nil {
+		b.Targets = []BackupTarget{}
+	}
+	if len(ts) == 0 {
+		b.DestinationID, b.Cron, b.Enabled = 0, "", false
+		return
+	}
+	b.DestinationID, b.Cron, b.Enabled = ts[0].DestinationID, ts[0].Cron, ts[0].Enabled
 }
 
 // ParsePlexSettings decodes a Plex settings document ("" and null are the zero settings) and
@@ -89,6 +126,11 @@ func ParsePlexSettings(raw json.RawMessage) (PlexSettings, error) {
 		s.PathMappings = []PathMapping{}
 	}
 	s.Backup.Cron = strings.TrimSpace(s.Backup.Cron)
+	if t := bytes.TrimSpace(raw); targetsPresent(t) {
+		s.Backup.setTargets(normalizeTargets(s.Backup.Targets, ""))
+	} else {
+		s.Backup.Targets = nil
+	}
 	if s.Index != nil {
 		s.Index.Cron = strings.TrimSpace(s.Index.Cron)
 		if s.Index.Enabled && s.Index.Cron == "" {
@@ -192,6 +234,16 @@ func (s PlexSettings) Validate() error {
 			return ValidationError("scheduled Plex DB backups need a destination")
 		case s.Backup.Cron == "":
 			return ValidationError("scheduled Plex DB backups need a schedule (cron)")
+		}
+	}
+	if s.Backup.Targets != nil {
+		if err := validateTargets(s.Backup.Targets, "Plex DB"); err != nil {
+			return err
+		}
+		for _, t := range s.Backup.Targets {
+			if t.Enabled && s.DataPath == "" {
+				return ValidationError("scheduled Plex DB backups need the Plex data path (dataPath)")
+			}
 		}
 	}
 	return nil

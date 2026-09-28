@@ -20,6 +20,7 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/auth"
 	"github.com/sl0wz3r/bunkarr/internal/config"
 	"github.com/sl0wz3r/bunkarr/internal/db"
+	"github.com/sl0wz3r/bunkarr/internal/engines/enginetest"
 	"github.com/sl0wz3r/bunkarr/internal/integrations/plex"
 )
 
@@ -62,7 +63,9 @@ func newEnvWith(t *testing.T, web fstest.MapFS, tweak func(*AppOptions)) *env {
 		t.Fatal(err)
 	}
 	o := AppOptions{DB: d, Keyring: kr, Settings: settings, ConfigDir: dir, ProgressEvery: 10 * time.Millisecond,
-		ShutdownGrace: 5 * time.Second, Plex: plex.Options{Timeout: 5 * time.Second}}
+		ShutdownGrace: 5 * time.Second, Plex: plex.Options{Timeout: 5 * time.Second},
+		// Run directories in temporary directories: NewApp sweeps them, never the host's /dev/shm.
+		Engines: EngineOptions{RunDirs: enginetest.RunDirs(t)}}
 	if tweak != nil {
 		tweak(&o)
 	}
@@ -370,5 +373,29 @@ func TestOpenAPIMatchesRoutes(t *testing.T) {
 	sort.Strings(extra)
 	if len(missing) > 0 || len(extra) > 0 {
 		t.Fatalf("openapi.json out of step with the router:\n  undocumented routes: %v\n  documented but not routed: %v", missing, extra)
+	}
+}
+
+// TestChangeCredentialsIsRateLimited: the current password gates off-site targets and the
+// recovery kit (S29), so wrong guesses here count against the login limiter: after 5 failures the
+// endpoint answers 429 with Retry-After even for the right password, and login is blocked too.
+func TestChangeCredentialsIsRateLimited(t *testing.T) {
+	e := newEnv(t, nil)
+	_, _ = e.auth.Setup(context.Background(), "admin", "correct horse")
+	c := e.client(t)
+	if code, _, _ := e.do(t, c, "POST", "/api/v1/auth/login", `{"username":"admin","password":"correct horse"}`, nil); code != 200 {
+		t.Fatalf("login: %d", code)
+	}
+	for i := range 5 {
+		if code, _, _ := e.do(t, c, "PUT", "/api/v1/auth/credentials", `{"currentPassword":"guess-`+string(rune('a'+i))+`","newPassword":"another one"}`, nil); code != 400 {
+			t.Fatalf("wrong guess %d: %d, want 400", i+1, code)
+		}
+	}
+	code, _, hdr := e.do(t, c, "PUT", "/api/v1/auth/credentials", `{"currentPassword":"correct horse","newPassword":"another one"}`, nil)
+	if code != 429 || hdr.Get("Retry-After") == "" {
+		t.Fatalf("after 5 wrong guesses: %d (Retry-After %q), want 429", code, hdr.Get("Retry-After"))
+	}
+	if code, _, _ := e.do(t, nil, "POST", "/api/v1/auth/login", `{"username":"admin","password":"correct horse"}`, nil); code != 429 {
+		t.Fatalf("login after the guesses: %d, want 429 (shared limiter)", code)
 	}
 }

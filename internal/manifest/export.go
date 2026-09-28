@@ -151,6 +151,9 @@ func (r *Runner) Download(ctx context.Context, id int64, format string) (*Staged
 		return nil, ErrDamaged
 	}
 	h, err := r.destinations.Open(ctx, v.DestinationID)
+	if errors.Is(err, destinations.ErrEngineDestination) {
+		return r.downloadEngine(ctx, v, format)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -230,15 +233,16 @@ func (r *Runner) stage(prefix, name, format string, fill func(io.Writer) error) 
 	return &StagedFile{Name: name, ContentType: ct, Size: cw.n, SHA256: hex.EncodeToString(h.Sum(nil)), path: p, dir: dir}, nil
 }
 
-// cleanStaleStaging removes export and download staging directories older than staleStaging (a
-// crash while one was served). Best effort.
+// cleanStaleStaging removes export, download and engine read-back staging directories older than
+// staleStaging (a crash while one was served or read). Best effort.
 func (r *Runner) cleanStaleStaging(base string) {
 	entries, err := os.ReadDir(base)
 	if err != nil {
 		return
 	}
 	for _, e := range entries {
-		if !e.IsDir() || (!strings.HasPrefix(e.Name(), exportPrefix) && !strings.HasPrefix(e.Name(), downloadPrefix)) {
+		if !e.IsDir() || (!strings.HasPrefix(e.Name(), exportPrefix) && !strings.HasPrefix(e.Name(), downloadPrefix) &&
+			!strings.HasPrefix(e.Name(), fetchPrefix)) {
 			continue
 		}
 		fi, err := e.Info()

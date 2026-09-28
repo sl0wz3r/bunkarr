@@ -17,6 +17,7 @@ import (
 
 	"github.com/sl0wz3r/bunkarr/internal/db"
 	"github.com/sl0wz3r/bunkarr/internal/destinations"
+	"github.com/sl0wz3r/bunkarr/internal/engines"
 	"github.com/sl0wz3r/bunkarr/internal/engines/filecopy"
 	"github.com/sl0wz3r/bunkarr/internal/faultinject"
 	"github.com/sl0wz3r/bunkarr/internal/integrations"
@@ -95,6 +96,10 @@ type Stats struct {
 	MediaParts    int64 `json:"mediaParts,omitempty"`
 	// Recovered counts versions an interrupted job had written completely and this job recorded.
 	Recovered int64 `json:"recovered,omitempty"`
+	// Engine and EngineRef are set for a version at a restic or rclone destination (phase4.md
+	// §8): the engine and the version's reference (the restic snapshot id, or the rclone path).
+	Engine    string `json:"engine,omitempty"`
+	EngineRef string `json:"engineRef,omitempty"`
 	// Pruned counts versions deleted by the retention rules.
 	Pruned     int64 `json:"pruned"`
 	DurationMs int64 `json:"durationMs"`
@@ -120,6 +125,9 @@ type Options struct {
 	// BusyTimeout and Attempts are passed to Backup (zero: its defaults).
 	BusyTimeout time.Duration
 	Attempts    int
+	// OpenVersions opens the version store of a restic or rclone destination for one job
+	// (enginerun's, wired by the api; phase4.md §8.4). nil: backups to engine destinations fail.
+	OpenVersions engines.VersionOpener
 }
 
 // Runner runs jobs.TypePlexDBBackup jobs. It is safe for concurrent use (the job manager runs at
@@ -135,6 +143,7 @@ type Runner struct {
 	plexOpts     plex.Options
 	busyTimeout  time.Duration
 	attempts     int
+	openVersions engines.VersionOpener
 }
 
 var _ jobs.Runner = (*Runner)(nil)
@@ -155,7 +164,7 @@ func NewRunner(o Options) (*Runner, error) {
 	r := &Runner{
 		store: snapshots.NewStore(o.DB), integrations: o.Integrations, destinations: o.Destinations,
 		configDir: o.ConfigDir, log: o.Log, now: o.Now, loc: o.Location, plexOpts: o.Plex,
-		busyTimeout: o.BusyTimeout, attempts: o.Attempts,
+		busyTimeout: o.BusyTimeout, attempts: o.Attempts, openVersions: o.OpenVersions,
 	}
 	if r.log == nil {
 		r.log = slog.New(slog.DiscardHandler)
@@ -183,13 +192,18 @@ func (r *Runner) StagingDir(jobID int64) string {
 
 // run is one job's state.
 type run struct {
-	r       *Runner
-	job     jobs.Job
-	rep     jobs.Reporter
-	items   jobs.ItemStore
-	it      integrations.Integration
-	ps      integrations.PlexSettings
-	h       *destinations.Handle
+	r     *Runner
+	job   jobs.Job
+	rep   jobs.Reporter
+	items jobs.ItemStore
+	it    integrations.Integration
+	ps    integrations.PlexSettings
+	h     *destinations.Handle
+	// dest is the job's destination (both paths); h is nil on the engine path, where ev keeps
+	// the versions through the destination's VersionStore and listing is what it holds.
+	dest    destinations.Destination
+	ev      *snapshots.EngineVersions
+	listing *snapshots.Listing
 	folder  string
 	started time.Time
 	stats   Stats
@@ -244,17 +258,48 @@ func (r *Runner) Run(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.Resu
 		return jobs.Result{}, fmt.Errorf("Plex %q has no backup destination", w.it.Name)
 	}
 	if w.h, err = r.destinations.Open(ctx, destID); err != nil {
+		if errors.Is(err, destinations.ErrEngineDestination) {
+			return w.runEngine(ctx, destID)
+		}
 		return jobs.Result{}, err
 	}
 	defer w.h.Close()
+	w.dest = w.h.Destination
 	if !w.h.Destination.Enabled {
 		return jobs.Result{}, fmt.Errorf("destination %q is disabled", w.h.Destination.Name)
+	}
+	if err := w.checkModes(ctx, destID); err != nil {
+		return jobs.Result{}, err
 	}
 	w.folder = FolderName(w.it.Name, w.it.ID)
 	if job.DryRun {
 		return w.dryRun(ctx)
 	}
 	return w.backup(ctx)
+}
+
+// checkModes is S17 for Preferences.xml at a filecopy destination (phase4.md §8.4 step 6): it
+// holds the PlexOnlineToken, so a destination that does not keep file modes (an SMB share without
+// POSIX extensions) needs the target's acceptInsecureModes. Capabilities from a probe older than
+// the modes check are probed again first (a real run only; a dry run writes nothing).
+func (w *run) checkModes(ctx context.Context, destID int64) error {
+	target, _ := w.ps.Backup.TargetFor(destID)
+	check := func() error {
+		return integrations.CheckBackupDestination("Plex", w.h.Destination.Kind, w.h.Destination.Encryption.Mode,
+			w.h.Capabilities.EnforcesModes, target.AcceptInsecureModes && target.DestinationID == destID)
+	}
+	if check() == nil {
+		return nil
+	}
+	if !w.job.DryRun {
+		if _, _, err := w.h.RefreshStale(ctx); err != nil {
+			return fmt.Errorf("destination %q: check whether it keeps file modes: %w", w.h.Destination.Name, err)
+		}
+	}
+	if err := check(); err != nil {
+		return fmt.Errorf("destination %q: %w (Preferences.xml holds the Plex token)", w.h.Destination.Name, err)
+	}
+	return nil
 }
 
 // loadIntegration returns an enabled Plex integration with a data path.
@@ -453,7 +498,7 @@ func (w *run) failedVerification(reports map[string]IntegrityReport) (jobs.Resul
 // summary is a successful backup's summary sentence.
 func (w *run) summary() string {
 	s := fmt.Sprintf("Backed up the Plex database of %q to %q: %d files, %s, integrity ok", w.it.Name,
-		w.h.Destination.Name, w.stats.Files, formatBytes(w.stats.Bytes))
+		w.dest.Name, w.stats.Files, formatBytes(w.stats.Bytes))
 	if w.stats.Pruned > 0 {
 		s += fmt.Sprintf("; %d old versions pruned", w.stats.Pruned)
 	}
@@ -601,7 +646,9 @@ func (w *run) checkSpace() error {
 			need += uint64(f.Size + f.WALSize)
 		}
 	}
-	if free, _, err := filecopy.FreeSpace(w.h.Root); err == nil && free < need+spaceMargin {
+	if w.h == nil {
+		// An engine destination reports no free space (phase4.md §3.3); only staging is checked.
+	} else if free, _, err := filecopy.FreeSpace(w.h.Root); err == nil && free < need+spaceMargin {
 		return fmt.Errorf("not enough free space at destination %q: the Plex backup needs about %s, %s is free",
 			w.h.Destination.Name, formatBytes(int64(need)), formatBytes(int64(free)))
 	}
@@ -866,6 +913,10 @@ func (w *run) finishRecovered(ctx context.Context, snap snapshots.Snapshot) (job
 // successful backup; rows of versions gone from the destination are removed first (dropLost).
 // Problems are warnings: the backup itself succeeded.
 func (w *run) prune(ctx context.Context) {
+	if w.ev != nil {
+		w.pruneEngine(ctx)
+		return
+	}
 	if err := w.h.Recheck(); err != nil {
 		w.warn("Old Plex DB versions were not pruned", "error", err.Error())
 		return
@@ -993,11 +1044,13 @@ func (w *run) dryRun(ctx context.Context) (jobs.Result, error) {
 	if err := w.items.AddItems(ctx, w.job.ID, list, true); err != nil {
 		return jobs.Result{}, err
 	}
-	if free, _, err := filecopy.FreeSpace(w.h.Root); err == nil && uint64(need)+spaceMargin > free {
-		w.warn("The destination does not have enough free space for this backup", "need", need, "free", free)
+	if w.h != nil {
+		if free, _, err := filecopy.FreeSpace(w.h.Root); err == nil && uint64(need)+spaceMargin > free {
+			w.warn("The destination does not have enough free space for this backup", "need", need, "free", free)
+		}
 	}
 	return w.result(fmt.Sprintf("Dry run: would back up %d files (%s) of Plex %q to %q (%s)", w.stats.Files,
-		formatBytes(w.stats.Bytes), w.it.Name, w.h.Destination.Name, lib.Method)), nil
+		formatBytes(w.stats.Bytes), w.it.Name, w.dest.Name, lib.Method)), nil
 }
 
 // cleanStaleStaging removes staging directories of other Plex DB jobs that nothing has touched for

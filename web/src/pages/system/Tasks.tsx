@@ -119,7 +119,17 @@ export function Tasks() {
       key: 'last',
       header: 'Last run',
       className: 'whitespace-nowrap',
-      cell: (s) => <span title={formatDateTime(s.lastRunAt)}>{s.lastRunAt ? formatRelative(s.lastRunAt) : 'Never'}</span>,
+      cell: (s) => (
+        <div>
+          <span title={formatDateTime(s.lastRunAt)}>{s.lastRunAt ? formatRelative(s.lastRunAt) : 'Never'}</span>
+          {s.lastSkip && (
+            // A fire that queued nothing: a deferred job of the destination covers it (phase4.md §9.2).
+            <div className="mt-1 whitespace-normal text-xs text-ink-muted" title={formatDateTime(s.lastSkip.at)}>
+              <Badge tone="info">Skipped</Badge> {formatRelative(s.lastSkip.at)}: {s.lastSkip.reason}
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       key: 'enabled',
@@ -173,7 +183,10 @@ export function Tasks() {
     >
       {notice && <Notice tone={notice.tone}>{notice.body}</Notice>}
       <ErrorNotice error={schedules.error} />
-      <p className="mb-3 text-xs text-ink-muted">Schedules run in the container&apos;s time zone (TZ). Destination and Plex backup schedules can also be edited on their pages.</p>
+      <p className="mb-3 text-xs text-ink-muted">
+        Schedules run in the container&apos;s time zone (TZ). Destination and Plex backup schedules can also be edited on their pages. restic and rclone
+        destinations have their own retention schedule; a scheduled run is skipped while a job of the same destination waits for its transfer window.
+      </p>
       {list && list.length === 0 ? (
         <EmptyState icon={CalendarClock} title="No scheduled tasks">
           Destinations and Plex database backups add their schedules here.

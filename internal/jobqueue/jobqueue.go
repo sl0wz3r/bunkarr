@@ -8,9 +8,15 @@
 //   - Manager runs queued jobs on a bounded number of workers, plus a separate pool for refresh
 //     jobs, serializes jobs that share a lock key (one destination, one Plex server, one source,
 //     one integration's index, one integration's *arr backups, one destination's manifests),
-//     recovers jobs a crash left running, re-queues jobs interrupted by a graceful shutdown, and
-//     reports progress, logs and final states (OnFinish hooks).
-//   - Scheduler enqueues jobs from the schedules table on their cron expressions.
+//     limits jobs that need a slot of a counting pool (Options.Slots: the engine syncs' upload
+//     slots, phase4.md §9.3), recovers jobs a crash left running, re-queues jobs interrupted by a
+//     graceful shutdown and jobs a runner deferred (jobs.DeferredError: a transfer window closed;
+//     they start again at their not_before, phase4.md §11.2), and reports progress, logs and
+//     final states (OnFinish hooks). HoldKeys lets a caller hold lock keys itself (the unlock
+//     endpoint).
+//   - Scheduler enqueues jobs from the schedules table on their cron expressions; a fire of a
+//     destination's sync schedule supersedes a deferred sync of it, and a fire of verify or
+//     retention while a deferred one is queued is skipped (LastSkip says why).
 //
 // Every write goes through db.Write; every time is stored with db.FormatTime. Error texts, log
 // messages and log fields that reach the database are passed through logging.RedactSecrets.
@@ -33,6 +39,9 @@ var (
 	// ErrNotActive means a job cannot be cancelled because it is not queued or running (in this
 	// process).
 	ErrNotActive = errors.New("job is not active")
+	// ErrBusy means Manager.HoldKeys was refused: a running job (or another hold) holds one of the
+	// keys.
+	ErrBusy = errors.New("a running job holds the lock")
 )
 
 // ValidationError is a user-facing input error (an invalid spec, filter or cron expression). The
@@ -195,9 +204,10 @@ func parseParams(s string) (jobs.Params, error) {
 	return p, nil
 }
 
-// validateParams checks the parameters a job type needs (phase1.md §6.2, phase2-3.md §12.1): the
-// lock keys (and so the serialization) depend on them. dryRun is the spec's (a schedule is a real
-// run). The targeting and release params are refused on the types they do not apply to.
+// validateParams checks the parameters a job type needs (phase1.md §6.2, phase2-3.md §12.1,
+// phase4.md §11.1): the lock keys (and so the serialization) depend on them. dryRun is the spec's
+// (a schedule is a real run). The targeting, release, prune and readData params are refused on the
+// types they do not apply to.
 func validateParams(t jobs.Type, p jobs.Params, dryRun bool) error {
 	if !validType(t) {
 		return ValidationError(fmt.Sprintf("unknown job type %q", t))
@@ -215,6 +225,14 @@ func validateParams(t jobs.Type, p jobs.Params, dryRun bool) error {
 	}
 	if t != jobs.TypeRefresh && (len(p.ArrItemIDs) > 0 || p.SyncAfter) {
 		return ValidationError(fmt.Sprintf("a %s job takes no arrItemIds or syncAfter", t))
+	}
+	// phase4.md §11.1: prune a restic repository now (retention of one destination), read
+	// everything once (verify).
+	if p.Prune && (t != jobs.TypeRetention || p.DestinationID == 0) {
+		return ValidationError("prune applies only to a retention job of one destination (destinationId)")
+	}
+	if p.ReadData && t != jobs.TypeVerify {
+		return ValidationError(fmt.Sprintf("a %s job takes no readData (only verify jobs do)", t))
 	}
 	switch t {
 	case jobs.TypeSync:

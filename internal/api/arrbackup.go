@@ -3,7 +3,7 @@ package api
 import (
 	"cmp"
 	"context"
-	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
@@ -12,8 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/sl0wz3r/bunkarr/internal/arrbackup"
+	"github.com/sl0wz3r/bunkarr/internal/destinations"
 	"github.com/sl0wz3r/bunkarr/internal/integrations"
-	"github.com/sl0wz3r/bunkarr/internal/jobqueue"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
 	"github.com/sl0wz3r/bunkarr/internal/snapshots"
 )
@@ -29,9 +29,11 @@ func (s *Server) arrBackupRoutes(r chi.Router) {
 }
 
 // arrBackup is POST /integrations/{id}/arr/backup {destinationId?, dryRun} → 202 Job. The
-// destination defaults to the integration's backup destination. A disabled integration or
-// destination, and a destination that does not keep the zip private without
-// backup.acceptInsecureModes (S17), are 409: the job would only fail.
+// destination defaults to the integration's first backup target (phase4.md §8.5). A disabled
+// integration or destination, a destination that does not keep the zip private without the
+// target's acceptInsecureModes (S17), an unencrypted remote destination (§8.4 step 6), and a
+// destination whose recovery kit custody is not confirmed or whose engine is unavailable (S21,
+// dry runs excepted) are 409: the job would only fail.
 func (s *Server) arrBackup(w http.ResponseWriter, r *http.Request) {
 	it, err := s.arrIntegration(r)
 	if err != nil {
@@ -54,7 +56,9 @@ func (s *Server) arrBackup(w http.ResponseWriter, r *http.Request) {
 	app := it.Type.AppName()
 	destID := body.DestinationID
 	if destID == 0 {
-		destID = as.Backup.DestinationID
+		if t, ok := as.Backup.TargetFor(0); ok {
+			destID = t.DestinationID
+		}
 	}
 	if destID <= 0 {
 		s.fail(w, r, "start an *arr backup", errorf(http.StatusBadRequest, "choose a destination for the %s backup (destinationId)", app))
@@ -76,8 +80,14 @@ func (s *Server) arrBackup(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, "start an *arr backup", errorf(http.StatusConflict, "destination %q is disabled", d.Name))
 		return
 	}
-	if err := arrbackup.CheckModes(d.Capabilities, as.Backup.AcceptInsecureModes, d.Name, app); err != nil {
+	target, _ := as.Backup.TargetFor(destID)
+	accept := target.DestinationID == destID && target.AcceptInsecureModes
+	if err := checkArrDestination(d, accept, app); err != nil {
 		s.fail(w, r, "start an *arr backup", errorf(http.StatusConflict, "%v", err))
+		return
+	}
+	if err := s.app.checkRunnable(d, body.DryRun); err != nil {
+		s.fail(w, r, "start an *arr backup", err)
 		return
 	}
 	job, err := s.app.Jobs.Enqueue(r.Context(), jobs.Spec{Type: jobs.TypeArrBackup, Trigger: jobs.TriggerManual, DryRun: body.DryRun,
@@ -87,6 +97,17 @@ func (s *Server) arrBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeAccepted(w, job.ID, job)
+}
+
+// checkArrDestination is S17 for an *arr backup at destination d: a filecopy destination must keep
+// file modes unless the target accepts insecure modes (arrbackup.CheckModes, whose message names
+// backup.acceptInsecureModes); a restic or rclone destination must be encrypted when it is not
+// local (phase4.md §8.4 step 6; an encrypted one counts as keeping the zip private).
+func checkArrDestination(d destinations.Destination, acceptInsecure bool, app string) error {
+	if d.IsEngine() {
+		return integrations.CheckBackupDestination(app, d.Kind, d.Encryption.Mode, d.Capabilities.EnforcesModes, acceptInsecure)
+	}
+	return arrbackup.CheckModes(d.Capabilities, acceptInsecure, d.Name, app)
 }
 
 // arrSnapshots is GET /integrations/{id}/arr/snapshots: the integration's *arr backup versions at
@@ -131,97 +152,52 @@ func arrBackupParams(integrationID, destinationID int64) jobs.Params {
 	return jobs.Params{IntegrationID: integrationID, DestinationID: destinationID}
 }
 
-// prepareArrSettings checks the backup part of an *arr integration's settings before they are
-// stored: the backup destination must exist, and it must keep the zips private
-// (capabilities.enforcesModes) unless backup.acceptInsecureModes is set (S17; the 400 names the
-// flag). Other types, absent settings and settings the store will refuse anyway are returned
-// unchanged (the store validates and normalizes them).
+// prepareArrSettings checks the backup targets of an *arr integration's settings before they are
+// stored: each target's destination must exist and keep the zips private (checkArrDestination:
+// capabilities.enforcesModes unless the target's acceptInsecureModes is set, S17, the 400 naming
+// the flag; an encrypted destination when it is not local). Other types, absent settings and
+// settings the store will refuse anyway are returned unchanged (the store validates and
+// normalizes them).
 func (s *Server) prepareArrSettings(ctx context.Context, typ integrations.Type, raw []byte) ([]byte, error) {
 	t := strings.TrimSpace(string(raw))
 	if !typ.IsArr() || t == "" || t == "null" {
 		return raw, nil
 	}
 	as, err := integrations.ParseArrSettings(raw)
-	if err != nil || as.Backup.DestinationID <= 0 {
+	if err != nil {
 		return raw, nil
 	}
-	d, err := s.app.Destinations.Get(ctx, as.Backup.DestinationID)
-	if err != nil {
-		if statusOf(err) == http.StatusNotFound {
-			return nil, errorf(http.StatusBadRequest, "backup.destinationId: destination %d does not exist", as.Backup.DestinationID)
+	for i, target := range as.Backup.EffectiveTargets() {
+		field := "backup.destinationId"
+		if as.Backup.Targets != nil {
+			field = fmt.Sprintf("backup.targets[%d].destinationId", i)
 		}
-		return nil, err
-	}
-	if err := arrbackup.CheckModes(d.Capabilities, as.Backup.AcceptInsecureModes, d.Name, typ.AppName()); err != nil {
-		return nil, errorf(http.StatusBadRequest, "%v", err)
+		if target.DestinationID <= 0 {
+			continue
+		}
+		d, err := s.app.Destinations.Get(ctx, target.DestinationID)
+		if err != nil {
+			if statusOf(err) == http.StatusNotFound {
+				return nil, errorf(http.StatusBadRequest, "%s: destination %d does not exist", field, target.DestinationID)
+			}
+			return nil, err
+		}
+		if err := checkArrDestination(d, target.AcceptInsecureModes, typ.AppName()); err != nil {
+			return nil, errorf(http.StatusBadRequest, "%v", err)
+		}
 	}
 	return raw, nil
 }
 
-// syncArrBackupSchedule makes the arr_backup schedule of an *arr integration match its settings:
-// a backup destination and a cron expression give a schedule (enabled as the settings say; an
-// enabled backup without a cron expression gets the weekly default when its settings are
-// parsed); no destination, or a disabled backup without a cron expression, gives none.
-// Schedules of the integration with other params (an earlier destination) are removed.
+// syncArrBackupSchedule makes the arr_backup schedules of an *arr integration match its backup
+// targets (syncBackupSchedules): one per target with a cron expression (an enabled target without
+// one gets the weekly default when its settings are parsed); a disabled target without a cron
+// expression gives none. Schedules of the integration with other params are removed.
 func (s *Server) syncArrBackupSchedule(ctx context.Context, it integrations.Integration) error {
 	if !it.Type.IsArr() {
 		return nil
 	}
-	as, err := it.ArrSettings()
-	if err != nil {
-		return err
-	}
-	want := as.Backup.DestinationID > 0 && as.Backup.Cron != ""
-	params := arrBackupParams(it.ID, as.Backup.DestinationID)
-	st := s.app.Jobs.Store()
-	list, err := st.ListSchedules(ctx)
-	if err != nil {
-		return err
-	}
-	changed, current := false, false
-	for _, sc := range list {
-		if sc.JobType != jobs.TypeArrBackup || sc.Params.IntegrationID != it.ID {
-			continue
-		}
-		if want && sameParams(sc.Params, params) {
-			current = sc.Cron == as.Backup.Cron && sc.Enabled == as.Backup.Enabled
-			continue
-		}
-		if err := st.DeleteSchedule(ctx, sc.ID); err != nil && !errors.Is(err, jobqueue.ErrNotFound) {
-			return err
-		}
-		changed = true
-	}
-	if want && !current {
-		if _, err := st.UpsertSchedule(ctx, jobs.TypeArrBackup, params, as.Backup.Cron, as.Backup.Enabled); err != nil {
-			return err
-		}
-		changed = true
-	}
-	if changed {
-		s.reloadSchedules(ctx)
-	}
-	return nil
-}
-
-// arrBackupOverlay returns an *arr integration with backup.cron and backup.enabled taken from its
-// stored arr_backup schedule for the configured destination, when there is one (System → Tasks
-// edits it; it is the source of truth).
-func arrBackupOverlay(list []jobqueue.Schedule, it integrations.Integration) integrations.Integration {
-	as, err := it.ArrSettings()
-	if err != nil || as.Backup.DestinationID <= 0 {
-		return it
-	}
-	for _, sc := range list {
-		if sc.JobType == jobs.TypeArrBackup && sameParams(sc.Params, arrBackupParams(it.ID, as.Backup.DestinationID)) {
-			as.Backup.Cron, as.Backup.Enabled = sc.Cron, sc.Enabled
-			if b, err := jsonMarshal(as); err == nil {
-				it.Settings = b
-			}
-			return it
-		}
-	}
-	return it
+	return s.syncBackupSchedules(ctx, it)
 }
 
 // describeArrBackup names an arr_backup job ("Backup of Radarr 4K" for an integration named so,
@@ -254,5 +230,6 @@ func (a *App) newArrBackupRunner(o AppOptions, configDir string) (*arrbackup.Run
 		ConfigDir:    configDir,
 		Log:          a.log.With("component", "arrbackup"),
 		Location:     o.Location,
+		OpenVersions: a.versionOpener(o),
 	})
 }

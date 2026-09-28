@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -60,8 +61,42 @@ type ArrBackup struct {
 	// copied, and no Backup command is sent.
 	MaxScheduledAgeDays int `json:"maxScheduledAgeDays"`
 	// AcceptInsecureModes allows backups to a destination that does not enforce file modes (SMB
-	// without POSIX extensions): the zips hold the *arr's secrets (S17).
+	// without POSIX extensions): the zips hold the *arr's secrets (S17). With Targets it mirrors
+	// targets[0]'s flag; each target has its own (phase4.md §8.4 step 6).
 	AcceptInsecureModes bool `json:"acceptInsecureModes"`
+	// Targets are the backup's destinations, each with its schedule and acceptInsecureModes
+	// (phase4.md §8.5; the fields above then mirror targets[0]). nil: the single form above is
+	// the only target (EffectiveTargets).
+	Targets []BackupTarget `json:"targets,omitempty"`
+}
+
+// EffectiveTargets returns the backup's targets: Targets, or the single form's one target (none
+// without a destination).
+func (b ArrBackup) EffectiveTargets() []BackupTarget {
+	if b.Targets != nil {
+		return slices.Clone(b.Targets)
+	}
+	return singleTarget(b.DestinationID, b.Cron, b.Enabled, b.AcceptInsecureModes)
+}
+
+// TargetFor returns the target a backup job to destinationID writes to (0: the first target) and
+// whether there is one.
+func (b ArrBackup) TargetFor(destinationID int64) (BackupTarget, bool) {
+	return targetFor(b.EffectiveTargets(), destinationID)
+}
+
+// setTargets stores ts as the targets form, the single form mirroring ts[0] (maxScheduledAgeDays
+// is not per target and stays).
+func (b *ArrBackup) setTargets(ts []BackupTarget) {
+	b.Targets = ts
+	if b.Targets == nil {
+		b.Targets = []BackupTarget{}
+	}
+	if len(ts) == 0 {
+		b.DestinationID, b.Cron, b.Enabled, b.AcceptInsecureModes = 0, "", false, false
+		return
+	}
+	b.DestinationID, b.Cron, b.Enabled, b.AcceptInsecureModes = ts[0].DestinationID, ts[0].Cron, ts[0].Enabled, ts[0].AcceptInsecureModes
 }
 
 // RefreshSettings configures the scheduled refresh of an integration's metadata cache.
@@ -112,6 +147,11 @@ func ParseArrSettings(raw json.RawMessage) (ArrSettings, error) {
 	s.Backup.Cron = strings.TrimSpace(s.Backup.Cron)
 	if s.Backup.Enabled && s.Backup.Cron == "" {
 		s.Backup.Cron = DefaultArrBackupCron
+	}
+	if t := bytes.TrimSpace(raw); len(t) > 0 && targetsPresent(t) {
+		s.Backup.setTargets(normalizeTargets(s.Backup.Targets, DefaultArrBackupCron))
+	} else {
+		s.Backup.Targets = nil
 	}
 	s.Refresh.normalize(DefaultArrRefreshCron)
 	return s, nil
@@ -165,6 +205,11 @@ func (s ArrSettings) Validate(app string) error {
 	if b.Cron != "" {
 		if err := validateCron(b.Cron); err != nil {
 			return ValidationError("backup.cron: " + err.Error())
+		}
+	}
+	if b.Targets != nil {
+		if err := validateTargets(b.Targets, app); err != nil {
+			return err
 		}
 	}
 	return s.Refresh.validate()

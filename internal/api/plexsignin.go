@@ -611,6 +611,9 @@ type plexSignInRef struct {
 type integrationBody struct {
 	integrations.Input
 	PlexSignIn *plexSignInRef `json:"plexSignIn"`
+	// CurrentPassword is the user's password, required (with a UI session) when a backup target
+	// is added on a destination off the machine or acceptInsecureModes is set (phase4.md S29).
+	CurrentPassword string `json:"currentPassword"`
 }
 
 // signInUse is a sign-in reserved by a create or update. Call done when the request ends; call

@@ -1,0 +1,2 @@
+{"message_type":"error","error":{"message":"open /src2/ok/unreadable.txt: permission denied"},"during":"archival","item":"/src2/ok/unreadable.txt"}
+{"message_type":"exit_error","code":3,"message":"Warning: at least one source file could not be read"}

@@ -1,0 +1,4 @@
+2026/09/27 13:54:20 ERROR : No common hash found - not using a hash for checks
+2026/09/27 13:54:21 NOTICE: sftp://bk@p4-sftp:22/upload/rclone-current: 0 differences found
+2026/09/27 13:54:21 NOTICE: sftp://bk@p4-sftp:22/upload/rclone-current: 3 hashes could not be checked
+2026/09/27 13:54:21 NOTICE: sftp://bk@p4-sftp:22/upload/rclone-current: 3 matching files

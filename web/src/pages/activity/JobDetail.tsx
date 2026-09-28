@@ -21,7 +21,7 @@ import { formatBytes, formatDateTime, formatDuration, formatEta, formatNumber, f
 import { ACTION_HELP, ACTION_LABELS, ACTION_ORDER, ITEM_STATUS_LABELS, ITEM_STATUS_ORDER, JOB_TYPE_LABELS, TRIGGER_LABELS } from '@/lib/labels';
 import { isActive, jobTarget, keys, useDestinations, useNames } from '@/lib/lookups';
 import { POLL_MS } from '@/lib/queryClient';
-import { cancelText, JobBadges, JobProgressView, JobStats } from './JobParts';
+import { cancelText, deferralText, EngineJobStats, JobBadges, JobProgressView, JobStats } from './JobParts';
 import { JobLogs } from './JobLogs';
 
 export const ITEMS_PAGE_SIZE = 50;
@@ -180,6 +180,7 @@ export function JobDetail() {
             </section>
           )}
           <JobStats stats={j.stats} dryRun={j.dryRun} />
+          <EngineJobStats stats={j.stats} names={names} />
           <TierJobStats stats={j.stats} />
 
           <h2 className="mb-2 text-lg">Items</h2>
@@ -320,6 +321,8 @@ function JobHeader({ job, target }: { job: Job; target: string }) {
         <Field label="Finished">{formatDateTime(job.finishedAt)}</Field>
         <Field label="Duration">{formatDuration(duration)}</Field>
         <Field label="Warnings">{formatNumber(job.warnings)}</Field>
+        {!!job.deferrals && <Field label="Window">{`Waited for the transfer window: ${deferralText(job.deferrals)}`}</Field>}
+        {job.status === 'queued' && job.notBefore && <Field label="Starts">{formatDateTime(job.notBefore)}</Field>}
       </dl>
     </section>
   );

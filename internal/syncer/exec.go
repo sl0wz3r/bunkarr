@@ -85,13 +85,13 @@ func (s *syncRun) execute(ctx context.Context) error {
 				if err := ctx.Err(); err != nil {
 					return err
 				}
-				if err := s.runItem(ctx, it); err != nil {
+				if err := s.runWindowed(ctx, it); err != nil {
 					return err
 				}
 				s.progress.FilesDone++
 				s.rep.Progress(s.progress)
 				s.sinceRecheck++
-				if s.sinceRecheck >= s.r.recheckEvery {
+				if s.sinceRecheck >= s.recheckEvery {
 					s.sinceRecheck = 0
 					if err := s.h.Recheck(); err != nil {
 						return err
@@ -110,6 +110,7 @@ func (s *syncRun) runItem(ctx context.Context, it jobs.Item) error {
 		return s.failItem(ctx, it, err)
 	}
 	x := &itemRun{s: s, it: it, d: d, dst: s.h.Root}
+	s.lastItem = x
 	s.progress.CurrentFile = it.RelPath
 	s.rep.Progress(s.progress)
 	if d.SourceID != 0 {
@@ -679,6 +680,7 @@ func (x *itemRun) place(ctx context.Context) (int64, error) {
 			x.s.progress.BytesDone += n
 			x.s.rep.Progress(x.s.progress)
 		},
+		WrapWriter: x.s.copyWrapper(),
 	})
 	if err != nil {
 		return 0, err

@@ -48,6 +48,32 @@ func TestParsePlexSettings(t *testing.T) {
 	}
 }
 
+// TestPlexSettingsKeepEmptyTargets: the targets form with no targets ("None") survives an encode
+// and a parse, so a re-encoded request still says "no targets" rather than the single form (the
+// API re-encodes Plex settings before the store's mergeSingleForm looks at them).
+func TestPlexSettingsKeepEmptyTargets(t *testing.T) {
+	ps, err := ParsePlexSettings(json.RawMessage(`{"backup":{"destinationId":0,"enabled":false,"targets":[]}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := json.Marshal(ps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !targetsPresent(b) {
+		t.Fatalf("targets [] dropped: %s", b)
+	}
+	again, err := ParsePlexSettings(b)
+	if err != nil || again.Backup.Targets == nil || len(again.Backup.Targets) != 0 {
+		t.Fatalf("round trip: %+v, %v", again.Backup, err)
+	}
+	// The single form still encodes without targets.
+	single, _ := json.Marshal(PlexSettings{Backup: PlexBackup{DestinationID: 2}})
+	if targetsPresent(single) {
+		t.Fatalf("single form got targets: %s", single)
+	}
+}
+
 func TestPlexSettingsValidate(t *testing.T) {
 	base := func(mod func(*PlexSettings)) PlexSettings {
 		s := PlexSettings{

@@ -262,12 +262,12 @@ func (s *syncRun) scopedPlanInput(ctx context.Context, src catalog.Source, scope
 		}
 	}
 	slices.SortFunc(files, func(a, b *planFile) int { return strings.Compare(a.rel, b.rel) })
-	recs, err := s.r.store.liveForSourceUnder(ctx, s.h.Destination.ID, src.ID, scopes)
+	recs, err := s.r.store.liveForSourceUnder(ctx, s.dest.ID, src.ID, scopes)
 	if err != nil {
 		return nil, nil, err
 	}
 	for _, rel := range extra {
-		r, ok, err := s.r.store.liveForSourcePath(ctx, s.h.Destination.ID, src.ID, rel)
+		r, ok, err := s.r.store.liveForSourcePath(ctx, s.dest.ID, src.ID, rel)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -335,14 +335,14 @@ func (s *syncRun) targetNames(ctx context.Context, src catalog.Source, scopes []
 			at = append(at, path.Join(src.DestFolder, f.rel))
 		}
 	}
-	recs, err := s.r.store.liveNear(ctx, s.h.Destination.ID, under, at, s.h.Capabilities.CaseInsensitive)
+	recs, err := s.r.store.liveNear(ctx, s.dest.ID, under, at, s.dest.Caps.CaseInsensitive)
 	if errors.Is(err, errNoFoldedLookup) {
 		return s.destinationNames(ctx)
 	}
 	if err != nil {
 		return nil, err
 	}
-	names := newNameIndex(s.h.Capabilities)
+	names := newNameIndex(s.dest.Caps)
 	for _, rec := range recs {
 		_, planned := s.linked[rec.SourceID]
 		names.addRecord(rec.RelPath, !planned)
@@ -496,7 +496,7 @@ func (s *syncRun) inTargets(sourceID int64, dest string) bool {
 // queueManifestExport queues the manifest export that follows a sync that is neither a dry run
 // nor targeted and did not end cancelled, when the destination's setting allows it (§9.2). It
 // returns the queued job's id (0: none). A failure is logged, never the sync's.
-func (r *SyncRunner) queueManifestExport(ctx context.Context, job jobs.Job, runErr error) int64 {
+func (r *Planner) queueManifestExport(ctx context.Context, job jobs.Job, runErr error) int64 {
 	if r.enq == nil || r.manifestAfter == nil || job.DryRun || len(job.Params.Paths) > 0 || job.Params.DestinationID == 0 {
 		return 0
 	}

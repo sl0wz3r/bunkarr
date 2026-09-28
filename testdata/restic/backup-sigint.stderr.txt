@@ -1,0 +1,2 @@
+[2Ksignal interrupt received, cleaning up
+{"message_type":"exit_error","code":1,"message":"Fatal: unable to save snapshot: context canceled"}

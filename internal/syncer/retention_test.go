@@ -190,6 +190,13 @@ func TestGlobalRetentionQueuesDestinationsAndPrunesHistory(t *testing.T) {
 	if _, err := h.dests.Create(h.ctx, destinations.Input{Name: "off", Target: other, Enabled: &off}, destinations.CreateOptions{AllowLocal: true}); err != nil {
 		t.Fatal(err)
 	}
+	// A destination whose create did not finish (S25) gets no job either.
+	stuck := resolvedTempDir(t)
+	pending, err := h.dests.Create(h.ctx, destinations.Input{Name: "pending", Target: stuck}, destinations.CreateOptions{AllowLocal: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.dbExec(`UPDATE destinations SET marker_id = 'pending:0f5e' WHERE id = ?`, pending.ID)
 	// An old finished job is pruned; a recent one is kept.
 	old := h.newJob(jobs.TypeSync, false, jobs.Params{})
 	h.dbExec(`UPDATE jobs SET status = 'completed', finished_at = ? WHERE id = ?`, db.FormatTime(h.now().Add(-100*24*time.Hour)), old.ID)

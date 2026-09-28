@@ -36,6 +36,9 @@ type Version struct {
 	ContentHash string `json:"-"`
 	// Integrity is IntegrityOK or IntegrityDamaged.
 	Integrity string `json:"integrity"`
+	// EngineRef is the restic snapshot (full id) holding the version on a restic destination
+	// (phase4.md §8.2); "" on filecopy and rclone destinations, where Path is its place.
+	EngineRef string `json:"engineRef,omitempty"`
 }
 
 // Store reads and writes the manifests table. It is safe for concurrent use.
@@ -46,21 +49,23 @@ type Store struct {
 // NewStore returns a Store over d.
 func NewStore(d *db.DB) *Store { return &Store{db: d} }
 
-const versionColumns = `id, destination_id, job_id, created_at, path, format, item_count, file_count, bytes, checksum, content_hash, integrity`
+const versionColumns = `id, destination_id, job_id, created_at, path, format, item_count, file_count, bytes, checksum, content_hash, integrity, engine_ref`
 
 type rowScanner interface{ Scan(dest ...any) error }
 
 func scanVersion(r rowScanner) (Version, error) {
 	var (
-		v       Version
-		jobID   sql.NullInt64
-		created string
+		v         Version
+		jobID     sql.NullInt64
+		created   string
+		engineRef sql.NullString
 	)
 	if err := r.Scan(&v.ID, &v.DestinationID, &jobID, &created, &v.Path, &v.Format, &v.ItemCount, &v.FileCount, &v.Bytes,
-		&v.Checksum, &v.ContentHash, &v.Integrity); err != nil {
+		&v.Checksum, &v.ContentHash, &v.Integrity, &engineRef); err != nil {
 		return Version{}, err
 	}
 	v.JobID = jobID.Int64
+	v.EngineRef = engineRef.String
 	t, err := db.ParseTime(created)
 	if err != nil {
 		return Version{}, fmt.Errorf("manifest %d: created_at: %w", v.ID, err)
@@ -146,9 +151,9 @@ func (s *Store) Insert(ctx context.Context, v Version) (Version, error) {
 	}
 	err := s.db.Write(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `INSERT INTO manifests (destination_id, job_id, created_at, path, format, item_count,
-			file_count, bytes, checksum, content_hash, integrity) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			file_count, bytes, checksum, content_hash, integrity, engine_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			v.DestinationID, sql.NullInt64{Int64: v.JobID, Valid: v.JobID != 0}, db.FormatTime(v.CreatedAt), v.Path, v.Format,
-			v.ItemCount, v.FileCount, v.Bytes, v.Checksum, v.ContentHash, v.Integrity)
+			v.ItemCount, v.FileCount, v.Bytes, v.Checksum, v.ContentHash, v.Integrity, sql.NullString{String: v.EngineRef, Valid: v.EngineRef != ""})
 		if err != nil {
 			return err
 		}
@@ -175,10 +180,14 @@ func (s *Store) MarkDamaged(ctx context.Context, id int64) error {
 // Remove deletes a version's row (after its directory left its name). Removing a row that does
 // not exist is not an error.
 func (s *Store) Remove(ctx context.Context, id int64) error {
-	return s.db.Write(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM manifests WHERE id = ?`, id); err != nil {
-			return fmt.Errorf("remove manifest %d: %w", id, err)
-		}
-		return nil
-	})
+	return s.db.Write(ctx, func(tx *sql.Tx) error { return removeTx(ctx, tx, id) })
+}
+
+// removeTx deletes a version's row inside tx (on a restic destination with the forget request of
+// its snapshot, snapshots.EngineVersions.Remove).
+func removeTx(ctx context.Context, tx *sql.Tx, id int64) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM manifests WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("remove manifest %d: %w", id, err)
+	}
+	return nil
 }

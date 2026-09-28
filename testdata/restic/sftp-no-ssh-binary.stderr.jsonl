@@ -1,0 +1,1 @@
+{"message_type":"exit_error","code":1,"message":"Fatal: create repository at sftp:bk@p4-sftp:/upload/restic failed: Fatal: unable to open repository at sftp:bk@p4-sftp:/upload/restic: exec: \"ssh\": executable file not found in $PATH\n"}

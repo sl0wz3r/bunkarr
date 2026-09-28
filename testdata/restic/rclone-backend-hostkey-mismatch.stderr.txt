@@ -1,0 +1,2 @@
+rclone: 2026/09/27 13:52:17 CRITICAL: Failed to create file system for "bksftp:upload/restic-via-rclone": NewFs: couldn't connect SSH: ssh: handshake failed: knownhosts: key mismatch
+{"message_type":"exit_error","code":1,"message":"Fatal: unable to open repository at rclone:bksftp:upload/restic-via-rclone: error talking HTTP to rclone: exit status 1"}

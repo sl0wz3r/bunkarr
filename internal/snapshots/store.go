@@ -35,6 +35,9 @@ type Snapshot struct {
 	Integrity string `json:"integrity"`
 	// Manifest is the version's manifest.json as recorded.
 	Manifest json.RawMessage `json:"manifest"`
+	// EngineRef is the restic snapshot (full id) that holds the version on a restic destination
+	// (phase4.md §8.2); "" on filecopy and rclone destinations, where Path is the version's place.
+	EngineRef string `json:"engineRef,omitempty"`
 }
 
 // Version returns the retention view of s (see Keep and Prune).
@@ -52,7 +55,7 @@ func NewStore(d *db.DB) *Store {
 	return &Store{db: d}
 }
 
-const snapshotColumns = `id, destination_id, kind, integration_id, job_id, engine_snapshot_id, created_at, size, method, integrity, manifest`
+const snapshotColumns = `id, destination_id, kind, integration_id, job_id, engine_snapshot_id, created_at, size, method, integrity, manifest, engine_ref`
 
 type rowScanner interface {
 	Scan(dest ...any) error
@@ -64,12 +67,14 @@ func scanSnapshot(r rowScanner) (Snapshot, error) {
 		kind                 string
 		integrationID, jobID sql.NullInt64
 		created, manifest    string
+		engineRef            sql.NullString
 	)
 	if err := r.Scan(&s.ID, &s.DestinationID, &kind, &integrationID, &jobID, &s.Path, &created, &s.Size, &s.Method,
-		&s.Integrity, &manifest); err != nil {
+		&s.Integrity, &manifest, &engineRef); err != nil {
 		return Snapshot{}, err
 	}
 	s.Kind = Kind(kind)
+	s.EngineRef = engineRef.String
 	s.IntegrationID, s.JobID = integrationID.Int64, jobID.Int64
 	t, err := db.ParseTime(created)
 	if err != nil {
@@ -160,10 +165,10 @@ func (s *Store) Insert(ctx context.Context, sn Snapshot) (Snapshot, error) {
 		return Snapshot{}, errors.New("record snapshot: the manifest is not valid JSON")
 	}
 	err := s.db.Write(ctx, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `INSERT INTO snapshots (destination_id, job_id, kind, integration_id, engine_snapshot_id, created_at, size, method, integrity, manifest)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		res, err := tx.ExecContext(ctx, `INSERT INTO snapshots (destination_id, job_id, kind, integration_id, engine_snapshot_id, created_at, size, method, integrity, manifest, engine_ref)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			sn.DestinationID, nullID(sn.JobID), string(sn.Kind), nullID(sn.IntegrationID), sn.Path, db.FormatTime(sn.CreatedAt),
-			sn.Size, sn.Method, sn.Integrity, string(sn.Manifest))
+			sn.Size, sn.Method, sn.Integrity, string(sn.Manifest), sql.NullString{String: sn.EngineRef, Valid: sn.EngineRef != ""})
 		if err != nil {
 			return err
 		}
@@ -180,13 +185,21 @@ func (s *Store) Insert(ctx context.Context, sn Snapshot) (Snapshot, error) {
 // Remove deletes a snapshot's row (after its directory left its name; see Layout.TrashVersion).
 // Removing a row that does not exist is not an error.
 func (s *Store) Remove(ctx context.Context, id int64) error {
-	return s.db.Write(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM snapshots WHERE id = ?`, id); err != nil {
-			return fmt.Errorf("remove snapshot %d: %w", id, err)
-		}
-		return nil
-	})
+	return s.db.Write(ctx, func(tx *sql.Tx) error { return RemoveTx(ctx, tx, id) })
 }
+
+// RemoveTx deletes a snapshot's row inside tx: on a restic destination together with the forget
+// request of its snapshot (EngineVersions.Remove, D28). Removing a row that does not exist is not
+// an error.
+func RemoveTx(ctx context.Context, tx *sql.Tx, id int64) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM snapshots WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("remove snapshot %d: %w", id, err)
+	}
+	return nil
+}
+
+// DB returns the store's database (the transaction of EngineVersions.Remove).
+func (s *Store) DB() *db.DB { return s.db }
 
 // nullID stores 0 as NULL.
 func nullID(id int64) sql.NullInt64 {

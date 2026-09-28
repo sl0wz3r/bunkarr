@@ -112,17 +112,10 @@ func (s *Store) ListLogs(ctx context.Context, jobID, afterID int64, limit int) (
 	return out, nil
 }
 
-// sensitiveKey reports whether a field name holds a secret. It mirrors internal/logging's
-// (unexported) key list so job logs and the process log redact the same names.
-func sensitiveKey(k string) bool {
-	k = strings.ToLower(k)
-	for _, s := range []string{"password", "passwd", "apikey", "api_key", "api-key", "token", "secret", "authorization", "cookie", "credential"} {
-		if strings.Contains(k, s) {
-			return true
-		}
-	}
-	return false
-}
+// sensitiveKey reports whether a field name holds a secret: internal/logging's list, so job logs
+// and the process log redact the same names (including Phase 4's privateKey, passphrase,
+// applicationKey, key_pem and secretAccessKey).
+func sensitiveKey(k string) bool { return logging.SensitiveKey(k) }
 
 // redactArgs turns slog key/value args into attributes with secrets removed: attributes whose key
 // looks sensitive become [REDACTED]; strings, errors, Stringers and any other value (rendered to

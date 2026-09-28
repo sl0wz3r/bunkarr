@@ -1,0 +1,4 @@
+2026/09/27 13:53:42 INFO  : Starting bandwidth limiter at 8Mi Byte/s
+2026/09/27 13:53:44 INFO  : 2026/09/27 13:53:44 -    16.027 MiB / 20 MiB, 80%, 8.026 MiB/s, ETA 0s
+2026/09/27 13:53:45 INFO  : big2.mkv: Copied (new)
+2026/09/27 13:53:45 INFO  : 2026/09/27 13:53:45 -        20 MiB / 20 MiB, 100%, 8.013 MiB/s, ETA 0s

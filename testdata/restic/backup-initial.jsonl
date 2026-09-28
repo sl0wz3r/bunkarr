@@ -1,0 +1,4 @@
+{"message_type":"status","percent_done":0.8880972972198199,"total_files":4,"files_done":2,"total_bytes":6000007,"bytes_done":5328590,"current_files":["/src/TV/Show/Season 01/hardlink-of-nosferatu.mkv"]}
+{"message_type":"status","percent_done":1,"total_files":4,"files_done":4,"total_bytes":6000007,"bytes_done":6000007}
+{"message_type":"status","percent_done":1,"total_files":4,"files_done":4,"total_bytes":6000007,"bytes_done":6000007}
+{"message_type":"summary","files_new":4,"files_changed":0,"files_unmodified":0,"dirs_new":7,"dirs_changed":0,"dirs_unmodified":0,"data_blobs":5,"tree_blobs":8,"data_added":3004165,"data_added_packed":3003115,"total_files_processed":4,"total_bytes_processed":6000007,"total_duration":0.728979417,"backup_start":"2026-09-27T13:47:41.074096584Z","backup_end":"2026-09-27T13:47:41.803076042Z","snapshot_id":"f71a9631679e97057b593d4c50f55da889b3deddf42217eaf4884bcca864ad82"}

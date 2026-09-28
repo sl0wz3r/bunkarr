@@ -1,0 +1,2 @@
+2026/09/27 13:54:22 ERROR : error listing: directory not found
+2026/09/27 13:54:22 NOTICE: Failed to lsd with 2 errors: last error was: directory not found

@@ -19,6 +19,7 @@ import (
 
 	"github.com/sl0wz3r/bunkarr/internal/db"
 	"github.com/sl0wz3r/bunkarr/internal/destinations"
+	"github.com/sl0wz3r/bunkarr/internal/engines"
 	"github.com/sl0wz3r/bunkarr/internal/engines/filecopy"
 	"github.com/sl0wz3r/bunkarr/internal/faultinject"
 	"github.com/sl0wz3r/bunkarr/internal/integrations"
@@ -66,6 +67,9 @@ type Options struct {
 	CommandTimeout   time.Duration
 	FolderRetries    int
 	FolderRetryDelay time.Duration
+	// OpenVersions opens the version store of a restic or rclone destination for one job
+	// (enginerun's, wired by the api; phase4.md §8.4). nil: backups to engine destinations fail.
+	OpenVersions engines.VersionOpener
 }
 
 // Runner runs jobs.TypeArrBackup jobs. It is safe for concurrent use (the job manager runs at most
@@ -84,6 +88,7 @@ type Runner struct {
 	cmdTimeout   time.Duration
 	retries      int
 	retryDelay   time.Duration
+	openVersions engines.VersionOpener
 }
 
 var _ jobs.Runner = (*Runner)(nil)
@@ -105,6 +110,7 @@ func NewRunner(o Options) (*Runner, error) {
 		database: o.DB, store: snapshots.NewStore(o.DB), integrations: o.Integrations, destinations: o.Destinations,
 		configDir: o.ConfigDir, log: o.Log, now: o.Now, loc: o.Location, arrOpts: o.Arr,
 		poll: o.PollInterval, cmdTimeout: o.CommandTimeout, retries: o.FolderRetries, retryDelay: o.FolderRetryDelay,
+		openVersions: o.OpenVersions,
 	}
 	if r.log == nil {
 		r.log = slog.New(slog.DiscardHandler)
@@ -141,16 +147,21 @@ func (r *Runner) StagingDir(jobID int64) string {
 
 // run is one job's state.
 type run struct {
-	r       *Runner
-	job     jobs.Job
-	rep     jobs.Reporter
-	items   jobs.ItemStore
-	it      integrations.Integration
-	as      integrations.ArrSettings
-	app     string // "Radarr"
-	kind    arr.Kind
-	client  *arr.Client
-	h       *destinations.Handle
+	r      *Runner
+	job    jobs.Job
+	rep    jobs.Reporter
+	items  jobs.ItemStore
+	it     integrations.Integration
+	as     integrations.ArrSettings
+	app    string // "Radarr"
+	kind   arr.Kind
+	client *arr.Client
+	h      *destinations.Handle
+	// dest is the job's destination (both paths); h is nil on the engine path, where ev keeps
+	// the versions through the destination's VersionStore and listing is what it holds.
+	dest    destinations.Destination
+	ev      *snapshots.EngineVersions
+	listing *snapshots.Listing
 	folder  string
 	fetch   string // FetchFolder or FetchHTTP
 	started time.Time
@@ -264,15 +275,26 @@ func (r *Runner) runJob(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.R
 		return jobs.Result{}, fmt.Errorf("%s %q has no backup destination: choose one in its backup settings", w.app, w.it.Name)
 	}
 	var err error
+	target, _ := w.as.Backup.TargetFor(destID)
+	accept := target.DestinationID == destID && target.AcceptInsecureModes
 	if w.h, err = r.destinations.Open(ctx, destID); err != nil {
-		return jobs.Result{}, err
-	}
-	defer w.h.Close()
-	if !w.h.Destination.Enabled {
-		return jobs.Result{}, fmt.Errorf("destination %q is disabled", w.h.Destination.Name)
-	}
-	if err := CheckModes(w.h.Capabilities, w.as.Backup.AcceptInsecureModes, w.h.Destination.Name, w.app); err != nil {
-		return jobs.Result{}, err
+		if !errors.Is(err, destinations.ErrEngineDestination) {
+			return jobs.Result{}, err
+		}
+		closeStore, err := w.openEngine(ctx, destID, accept)
+		if err != nil {
+			return jobs.Result{}, err
+		}
+		defer closeStore()
+	} else {
+		defer w.h.Close()
+		w.dest = w.h.Destination
+		if !w.h.Destination.Enabled {
+			return jobs.Result{}, fmt.Errorf("destination %q is disabled", w.h.Destination.Name)
+		}
+		if err := CheckModes(w.h.Capabilities, accept, w.h.Destination.Name, w.app); err != nil {
+			return jobs.Result{}, err
+		}
 	}
 	w.folder = FolderName(w.it.Name, w.it.ID)
 	w.fetch = FetchHTTP
@@ -419,7 +441,7 @@ func (w *run) freshScheduled(list []arr.Backup) (arr.Backup, bool) {
 // damaged at the destination (the backup had passed verification) does not make b bad: it is
 // marked failed (damagedCopy; not by a dry run) and b is copied again.
 func (w *run) alreadyCopied(ctx context.Context, b arr.Backup) (s *snapshots.Snapshot, bad bool, err error) {
-	snaps, err := w.r.store.ListFor(ctx, snapshots.KindArr, w.h.Destination.ID, w.it.ID)
+	snaps, err := w.r.store.ListFor(ctx, snapshots.KindArr, w.dest.ID, w.it.ID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -436,7 +458,11 @@ func (w *run) alreadyCopied(ctx context.Context, b arr.Backup) (s *snapshots.Sna
 				"path", sn.Path)
 			return nil, true, nil
 		}
-		if lost, err := versionLost(w.h.Root, sn.Path, sn.Integrity, sn.Manifest); err == nil && lost {
+		if w.ev != nil {
+			if w.ev.Lost(w.listing, engineRow(sn)) {
+				continue // its record is dropped by the prune after this backup
+			}
+		} else if lost, err := versionLost(w.h.Root, sn.Path, sn.Integrity, sn.Manifest); err == nil && lost {
 			continue // its record is dropped by the prune after this backup
 		}
 		if err := w.intactCopy(ctx, sn, m); err != nil {
@@ -459,6 +485,9 @@ var errNotThere = errors.New("the version directory is not at its path")
 // destination, as a manifest version is read back before "unchanged": the version directory holds
 // manifest.json and the zip, and the zip has the size and sha256 its row records.
 func (w *run) intactCopy(ctx context.Context, s snapshots.Snapshot, m Manifest) error {
+	if w.ev != nil {
+		return w.intactEngine(ctx, s, m)
+	}
 	if fi, err := w.h.Root.Lstat(s.Path); err != nil || !fi.IsDir() {
 		return errNotThere
 	}
@@ -499,10 +528,12 @@ func (w *run) damagedCopy(ctx context.Context, s snapshots.Snapshot, cause error
 			"path", s.Path, "reason", cause.Error())
 		return
 	}
-	if err := w.h.Recheck(); err != nil {
-		w.warn("A copy of this scheduled backup at the destination could not be read back; it is copied again", "path", s.Path,
-			"reason", err.Error())
-		return
+	if w.h != nil {
+		if err := w.h.Recheck(); err != nil {
+			w.warn("A copy of this scheduled backup at the destination could not be read back; it is copied again", "path", s.Path,
+				"reason", err.Error())
+			return
+		}
 	}
 	if err := w.markFailed(ctx, s); err != nil {
 		w.warn("A damaged copy of this scheduled backup could not be marked failed; the backup is copied again", "path", s.Path,
@@ -835,6 +866,9 @@ type staged struct {
 
 // backup runs a real backup (see Run).
 func (w *run) backup(ctx context.Context) (res jobs.Result, err error) {
+	if w.ev != nil {
+		return w.backupEngine(ctx)
+	}
 	staging := w.r.StagingDir(w.job.ID)
 	partial := w.folder + "/" + snapshots.PartialName(w.job.ID)
 	defer func() {
@@ -1028,7 +1062,7 @@ func (w *run) finishUnchanged(ctx context.Context, b arr.Backup, s snapshots.Sna
 	w.stats.Integrity, w.stats.SnapshotID, w.stats.Path = s.Integrity, s.ID, s.Path
 	w.rep.Log(slog.LevelInfo, "The scheduled backup is already at the destination; nothing was copied", "backup", b.Name, "path", s.Path)
 	return w.result(fmt.Sprintf("%s's scheduled backup %s of %q is already at %q; nothing to copy", w.app, b.Name, w.it.Name,
-		w.h.Destination.Name)), nil
+		w.dest.Name)), nil
 }
 
 // failedVerification is the outcome of a job whose recorded version failed verification (kept,
@@ -1043,7 +1077,7 @@ func (w *run) failedVerification(problems []string) (jobs.Result, error) {
 
 // summary is a successful backup's summary sentence.
 func (w *run) summary() string {
-	s := fmt.Sprintf("Backed up %s %q to %q: %s (%s), integrity ok", w.app, w.it.Name, w.h.Destination.Name, w.stats.BackupName,
+	s := fmt.Sprintf("Backed up %s %q to %q: %s (%s), integrity ok", w.app, w.it.Name, w.dest.Name, w.stats.BackupName,
 		formatBytes(w.stats.Bytes))
 	if w.stats.ReusedScheduled {
 		s += "; its own scheduled backup was copied"
@@ -1274,6 +1308,12 @@ func (w *run) dryRun(ctx context.Context) (jobs.Result, error) {
 	if err := w.items.DeleteItems(ctx, w.job.ID); err != nil {
 		return jobs.Result{}, err
 	}
+	if w.ev != nil {
+		// The "unchanged" check reads the destination's listing; a dry run settles nothing (S9).
+		if w.listing, err = w.ev.List(ctx, ArrRoot); err != nil {
+			return jobs.Result{}, err
+		}
+	}
 	d := itemDetail{Method: w.fetch, Destination: w.folder + "/<" + snapshots.VersionLayout + ">"}
 	item := jobs.Item{Action: jobs.ActionSkip, Status: jobs.ItemSkipped}
 	var summary string
@@ -1293,18 +1333,18 @@ func (w *run) dryRun(ctx context.Context) (jobs.Result, error) {
 		if done != nil {
 			d.Would, d.SnapshotID = "unchanged", done.ID
 			w.stats.Unchanged = true
-			summary = fmt.Sprintf("Dry run: %s's scheduled backup %s is already at %q; nothing would be copied", w.app, b.Name, w.h.Destination.Name)
+			summary = fmt.Sprintf("Dry run: %s's scheduled backup %s is already at %q; nothing would be copied", w.app, b.Name, w.dest.Name)
 		} else {
 			d.Would = "copy-scheduled"
 			summary = fmt.Sprintf("Dry run: would copy %s's scheduled backup %s (%s) to %q (%s)", w.app, b.Name, formatBytes(b.Size),
-				w.h.Destination.Name, w.fetch)
+				w.dest.Name, w.fetch)
 		}
 		d.Problem = w.accessProblem(ctx, b, true)
 	} else {
 		d.Would = "create"
 		item.RelPath = newBackupRel
 		summary = fmt.Sprintf("Dry run: would ask %s %q to make a backup (%s %s) and copy it to %q (%s)", w.app, w.it.Name, w.app,
-			status.Version, w.h.Destination.Name, w.fetch)
+			status.Version, w.dest.Name, w.fetch)
 		// The access is checked on the newest backup of any type the *arr lists.
 		if newest, found := w.newestAny(list); found {
 			d.Problem = w.accessProblem(ctx, newest, false)
@@ -1323,7 +1363,7 @@ func (w *run) dryRun(ctx context.Context) (jobs.Result, error) {
 		return jobs.Result{}, err
 	}
 	w.rep.Log(slog.LevelInfo, summary)
-	if item.Bytes > 0 {
+	if item.Bytes > 0 && w.h != nil {
 		if free, _, err := filecopy.FreeSpace(w.h.Root); err == nil && uint64(item.Bytes)+spaceMargin > free {
 			w.warn("The destination does not have enough free space for this backup", "need", item.Bytes, "free", free)
 		}

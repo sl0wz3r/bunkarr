@@ -1,0 +1,5 @@
+2026/09/27 13:53:10 ERROR : changing.txt: md5 differ
+2026/09/27 13:53:10 NOTICE: S3 bucket rclone-plain path current: 1 differences found
+2026/09/27 13:53:10 NOTICE: S3 bucket rclone-plain path current: 1 errors while checking
+2026/09/27 13:53:10 NOTICE: S3 bucket rclone-plain path current: 2 matching files
+2026/09/27 13:53:10 NOTICE: Failed to check: 1 differences found

@@ -1,0 +1,4 @@
+2026/09/27 13:54:15 ERROR : No common hash found - not using a hash for checks
+2026/09/27 13:54:15 NOTICE: Encrypted drive 'mcrypt{vm1ng}:current': 0 differences found
+2026/09/27 13:54:15 NOTICE: Encrypted drive 'mcrypt{vm1ng}:current': 3 hashes could not be checked
+2026/09/27 13:54:15 NOTICE: Encrypted drive 'mcrypt{vm1ng}:current': 3 matching files

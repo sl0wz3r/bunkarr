@@ -1,0 +1,52 @@
+{
+  "recordedAt": "2026-09-27T13:47:00Z",
+  "tool": "restic 0.18.1 (alpine package in bunkarr:dev, linux/arm64)",
+  "servers": {
+    "s3": "cgr.dev/chainguard/minio@sha256:6a1d0b45c8669726bba580ced0bfa4cb9fdeed1ed636dfabd81d1577beb6937b (minio RELEASE.2026-09-22T19-25-18Z; docker.io/minio/minio no longer pullable)",
+    "sftp": "atmoz/sftp:alpine@sha256:a81ea210713555be76075b4b2788a4addfaa54d137cd881f3a99ac539f0be2c5 (OpenSSH 10.3, key auth, chroot)"
+  },
+  "secrets": "throw-away values only; passed as RESTIC_PASSWORD_FILE (0600), AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY env, ssh key via -o sftp.args=-F<0600 ssh_config>; nothing secret on argv",
+  "source": "/src: Movies/Nosferatu (1922)/Nosferatu.mkv (3000000 B) hard-linked as TV/Show/Season 01/hardlink-of-nosferatu.mkv, S01E01.srt, changing.txt (v1, v2, v3), empty dir",
+  "notes": [
+    "--json: progress/summary on stdout (one JSON object per line); errors and exit_error on stderr as JSON, but stderr can also carry plain text (retry lines, '\\u001b[2Ksignal ... received, cleaning up'); parse line by line and skip non-JSON",
+    "status lines omit seconds_elapsed/seconds_remaining/error_count/current_files when zero or empty",
+    "bytes_done counts bytes read by the archiver, not uploaded: percent_done hits 1 before the upload finishes when --limit-upload throttles",
+    "hard links: counted twice in total_bytes, stored once (data_added ~ one copy)",
+    "prune has no JSON output in 0.18.1: prune --json prints text (prune-json-flag.txt); use the exit code",
+    "forget: --keep-last 0 == no policy (exit 1); every policy with n>=1 keeps the newest snapshot of each group; --keep-within is relative to the newest snapshot, not now"
+  ],
+  "fixtures": {
+    "init.json": {"cmd": "restic init --json", "exit": 0},
+    "init-sftp.json": {"cmd": "restic -r sftp:p4-sftp:/upload/restic -o sftp.args=-F/tmp/ssh/config init --json", "exit": 0},
+    "init-already-initialized.stderr.jsonl": {"cmd": "restic init --json (second time)", "exit": 1},
+    "repo-missing.stderr.jsonl": {"cmd": "restic cat config --json (bucket exists, no repo)", "exit": 10},
+    "s3-bad-credentials-retrying.stderr.txt": {"cmd": "restic cat config --json with a wrong AWS_SECRET_ACCESS_KEY, killed by timeout 40", "exit": "1 after SIGTERM; restic itself retries for minutes (same for a missing bucket)"},
+    "wrong-password.stderr.jsonl": {"cmd": "restic snapshots --json with a wrong password file", "exit": 12},
+    "empty-password.stderr.jsonl": {"cmd": "restic cat config --json without any password source", "exit": 1},
+    "locked.stderr.jsonl": {"cmd": "restic prune --json while a backup holds a lock", "exit": 11},
+    "locked-stale-retry-lock.stderr.jsonl": {"cmd": "restic forget --retry-lock 5s with a stale lock left by kill -9 (same host, dead PID)", "exit": 11},
+    "lock.json": {"cmd": "restic cat lock <id> (lock left by kill -9)", "exit": 0},
+    "backup-initial.jsonl": {"cmd": "restic backup --json --host bunkarr --tag src:1 --tag dest:2 /src", "exit": 0},
+    "backup-incremental.jsonl": {"cmd": "same, after changing.txt changed", "exit": 0},
+    "backup-verbose.jsonl": {"cmd": "restic backup --json -v ... (verbose_status per item)", "exit": 0},
+    "backup-dry-run.jsonl": {"cmd": "restic backup --json --dry-run -v ... (summary has dry_run:true and a snapshot_id that is not saved)", "exit": 0},
+    "backup-partial.jsonl": {"cmd": "restic backup --json /src2 as nobody with one unreadable file (stdout)", "exit": 3},
+    "backup-partial.stderr.jsonl": {"cmd": "same (stderr: error + exit_error); the snapshot IS saved", "exit": 3},
+    "backup-killed.jsonl": {"cmd": "restic backup --json --limit-upload 4096 (40 MiB), kill -9 after 6s", "exit": 137},
+    "backup-after-kill.jsonl": {"cmd": "re-run of the killed backup: data_added = full size (no reuse of the orphaned packs)", "exit": 0},
+    "backup-sigint.stderr.txt": {"cmd": "restic backup --json, SIGINT after 4s (locks removed)", "exit": 1},
+    "snapshots.json": {"cmd": "restic snapshots --json", "exit": 0},
+    "snapshots-latest.json": {"cmd": "restic snapshots --json --tag src:1 --latest 1", "exit": 0},
+    "forget-keep-daily-2-dry-run.json": {"cmd": "restic forget --json --tag ret --group-by host,tags --keep-daily 2 --dry-run", "exit": 0},
+    "forget-keep-last-1-dry-run.json": {"cmd": "restic forget --json --tag ret --group-by host,tags --keep-last 1 --dry-run", "exit": 0},
+    "forget-keep-within-1d-dry-run.json": {"cmd": "restic forget --json --tag ret --group-by host,tags --keep-within 1d --dry-run (newest is 2 days old: still kept)", "exit": 0},
+    "forget-keep-daily-3-weekly-1.json": {"cmd": "restic forget --json --tag ret --group-by host,tags --keep-daily 3 --keep-weekly 1", "exit": 0},
+    "forget-no-policy.stderr.jsonl": {"cmd": "restic forget --json --tag ret --dry-run (also --keep-last 0)", "exit": 1},
+    "prune-dry-run.txt": {"cmd": "restic prune --dry-run -v", "exit": 0},
+    "prune-json-flag.txt": {"cmd": "restic prune --json (text output)", "exit": 0},
+    "check.json": {"cmd": "restic check --json", "exit": 0},
+    "check-read-data-subset.txt": {"cmd": "restic check --read-data-subset=25% (also 1/4 and 10M work)", "exit": 0},
+    "sftp-no-ssh-binary.stderr.jsonl": {"cmd": "restic -r sftp:... init --json in bunkarr:dev (no ssh client installed)", "exit": 1},
+    "rclone-backend-hostkey-mismatch.stderr.txt": {"cmd": "restic -r rclone:bksftp:... snapshots --json with a known_hosts that lacks the negotiated key type", "exit": 1}
+  }
+}

@@ -80,6 +80,9 @@ type Detail struct {
 	// Outcome records what execution did when it differs from the action (adopted, copied
 	// instead of linked, ...).
 	Outcome string `json:"outcome,omitempty"`
+	// WindowCuts counts how often the end of the destination's transfer window stopped the item
+	// (phase4.md §9.2): a second cut fails it with the oversize warning.
+	WindowCuts int `json:"windowCuts,omitempty"`
 }
 
 // Outcomes (Detail.Outcome).

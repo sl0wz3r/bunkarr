@@ -61,15 +61,19 @@ func (s *Store) Planned(ctx context.Context, jobID int64) (bool, error) {
 	return planned.Valid, nil
 }
 
+// itemRow is an item AddItems inserts, with its stored detail.
+type itemRow struct {
+	it     jobs.Item
+	detail string
+}
+
 // AddItems implements jobs.ItemStore. The batch is inserted in one transaction; with final=true
 // the same transaction sets jobs.planned_at, so a plan is either complete or recognisably
-// interrupted. An item without a status is pending; error texts are redacted.
+// interrupted. An item without a status is pending; error texts are redacted. A pending item of
+// a sync that superseded deferred syncs gets the window cuts of the same file there
+// (carryWindowCuts).
 func (s *Store) AddItems(ctx context.Context, jobID int64, items []jobs.Item, final bool) error {
-	type row struct {
-		it     jobs.Item
-		detail string
-	}
-	rows := make([]row, len(items))
+	rows := make([]itemRow, len(items))
 	for i, it := range items {
 		if it.Status == "" {
 			it.Status = jobs.ItemPending
@@ -84,7 +88,7 @@ func (s *Store) AddItems(ctx context.Context, jobID int64, items []jobs.Item, fi
 		if err != nil {
 			return fmt.Errorf("item %q: %w", it.RelPath, err)
 		}
-		rows[i] = row{it: it, detail: d}
+		rows[i] = itemRow{it: it, detail: d}
 	}
 	err := s.db.Write(ctx, func(tx *sql.Tx) error {
 		ok, err := jobExists(ctx, tx, jobID)
@@ -93,6 +97,9 @@ func (s *Store) AddItems(ctx context.Context, jobID int64, items []jobs.Item, fi
 		}
 		if !ok {
 			return fmt.Errorf("job %d: %w", jobID, ErrNotFound)
+		}
+		if err := carryWindowCuts(ctx, tx, jobID, rows); err != nil {
+			return err
 		}
 		if len(rows) > 0 {
 			stmt, err := tx.PrepareContext(ctx, `INSERT INTO job_items (job_id, file_id, rel_path, action, status, bytes, error, detail)

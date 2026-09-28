@@ -19,6 +19,9 @@ type StartupReport struct {
 	Invalid []InvalidIntegration
 	// WebhookKeys lists the *arr rows that got a webhook key.
 	WebhookKeys []int64
+	// Migrated lists the Plex and *arr rows whose single backup form (a destination) was rewritten
+	// into the targets form (phase4.md §8.5).
+	Migrated []int64
 }
 
 // InvalidIntegration is a row NormalizeStored found invalid.
@@ -41,9 +44,10 @@ const PointNormalizeBeforeCommit = "integrations.normalizeBeforeCommit"
 // object. Each such row is parsed again: a valid one gets its normalized settings (unknown fields
 // dropped, defaults applied); an invalid one (a Tautulli without plexIntegrationId, a Maintainerr
 // with a key, a relative path mapping, ...) is disabled and keeps its settings. Every *arr row
-// without a webhook key gets one. Everything is written in one transaction, so a crash leaves the
-// rows as they were, and a second run changes nothing. Plex rows are left alone (Phase 1
-// validated them).
+// without a webhook key gets one. A Plex or *arr row whose backup holds the single form with a
+// destination is rewritten into the targets form (phase4.md §8.5; the single form then mirrors
+// targets[0]); Plex rows are otherwise left alone (Phase 1 validated them). Everything is written
+// in one transaction, so a crash leaves the rows as they were, and a second run changes nothing.
 //
 // Run it at start-up before RegisterSecrets; the webhook keys it creates are held in the
 // redaction registry and the key map when it returns. The default refresh schedules of the valid
@@ -69,7 +73,7 @@ func (s *Store) NormalizeStored(ctx context.Context) (StartupReport, error) {
 		rep = StartupReport{}
 		clear(keys)
 		rs, err := tx.QueryContext(ctx, `SELECT id, type, name, settings, api_key <> '', enabled, webhook_key <> ''
-			FROM integrations WHERE type <> 'plex' ORDER BY id`)
+			FROM integrations ORDER BY id`)
 		if err != nil {
 			return fmt.Errorf("read integrations: %w", err)
 		}
@@ -93,9 +97,34 @@ func (s *Store) NormalizeStored(ctx context.Context) (StartupReport, error) {
 		}
 		now := db.FormatTime(s.now())
 		for _, r := range list {
+			if r.typ == TypePlex {
+				// Plex rows were validated by Phase 1; only a single backup form with a
+				// destination is rewritten into the targets form (phase4.md §8.5).
+				out, changed, err := withTargetsForm(r.typ, r.settings)
+				if err != nil {
+					return err
+				}
+				if changed {
+					if _, err := tx.ExecContext(ctx, `UPDATE integrations SET settings = ?, updated_at = ? WHERE id = ?`, out, now, r.id); err != nil {
+						return fmt.Errorf("normalize integration %d: %w", r.id, err)
+					}
+					rep.Migrated = append(rep.Migrated, r.id)
+				}
+				continue
+			}
 			norm, err := normalizeOtherSettings(r.typ, []byte(r.settings))
 			if err == nil {
 				err = checkLinks(ctx, tx, r.typ, norm, r.hasKey)
+			}
+			var migrated bool
+			if err == nil {
+				normalized := norm != r.settings
+				if norm, migrated, err = withTargetsForm(r.typ, norm); err == nil && migrated {
+					rep.Migrated = append(rep.Migrated, r.id)
+				}
+				if normalized {
+					rep.Normalized = append(rep.Normalized, r.id)
+				}
 			}
 			switch verr := err.(type) {
 			case nil:
@@ -103,7 +132,6 @@ func (s *Store) NormalizeStored(ctx context.Context) (StartupReport, error) {
 					if _, err := tx.ExecContext(ctx, `UPDATE integrations SET settings = ?, updated_at = ? WHERE id = ?`, norm, now, r.id); err != nil {
 						return fmt.Errorf("normalize integration %d: %w", r.id, err)
 					}
-					rep.Normalized = append(rep.Normalized, r.id)
 				}
 			case ValidationError:
 				rep.Invalid = append(rep.Invalid, InvalidIntegration{ID: r.id, Name: r.name, Type: r.typ, Reason: string(verr), Disabled: r.enabled})

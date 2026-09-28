@@ -71,6 +71,23 @@ type Options struct {
 	ShutdownGrace time.Duration
 	// Now is the clock for stored times, progress throttling and throughput (default time.Now).
 	Now func() time.Time
+	// Slots are counting pools next to the lock keys (phase4.md §9.3): a queued job that needs a
+	// slot of a pool whose Limit is reached stays queued, holding no worker, until a job of that
+	// pool finishes, is deferred or is re-queued. The wiring fills them (e.g. "upload", Limit
+	// engines.uploadSlots, Needs: an engine sync that is not a dry run).
+	Slots []SlotPool
+}
+
+// SlotPool is one counting pool of Options.Slots.
+type SlotPool struct {
+	// Name identifies the pool (logs).
+	Name string
+	// Limit is how many jobs of the pool run at once (at least 1).
+	Limit int
+	// Needs reports whether job takes a slot of this pool. It is called by the dispatcher, outside
+	// the manager's lock, for queued jobs whose lock keys are free; an error leaves the job queued
+	// for the next pass (and is logged).
+	Needs func(ctx context.Context, job jobs.Job) (bool, error)
 }
 
 // Manager state.
@@ -97,6 +114,8 @@ type Manager struct {
 	hooks      []func(jobs.Job)
 	running    map[int64]*activeJob
 	keys       map[string]int64
+	slots      map[string]int // pool name -> slots in use
+	holds      int64          // the last HoldKeys holder id (negative, never a job id)
 	schedulers []*Scheduler
 	base       context.Context
 	stopLoop   context.CancelFunc
@@ -110,6 +129,8 @@ type Manager struct {
 type activeJob struct {
 	id   int64
 	keys []string
+	// slots are the pools (Options.Slots names) the job holds a slot of.
+	slots []string
 	// refresh is true for a job of the refresh pool.
 	refresh bool
 	cancel  context.CancelCauseFunc
@@ -146,9 +167,13 @@ func New(d *db.DB, log *slog.Logger, o Options) *Manager {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
+	o.Slots = slices.Clone(o.Slots)
+	for i := range o.Slots {
+		o.Slots[i].Limit = max(o.Slots[i].Limit, 1)
+	}
 	st := NewStore(d)
 	st.now = o.Now
-	return &Manager{
+	m := &Manager{
 		store:   st,
 		log:     log,
 		opts:    o,
@@ -158,10 +183,13 @@ func New(d *db.DB, log *slog.Logger, o Options) *Manager {
 		runners: map[jobs.Type]jobs.Runner{},
 		running: map[int64]*activeJob{},
 		keys:    map[string]int64{},
+		slots:   map[string]int{},
 
 		jobsRunning: newInflight(),
 		hooksActive: newInflight(),
 	}
+	st.onFinal = m.fireHooks
+	return m
 }
 
 // Store returns the manager's store (items, logs, schedules, history).
@@ -482,18 +510,33 @@ func (m *Manager) wake() {
 	}
 }
 
-// loop is the dispatcher: it starts queued jobs whenever something may have changed.
+// loop is the dispatcher: it starts queued jobs whenever something may have changed, and when
+// the earliest not_before of a deferred job comes.
 func (m *Manager) loop(ctx context.Context) {
 	defer close(m.loopDone)
 	tick := time.NewTicker(pollEvery)
 	defer tick.Stop()
 	for {
-		m.dispatch(ctx)
+		wakeAt := m.dispatch(ctx)
+		var (
+			timer  *time.Timer
+			timerC <-chan time.Time
+		)
+		if !wakeAt.IsZero() {
+			timer = time.NewTimer(max(wakeAt.Sub(m.now()), 0))
+			timerC = timer.C
+		}
 		select {
 		case <-ctx.Done():
-			return
 		case <-m.kick:
 		case <-tick.C:
+		case <-timerC:
+		}
+		if timer != nil {
+			timer.Stop()
+		}
+		if ctx.Err() != nil {
+			return
 		}
 	}
 }
@@ -519,32 +562,42 @@ func (m *Manager) poolsFullLocked(t jobs.Type) (all, own bool) {
 }
 
 // dispatch starts the oldest queued jobs whose lock keys are free, while their pool has a free
-// worker (refresh jobs have their own pool). A job whose keys are held or whose pool is full is
-// skipped, so it does not block younger jobs with free keys in another pool.
-func (m *Manager) dispatch(ctx context.Context) {
+// worker (refresh jobs have their own pool) and every slot pool they need has a free slot. A job
+// whose keys are held, whose pool is full or whose slot pool is full is skipped, so it does not
+// block younger jobs; a deferred job whose not_before is in the future is skipped too. It returns
+// the earliest such not_before it saw (zero: none), when the loop runs it again.
+func (m *Manager) dispatch(ctx context.Context) (wakeAt time.Time) {
 	m.mu.Lock()
 	full, _ := m.poolsFullLocked("")
 	full = full || m.crashed
 	m.mu.Unlock()
 	if full {
-		return
+		return time.Time{}
 	}
 	queued, err := m.store.queuedJobs(ctx, queuedScan)
 	if err != nil {
 		if ctx.Err() == nil {
 			m.log.Error("Could not read the job queue", "error", err)
 		}
-		return
+		return time.Time{}
 	}
+	now := m.now()
 	for _, job := range queued {
 		if ctx.Err() != nil {
-			return
+			return wakeAt
 		}
+		if job.NotBefore != nil && job.NotBefore.After(now) {
+			if wakeAt.IsZero() || job.NotBefore.Before(wakeAt) {
+				wakeAt = *job.NotBefore
+			}
+			continue
+		}
+		keys := LockKeys(job.Type, job.Params)
 		m.mu.Lock()
 		all, own := m.poolsFullLocked(job.Type)
 		if all || m.crashed || m.state != stateStarted {
 			m.mu.Unlock()
-			return
+			return wakeAt
 		}
 		if _, dup := m.running[job.ID]; dup || own {
 			m.mu.Unlock()
@@ -556,16 +609,34 @@ func (m *Manager) dispatch(ctx context.Context) {
 			m.failUnrunnable(ctx, job)
 			continue
 		}
-		keys := LockKeys(job.Type, job.Params)
 		if m.keysHeldLocked(keys) {
 			m.mu.Unlock()
 			continue
 		}
+		m.mu.Unlock()
+		slots, ok := m.slotsFor(ctx, job)
+		if !ok {
+			continue
+		}
+		m.mu.Lock()
+		// The lock was released for Needs: check again.
+		all, own = m.poolsFullLocked(job.Type)
+		if all || m.crashed || m.state != stateStarted {
+			m.mu.Unlock()
+			return wakeAt
+		}
+		if _, dup := m.running[job.ID]; dup || own || m.keysHeldLocked(keys) || !m.slotsFreeLocked(slots) {
+			m.mu.Unlock()
+			continue
+		}
 		jctx, cancel := context.WithCancelCause(m.base)
-		aj := &activeJob{id: job.ID, keys: keys, refresh: refreshPool(job.Type), cancel: cancel, rep: newReporter(m, job)}
+		aj := &activeJob{id: job.ID, keys: keys, slots: slots, refresh: refreshPool(job.Type), cancel: cancel, rep: newReporter(m, job)}
 		m.running[job.ID] = aj
 		for _, k := range keys {
 			m.keys[k] = job.ID
+		}
+		for _, p := range slots {
+			m.slots[p]++
 		}
 		m.mu.Unlock()
 
@@ -584,6 +655,79 @@ func (m *Manager) dispatch(ctx context.Context) {
 		m.jobsRunning.add()
 		go m.execute(jctx, aj, runner, started)
 	}
+	return wakeAt
+}
+
+// slotsFor returns the slot pools job needs (Options.Slots whose Needs says so). ok is false when
+// a Needs failed: the job stays queued for the next pass.
+func (m *Manager) slotsFor(ctx context.Context, job jobs.Job) (pools []string, ok bool) {
+	for _, p := range m.opts.Slots {
+		if p.Needs == nil {
+			continue
+		}
+		need, err := p.Needs(ctx, job)
+		if err != nil {
+			if ctx.Err() == nil {
+				m.log.Error("Could not tell whether a job needs a slot; it stays queued", "jobId", job.ID, "pool", p.Name, "error", err)
+			}
+			return nil, false
+		}
+		if need {
+			pools = append(pools, p.Name)
+		}
+	}
+	return pools, true
+}
+
+// slotsFreeLocked reports whether every pool in pools has a free slot. Caller holds m.mu.
+func (m *Manager) slotsFreeLocked(pools []string) bool {
+	for _, name := range pools {
+		for _, p := range m.opts.Slots {
+			if p.Name == name && m.slots[name] >= p.Limit {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// HoldKeys holds lock keys for the caller (phase4.md §6.7: the unlock endpoint holds
+// "dest:<id>"): while they are held, the dispatcher starts no job that needs one of them. It fails
+// with ErrBusy when a running job (or another hold) holds one of the keys. The returned release
+// frees them and wakes the dispatcher; calling it more than once is safe.
+func (m *Manager) HoldKeys(ctx context.Context, keys ...string) (release func(), err error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	for _, k := range keys {
+		if holder, held := m.keys[k]; held {
+			m.mu.Unlock()
+			if holder > 0 {
+				return nil, fmt.Errorf("%s is held by job %d: %w", k, holder, ErrBusy)
+			}
+			return nil, fmt.Errorf("%s is held: %w", k, ErrBusy)
+		}
+	}
+	m.holds--
+	id := m.holds
+	for _, k := range keys {
+		m.keys[k] = id
+	}
+	m.mu.Unlock()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			m.mu.Lock()
+			for _, k := range keys {
+				if m.keys[k] == id {
+					delete(m.keys, k)
+				}
+			}
+			m.mu.Unlock()
+			m.wake()
+		})
+	}, nil
 }
 
 func (m *Manager) keysHeldLocked(keys []string) bool {
@@ -614,6 +758,12 @@ func (m *Manager) forget(aj *activeJob) {
 			delete(m.keys, k)
 		}
 	}
+	for _, p := range aj.slots {
+		if m.slots[p] > 0 {
+			m.slots[p]--
+		}
+	}
+	aj.slots = nil
 	m.mu.Unlock()
 }
 
@@ -710,12 +860,24 @@ func (m *Manager) finish(ctx context.Context, aj *activeJob, job jobs.Job, out o
 		if out.res.Warnings > 0 {
 			status = jobs.StatusCompletedWithWarnings
 		}
-	case ctx.Err() != nil && errors.Is(cause, errShutdown):
-		m.requeueInterrupted(aj)
-		return
 	case ctx.Err() != nil && errors.Is(cause, errUserCancel):
 		status = jobs.StatusCancelled
 	default:
+		if d, ok := jobs.AsDeferred(out.err); ok {
+			if !d.Until.IsZero() && d.Until.After(m.now()) {
+				m.deferJob(aj, d)
+				return
+			}
+			status, errText = jobs.StatusFailed, errNoResumeTime
+			if d.Reason != "" {
+				errText += ": " + redactText(d.Reason)
+			}
+			break
+		}
+		if ctx.Err() != nil && errors.Is(cause, errShutdown) {
+			m.requeueInterrupted(aj)
+			return
+		}
 		status, errText = jobs.StatusFailed, redactText(out.err.Error())
 	}
 
@@ -761,6 +923,31 @@ func (m *Manager) finish(ctx context.Context, aj *activeJob, job jobs.Job, out o
 		return
 	}
 	m.fireHooks(final)
+}
+
+// deferJob puts a job whose runner returned a jobs.DeferredError back in the queue until d.Until
+// (phase4.md §11.2): not_before, deferrals + 1, attempt and trigger unchanged, its worker, keys and
+// slots released, the log line "Waiting for the transfer window until <time>", and no OnFinish
+// hook (a deferral is not a final state and never notifies).
+func (m *Manager) deferJob(aj *activeJob, d *jobs.DeferredError) {
+	aj.finMu.Lock()
+	if aj.abandoned {
+		aj.finMu.Unlock()
+		return
+	}
+	msg := DeferLogMessage(d.Until)
+	args := []any{"until", d.Until.UTC().Format(time.RFC3339)}
+	if d.Reason != "" {
+		args = append(args, "reason", d.Reason)
+	}
+	aj.rep.Log(slog.LevelInfo, msg, args...)
+	aj.rep.close()
+	if _, err := m.store.deferJob(m.ctx(), aj.id, d.Until, redactText(msg), aj.rep.encode()); err != nil {
+		m.log.Error("Could not defer a job; the next start treats it as crashed", "jobId", aj.id, "error", err)
+	}
+	aj.finished = true
+	aj.finMu.Unlock()
+	m.release(aj)
 }
 
 // requeueInterrupted puts a job whose runner returned because of a graceful shutdown back in the

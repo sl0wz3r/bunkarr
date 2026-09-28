@@ -214,8 +214,14 @@ func TestArrBackupRefusals(t *testing.T) {
 		!strings.Contains(msg, "backup.acceptInsecureModes") {
 		t.Fatalf("back up to an insecure destination: %d %q", code, msg)
 	}
-	e.call(t, 200, "PUT", fmt.Sprintf("/integrations/%d", noDest.ID), map[string]any{"name": "Radarr", "url": fake.URL,
-		"settings": map[string]any{"backupFolder": folder, "backup": map[string]any{"destinationId": destID, "acceptInsecureModes": true}}}, nil)
+	// Setting acceptInsecureModes needs a login session and the password (phase4.md S29).
+	accept := map[string]any{"name": "Radarr", "url": fake.URL,
+		"settings": map[string]any{"backupFolder": folder, "backup": map[string]any{"destinationId": destID, "acceptInsecureModes": true}}}
+	if code, msg := e.status(t, "PUT", fmt.Sprintf("/integrations/%d", noDest.ID), accept); code != 403 {
+		t.Fatalf("acceptInsecureModes with the API key: %d %q", code, msg)
+	}
+	accept["currentPassword"] = sessionPassword
+	e.sessionCall(t, e.session(t), 200, "PUT", fmt.Sprintf("/integrations/%d", noDest.ID), accept, nil)
 	var job jobs.Job
 	e.call(t, 202, "POST", fmt.Sprintf("/integrations/%d/arr/backup", noDest.ID), map[string]any{"dryRun": true}, &job)
 	e.waitJob(t, job.ID)

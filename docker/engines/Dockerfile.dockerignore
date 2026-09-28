@@ -1,0 +1,5 @@
+# Build context of docker/engines/Dockerfile: the module files and the engine versions only.
+*
+!go.mod
+!go.sum
+!docker/engines/versions.env

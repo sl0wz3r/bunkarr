@@ -113,9 +113,26 @@ type Scheduler struct {
 	mu        sync.Mutex
 	entries   map[int64]*entry
 	lastFired map[int64]time.Time // schedule id -> the last scheduled time it fired for
+	skips     map[int64]Skip      // schedule id -> why its last fire queued no job
 	cancel    context.CancelFunc
 	done      chan struct{}
 }
+
+// Skip says why a schedule's last fire queued no job (LastSkip).
+type Skip struct {
+	// At is the scheduled time of the fire; Reason says why nothing was queued.
+	At     time.Time `json:"at"`
+	Reason string    `json:"reason"`
+}
+
+// Skip reasons (Skip.Reason; the enqueue's own refusal is its error text).
+const (
+	// SkipRunning: the same job was still running (phase1.md §6.2).
+	SkipRunning = "the same job is still running"
+	// SkipDeferred: a deferred job of the same type and destination waits for its transfer window
+	// and covers this run (phase4.md §9.2).
+	SkipDeferred = "a deferred job of this destination waits for its transfer window and covers this run"
+)
 
 // NewScheduler returns a scheduler that reads schedules from store and enqueues on enq, with
 // cron expressions evaluated in loc (nil means the local time zone). When enq is a *Manager, the
@@ -136,6 +153,7 @@ func NewScheduler(store *Store, enq jobs.Enqueuer, log *slog.Logger, loc *time.L
 		reload:    make(chan struct{}, 1),
 		entries:   map[int64]*entry{},
 		lastFired: map[int64]time.Time{},
+		skips:     map[int64]Skip{},
 	}
 	s.listSchedules = store.ListSchedules
 	if m, ok := enq.(*Manager); ok {
@@ -223,6 +241,22 @@ func (s *Scheduler) Reload(ctx context.Context) error {
 	default:
 	}
 	return nil
+}
+
+// LastSkip returns why schedule id's last fire queued no job, and whether it did not; a fire that
+// queued its job clears it. The API shows it with the schedule.
+func (s *Scheduler) LastSkip(id int64) (Skip, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sk, ok := s.skips[id]
+	return sk, ok
+}
+
+// skipped records and logs a fire that queued nothing.
+func (s *Scheduler) skipped(d due, reason string) {
+	s.mu.Lock()
+	s.skips[d.sched.ID] = Skip{At: d.at, Reason: reason}
+	s.mu.Unlock()
 }
 
 // NextRun returns when schedule id fires next (zero when it is disabled, invalid or unknown).
@@ -335,25 +369,72 @@ func (s *Scheduler) fireDue(ctx context.Context) {
 	}
 }
 
-// fire enqueues one scheduled job, unless the same work is already running.
+// fire enqueues one scheduled job, unless the same work is already running (phase1.md §6.2) or,
+// for a verify or retention of a destination, a deferred job of that type and destination is
+// queued (it covers this run, phase4.md §9.2). A sync of a destination supersedes the deferred
+// syncs of that destination it covers once its own job is queued: they end cancelled with the
+// log line "Superseded by the scheduled run of <time>" (cancelled jobs send no notification),
+// and the new job plans again.
 func (s *Scheduler) fire(ctx context.Context, d due) {
 	sc := d.sched
+	destID := sc.Params.DestinationID
+	if (sc.JobType == jobs.TypeVerify || sc.JobType == jobs.TypeRetention) && destID != 0 {
+		deferred, err := s.store.hasDeferred(ctx, sc.JobType, destID)
+		if err != nil {
+			s.log.Error("Scheduled job not queued", "scheduleId", sc.ID, "jobType", string(sc.JobType), "error", err)
+			s.skipped(d, err.Error())
+			return
+		}
+		if deferred {
+			s.log.Info("Scheduled job skipped: a deferred job of this destination covers it", "scheduleId", sc.ID,
+				"jobType", string(sc.JobType), "destinationId", destID, "scheduledFor", d.at)
+			s.skipped(d, SkipDeferred)
+			return
+		}
+	}
 	running, err := s.store.hasRunning(ctx, sc.JobType, sc.Params)
 	if err != nil {
 		s.log.Error("Scheduled job not queued", "scheduleId", sc.ID, "jobType", string(sc.JobType), "error", err)
+		s.skipped(d, err.Error())
 		return
 	}
 	if running {
 		s.log.Info("Scheduled job skipped: the same job is still running", "scheduleId", sc.ID, "jobType", string(sc.JobType), "scheduledFor", d.at)
+		s.skipped(d, SkipRunning)
 		return
 	}
 	job, err := s.enq.Enqueue(ctx, jobs.Spec{Type: sc.JobType, Trigger: jobs.TriggerSchedule, Params: sc.Params})
 	if err != nil {
 		s.log.Error("Scheduled job not queued", "scheduleId", sc.ID, "jobType", string(sc.JobType), "error", err)
+		s.skipped(d, err.Error())
 		return
 	}
+	s.mu.Lock()
+	delete(s.skips, sc.ID)
+	s.mu.Unlock()
 	if err := s.store.MarkRun(ctx, sc.ID, s.clk.Now()); err != nil {
 		s.log.Warn("Could not record a schedule run", "scheduleId", sc.ID, "error", err)
 	}
 	s.log.Info("Scheduled job queued", "scheduleId", sc.ID, "jobType", string(sc.JobType), "jobId", job.ID, "scheduledFor", d.at)
+	if sc.JobType == jobs.TypeSync && destID != 0 {
+		s.supersede(ctx, d, job.ID)
+	}
+}
+
+// supersede ends the deferred syncs of the fired sync schedule's destination that its new job
+// (keep) covers.
+func (s *Scheduler) supersede(ctx context.Context, d due, keep int64) {
+	msg := "Superseded by the scheduled run of " + d.at.In(s.loc).Format("2006-01-02 15:04")
+	done, err := s.store.supersedeDeferredSyncs(ctx, d.sched.Params, keep, msg, s.clk.Now())
+	if err != nil {
+		s.log.Error("Could not supersede the deferred syncs of the destination; they wait for their window", "scheduleId", d.sched.ID,
+			"destinationId", d.sched.Params.DestinationID, "error", err)
+		return
+	}
+	for _, j := range done {
+		s.log.Info("Deferred sync superseded by the scheduled run", "jobId", j.ID, "newJobId", keep, "scheduleId", d.sched.ID)
+		if s.store.onFinal != nil {
+			s.store.onFinal(j)
+		}
+	}
 }

@@ -1,0 +1,1 @@
+{"message_type":"exit_error","code":1,"message":"Fatal: create key in repository at s3:http://p4-minio:9000/restic-spike failed: repository master key and config already initialized\n"}

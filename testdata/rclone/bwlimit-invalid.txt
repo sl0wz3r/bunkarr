@@ -1,0 +1,2 @@
+Error: invalid argument "25:00,1M" for "--bwlimit" flag: parsing "25:00,1M" as fs.BwTimetable failed: invalid hour (must be between 00 and 23): 25
+2026/09/27 13:53:47 NOTICE: Fatal error: invalid argument "25:00,1M" for "--bwlimit" flag: parsing "25:00,1M" as fs.BwTimetable failed: invalid hour (must be between 00 and 23): 25

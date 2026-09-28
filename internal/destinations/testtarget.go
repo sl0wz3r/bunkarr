@@ -63,6 +63,9 @@ func (s *Store) Test(ctx context.Context, target string, existingID int64) (Test
 		if d, err = s.Get(ctx, existingID); err != nil {
 			return TestResult{}, err
 		}
+		if d.IsEngine() {
+			return TestResult{}, ErrEngineDestination
+		}
 		if target == "" {
 			target = d.Target
 		} else if !sameTarget(target, d.Target) {

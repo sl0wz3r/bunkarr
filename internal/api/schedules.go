@@ -117,6 +117,16 @@ func (s *Server) preparePlexSettings(ctx context.Context, typ integrations.Type,
 			return nil, errorf(http.StatusBadRequest, "backup.cron: %v", err)
 		}
 	}
+	// Each backup target (phase4.md §8.5) gets the same default schedule; the store validates the
+	// rest of them, and their destinations.
+	for i, t := range ps.Backup.Targets {
+		if t.Enabled && t.Cron == "" {
+			ps.Backup.Targets[i].Cron = DefaultPlexBackupCron
+		}
+	}
+	if len(ps.Backup.Targets) > 0 {
+		ps.Backup.Cron = ps.Backup.Targets[0].Cron
+	}
 	if id := ps.Backup.DestinationID; id > 0 {
 		if _, err := s.app.Destinations.Get(ctx, id); err != nil {
 			if statusOf(err) == http.StatusNotFound {
@@ -133,48 +143,15 @@ func plexBackupParams(integrationID, destinationID int64) jobs.Params {
 	return jobs.Params{IntegrationID: integrationID, DestinationID: destinationID}
 }
 
-// syncPlexSchedule makes the plexdb_backup schedule of a Plex integration match its settings: a
-// backup destination and a cron expression give a schedule (enabled as the settings say); no
-// destination, or a disabled backup without a cron expression, gives none. Schedules of the
+// syncPlexSchedule makes the plexdb_backup schedules of a Plex integration match its backup
+// targets (syncBackupSchedules): one per target with a cron expression; a target without a
+// destination, or a disabled one without a cron expression, gives none. Schedules of the
 // integration with other params (an earlier destination) are removed.
 func (s *Server) syncPlexSchedule(ctx context.Context, it integrations.Integration) error {
 	if it.Type != integrations.TypePlex {
 		return nil
 	}
-	ps, err := it.PlexSettings()
-	if err != nil {
-		return err
-	}
-	want := ps.Backup.DestinationID > 0 && ps.Backup.Cron != ""
-	params := plexBackupParams(it.ID, ps.Backup.DestinationID)
-	st := s.app.Jobs.Store()
-	list, err := st.ListSchedules(ctx)
-	if err != nil {
-		return err
-	}
-	changed := false
-	for _, sc := range list {
-		if sc.JobType != jobs.TypePlexDBBackup || sc.Params.IntegrationID != it.ID {
-			continue
-		}
-		if want && sameParams(sc.Params, params) {
-			continue
-		}
-		if err := st.DeleteSchedule(ctx, sc.ID); err != nil && !errors.Is(err, jobqueue.ErrNotFound) {
-			return err
-		}
-		changed = true
-	}
-	if want {
-		if _, err := st.UpsertSchedule(ctx, jobs.TypePlexDBBackup, params, ps.Backup.Cron, ps.Backup.Enabled); err != nil {
-			return err
-		}
-		changed = true
-	}
-	if changed {
-		s.reloadSchedules(ctx)
-	}
-	return nil
+	return s.syncBackupSchedules(ctx, it)
 }
 
 // sameParams reports whether two job params select the same work.
@@ -200,6 +177,10 @@ type scheduleView struct {
 	// BlockedReason says why the scheduler refuses the schedule's jobs (its destination or Plex
 	// server is disabled); "" when they can run.
 	BlockedReason string `json:"blockedReason"`
+	// LastSkip says why the schedule's last fire queued no job (the same job still running, or a
+	// deferred job of its destination waiting for its transfer window, phase4.md §9.2, §15); nil
+	// when that fire queued its job. Kept in memory: nil after a restart.
+	LastSkip *jobqueue.Skip `json:"lastSkip"`
 }
 
 func (s *Server) scheduleView(ctx context.Context, sc jobqueue.Schedule) scheduleView {
@@ -209,13 +190,27 @@ func (s *Server) scheduleView(ctx context.Context, sc jobqueue.Schedule) schedul
 		n := next.UTC()
 		v.NextRunAt = &n
 	}
+	if sk, ok := s.app.Scheduler.LastSkip(sc.ID); ok {
+		sk.At = sk.At.UTC()
+		v.LastSkip = &sk
+	}
 	return v
 }
 
 // blockedReason says why jobs with params p cannot run: the conditions of scheduleGate
-// (App.checkEnabled), under which the scheduler refuses them and the runners fail them. ""
-// when they can run (a destination or integration that does not exist is not reported here).
+// (App.checkEnabled, and for an engine destination a create that did not finish, an unconfirmed
+// recovery kit or an unavailable engine, phase4.md S21 and §11.1), under which the scheduler
+// refuses them and the runners fail them. "" when they can run (a destination or integration that
+// does not exist is not reported here).
 func (s *Server) blockedReason(ctx context.Context, p jobs.Params) string {
+	if reason := s.disabledReason(ctx, p); reason != "" {
+		return reason
+	}
+	return s.app.destinationBlock(ctx, p.DestinationID)
+}
+
+// disabledReason is blockedReason's first part: a disabled destination or integration.
+func (s *Server) disabledReason(ctx context.Context, p jobs.Params) string {
 	if p.DestinationID != 0 {
 		if d, err := s.app.Destinations.Get(ctx, p.DestinationID); err == nil && !d.Enabled {
 			return fmt.Sprintf("destination %q is disabled", d.Name)
@@ -280,6 +275,7 @@ func (s *Server) updateSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 	s.reloadSchedules(r.Context())
 	s.log.Info("Schedule changed", "scheduleId", id, "jobType", string(sc.JobType), "cron", sc.Cron, "enabled", sc.Enabled)
+	s.saveTargetSchedule(r.Context(), sc)
 	writeJSON(w, http.StatusOK, s.scheduleView(r.Context(), sc))
 }
 
@@ -305,8 +301,13 @@ func (s *Server) runSchedule(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, "run schedule", err)
 		return
 	}
-	if reason := s.blockedReason(r.Context(), sc.Params); reason != "" {
+	if reason := s.disabledReason(r.Context(), sc.Params); reason != "" {
 		s.fail(w, r, "run schedule", errorf(http.StatusConflict, "%s; enable it to run this task", reason))
+		return
+	}
+	// An engine destination's jobs wait for its recovery kit and its engine; dry runs do not.
+	if reason := s.app.destinationBlock(r.Context(), sc.Params.DestinationID); reason != "" && !body.DryRun {
+		s.fail(w, r, "run schedule", errorf(http.StatusConflict, "%s", reason))
 		return
 	}
 	job, err := s.app.Scheduler.RunNow(r.Context(), id, body.DryRun)
@@ -315,19 +316,6 @@ func (s *Server) runSchedule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeAccepted(w, job.ID, job)
-}
-
-// plexScheduleOverlay returns ps with the backup's cron and enabled flag taken from the stored
-// plexdb_backup schedule of integration id, when one exists for the configured destination (the
-// schedule can be edited on System → Tasks; it is the source of truth).
-func plexScheduleOverlay(list []jobqueue.Schedule, id int64, ps integrations.PlexSettings) integrations.PlexSettings {
-	for _, sc := range list {
-		if sc.JobType == jobs.TypePlexDBBackup && sameParams(sc.Params, plexBackupParams(id, ps.Backup.DestinationID)) {
-			ps.Backup.Cron, ps.Backup.Enabled = sc.Cron, sc.Enabled
-			return ps
-		}
-	}
-	return ps
 }
 
 // errScheduleSync wraps a failure to update schedules after the main change was saved.

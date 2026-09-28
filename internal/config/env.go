@@ -28,6 +28,12 @@ type Env struct {
 	LogFormat string
 	// Docker is true inside the official image (BUNKARR_DOCKER=1).
 	Docker bool
+	// ResticPath and RclonePath choose the engine binaries (BUNKARR_RESTIC_PATH,
+	// BUNKARR_RCLONE_PATH; "" = a PATH lookup). They are bootstrap variables, never settings:
+	// whoever chooses the program receives every destination's secrets (docs/design/phase4.md
+	// §4.4). ResolveEngineBinaries checks them at start-up.
+	ResticPath string
+	RclonePath string
 }
 
 // EnvFromOS reads BUNKARR_* variables, applying defaults.
@@ -39,6 +45,9 @@ func EnvFromOS() (Env, error) {
 		LogLevel:  strings.ToLower(strings.TrimSpace(os.Getenv("BUNKARR_LOG_LEVEL"))),
 		LogFormat: strings.ToLower(strings.TrimSpace(os.Getenv("BUNKARR_LOG_FORMAT"))),
 		Docker:    os.Getenv("BUNKARR_DOCKER") == "1",
+		// Not trimmed: a path with surrounding whitespace is refused by ResolveEngineBinaries.
+		ResticPath: os.Getenv("BUNKARR_RESTIC_PATH"),
+		RclonePath: os.Getenv("BUNKARR_RCLONE_PATH"),
 	}
 	if e.ConfigDir == "" {
 		if e.Docker {

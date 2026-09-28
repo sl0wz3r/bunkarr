@@ -8,6 +8,63 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Phase 4: destinations and versioning (design: `docs/design/phase4.md`, decisions in ADR 0008).
+- Off-site destinations: SFTP servers, S3-compatible storage (AWS, MinIO, Wasabi, Cloudflare and
+  others) and Backblaze B2, through **restic** (a deduplicated repository, one snapshot per source
+  per sync, per-file records read back from each snapshot) or **rclone** (a plain copy with the
+  Phase 1 layout, retention folders and `links.tsv`); a restic repository on a mounted folder too.
+  The Phase 1 planner, tiers, the mass-change guard, retention of deleted and replaced versions,
+  dry runs and resume work the same on every engine; filecopy destinations plan exactly as before.
+- Encryption by default (restic's own, or rclone crypt with `strict_names`), with a generated or
+  user-supplied secret that never changes. A **recovery kit** (session and password, notification
+  on every export) holds the location, the secret, a check code and the commands to list and
+  restore without Bunkarr; no job but a preview runs until its custody is confirmed. An rclone
+  crypt remote is re-attached with the kit's password and `password2` (`encryption.secret2`).
+- Off-site targets need a fresh password: creating a remote destination, changing its credentials,
+  host keys or CA certificate, linking a source or a Plex/*arr backup target to it and accepting
+  no encryption need a UI session and `currentPassword`; the API key and the local-address bypass
+  get 403, and wrong passwords count toward the login limiter.
+- SFTP host keys are fetched (`POST /destinations/sftp/hostkeys`), confirmed by fingerprint and
+  pinned; a changed key stops the destination's jobs.
+- Secrets never reach a command line or a log: children get them through their environment and
+  0600 files on the container's tmpfs, commands and flags are allow-listed, every line is
+  redacted, and the binaries come only from `BUNKARR_RESTIC_PATH` / `BUNKARR_RCLONE_PATH` or the
+  image.
+- restic retention computed by Bunkarr (newest, the base, every referenced snapshot, and
+  daily/weekly/monthly/yearly buckets), forgets by id, `prune` and `check`; guarded `unlock` that
+  refuses a lock of another container with the same host name; verify with `restic check`
+  (rotating `--read-data-subset`) and restored samples, or rclone listings and `check --download`.
+- Bandwidth limits, timetables and transfer windows per destination (filecopy included); a job
+  that reaches the window's end waits and resumes in the next one; a file larger than the window
+  fails with a warning, and so does a file that never gets its turn in three windows; at most two
+  engine syncs upload at a time (`engines.uploadSlots`), on workers of their own, so a seed that
+  uploads for days never holds up local syncs, Plex DB and *arr backups or manifest exports.
+- Destinations UI: a numbered add wizard (where, how, connection, encryption, a required test,
+  then the recovery kit), the password asked in the same dialog for every off-site change, host
+  key fingerprints, bandwidth and window editors, a red banner until the kit is confirmed, "Finish
+  create" for a create that did not finish, snapshot counts, media snapshots with their restic
+  snapshot id, and engine figures (batches, bytes uploaded and read, forget requests, deferrals) on
+  jobs.
+- README: off-site destinations (encryption and the recovery kit, restoring with the kit alone,
+  costs, B2, S3 and SFTP notes) and repairing a damaged restic repository by hand without losing
+  the versions Bunkarr recorded.
+- Plex DB, *arr backups and manifests on restic and rclone destinations; Plex and *arr backups get
+  up to four targets each, with their own schedules.
+- API: `kind`, `remote`, `credentials`, `encryption`, `bandwidth` on destinations,
+  `POST /destinations/test` and `/{id}/test` for engines, recovery-kit export and confirm,
+  `/unlock`, `/retention`, media snapshots in `/snapshots`, `GET|PUT /settings/engines`, engines in
+  `/system/status`.
+- Tests: fake command runner fed with the engine spike's fixtures, crash matrices for both engines,
+  real-binary tests in containers (`make test-engines`), and the off-site acceptance suite against
+  MinIO and an SFTP server (`make test-offsite`: two destinations, the pinned retention table, the
+  lifecycle with a damaged object and `docker kill` + resume, a secrets audit with argv-recording
+  shims and a `/proc` sampler, bandwidth and windows, a restore from the kit alone, config
+  versions, S29, two containers on one repository), plus an upgrade test from the Phase 3 release.
+  CI fetches the Phase 2 and Phase 3 release commits for the upgrade tests (they fail instead of
+  skipping there), and releases run the off-site suite before tagging.
+- The image pins restic 0.18.1 and rclone 1.74.1 (`docker/engines/versions.env`); the image test
+  checks the versions `/system/status` reports.
+
 - Phase 3: backup tiers (design: `docs/design/phase2-3.md` revision 4, decisions in ADR 0007).
 - Tiers (Settings → Tiers): each destination holds a file as `full` (copied), `manifest` (not
   copied, listed in the manifests) or `skip`. Ordered rules with all/any conditions, an action
@@ -158,6 +215,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Breaking for compose users:** the compose example sets `hostname: bunkarr-<server name>`
+  (restic trusts host names for stale locks: one per install) and `stop_grace_period: 60s`.
+  `SERVER_NAME` is now required: add `SERVER_NAME=<your server's name>` (unique per install) to
+  `deploy/.env` before upgrading, or `docker compose up` refuses with "required variable
+  SERVER_NAME is missing a value".
+- On a PUID/PGID change the entrypoint also re-owns `/config/backups` (the pre-migration copies),
+  so an upgrade after a change of user no longer stops with "refusing to migrate the database …
+  permission denied", and the new `run`, `cache` and `staging` folders.
 - `*.partial~` and `*.backup~` (the *arrs' temporary copy names) are excluded by default, so stale
   temp files from the *arrs are no longer backed up.
 - The Plex, *arr and Apprise clients refuse link-local and cloud metadata addresses.

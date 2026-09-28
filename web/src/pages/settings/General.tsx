@@ -1,7 +1,10 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { api } from '@/api/client';
-import type { AuthRequired, GeneralSettings } from '@/api/types';
+import { api, ApiError } from '@/api/client';
+import { getEngineSettings, RETRY_BUDGET_MAX, updateEngineSettings, UPLOAD_SLOTS_MAX } from '@/api/engines';
+import type { AuthRequired, EngineSettings, GeneralSettings } from '@/api/types';
+import { ErrorNotice, Notice } from '@/components/Notice';
 import { useAuth } from '@/auth';
 import { Page, Section } from '@/components/Page';
 import { copyText } from '@/lib/clipboard';
@@ -145,6 +148,7 @@ export function General() {
               <input className={input} value={settings.port} disabled />
             </Row>
           </Section>
+          <EnginesSection />
           {status.via === 'session' && <Credentials onSaved={(m) => setNotice(m)} onError={(m) => setError(m)} />}
         </>
       )}
@@ -187,6 +191,97 @@ function Credentials({ onSaved, onError }: { onSaved: (m: string) => void; onErr
           Save login
         </button>
       </form>
+    </Section>
+  );
+}
+
+/**
+ * EnginesSection edits the restic and rclone settings (phase4.md §9.3, S26): how many engine syncs
+ * upload at once (read at start-up: a change applies after a restart) and how long an engine
+ * command may keep retrying.
+ */
+function EnginesSection() {
+  const qc = useQueryClient();
+  const settings = useQuery({ queryKey: ['settings', 'engines'], queryFn: getEngineSettings, retry: false });
+  const [draft, setDraft] = useState<{ uploadSlots: number; retryBudgetMinutes: number } | null>(null);
+  const value = draft ?? (settings.data ? { uploadSlots: settings.data.uploadSlots, retryBudgetMinutes: settings.data.retryBudgetMinutes } : null);
+  const saver = useMutation({
+    mutationFn: (v: { uploadSlots: number; retryBudgetMinutes: number }) => updateEngineSettings(v),
+    onSuccess: (saved: EngineSettings) => {
+      qc.setQueryData(['settings', 'engines'], saved);
+      setDraft(null);
+    },
+  });
+  const whole = (n: number, max: number) => Number.isInteger(n) && n >= 1 && n <= max;
+  const problem = value
+    ? !whole(value.uploadSlots, UPLOAD_SLOTS_MAX)
+      ? `Upload slots must be 1 to ${UPLOAD_SLOTS_MAX}.`
+      : !whole(value.retryBudgetMinutes, RETRY_BUDGET_MAX)
+        ? `The retry budget must be 1 to ${RETRY_BUDGET_MAX} minutes.`
+        : null
+    : null;
+  const num = (v: string) => (v === '' ? Number.NaN : Number(v));
+  const data = settings.data;
+  // A server without the engines (an older version) has no such route: nothing to show.
+  if (settings.error instanceof ApiError && settings.error.status === 404) {
+    return null;
+  }
+  return (
+    <Section title="Engines">
+      <ErrorNotice error={settings.error ?? saver.error} />
+      {value && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!problem) saver.mutate(value);
+          }}
+        >
+          <Row label="Upload slots" help={`restic and rclone syncs that upload at the same time (1–${UPLOAD_SLOTS_MAX}); more wait in the queue. Filecopy syncs, verifies and backups of Plex and the *arrs take no slot.`}>
+            <input
+              aria-label="Upload slots"
+              type="number"
+              min={1}
+              max={UPLOAD_SLOTS_MAX}
+              className={`${input} max-w-[8rem]`}
+              value={Number.isNaN(value.uploadSlots) ? '' : value.uploadSlots}
+              onChange={(e) => setDraft({ ...value, uploadSlots: num(e.target.value) })}
+            />
+          </Row>
+          <Row label="Retry budget" help={`Minutes an engine command may keep retrying a failing connection before it is stopped (1–${RETRY_BUDGET_MAX}).`}>
+            <input
+              aria-label="Retry budget"
+              type="number"
+              min={1}
+              max={RETRY_BUDGET_MAX}
+              className={`${input} max-w-[8rem]`}
+              value={Number.isNaN(value.retryBudgetMinutes) ? '' : value.retryBudgetMinutes}
+              onChange={(e) => setDraft({ ...value, retryBudgetMinutes: num(e.target.value) })}
+            />
+          </Row>
+          {problem && (
+            <p role="alert" className="mb-2 text-sm text-danger sm:ml-[12.5rem]">
+              {problem}
+            </p>
+          )}
+          {data && (
+            <p className="mb-2 text-xs text-ink-muted sm:ml-[12.5rem]">{data.note || 'The number of upload slots applies after a restart.'}</p>
+          )}
+          {data?.restartRequired && (
+            <div className="sm:ml-[12.5rem]">
+              <Notice tone="warning">
+                Restart Bunkarr to use {data.uploadSlots} upload {data.uploadSlots === 1 ? 'slot' : 'slots'}: {data.uploadSlotsInEffect} in effect now.
+              </Notice>
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={!draft || !!problem || saver.isPending}
+            className="rounded bg-accent px-4 py-2 font-medium text-page hover:bg-accent-strong disabled:opacity-50 sm:ml-[12.5rem]"
+          >
+            Save engine settings
+          </button>
+        </form>
+      )}
     </Section>
   );
 }

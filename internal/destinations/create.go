@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/sl0wz3r/bunkarr/internal/db"
+	"github.com/sl0wz3r/bunkarr/internal/engines"
 	"github.com/sl0wz3r/bunkarr/internal/engines/filecopy"
 )
 
@@ -69,7 +70,8 @@ func (s *Store) guard(ctx context.Context, resolved string) error {
 		return err
 	}
 	for _, d := range all {
-		if overlaps(resolved, d.Target) {
+		// A remote destination's target is its display location, not a path of this container.
+		if d.Kind == engines.Local && overlaps(resolved, d.Target) {
 			return ValidationError(fmt.Sprintf("the target %s overlaps destination %q (%s)", resolved, d.Name, d.Target))
 		}
 	}
@@ -87,41 +89,58 @@ type pathGuardError struct{ err error }
 func (e *pathGuardError) Error() string { return e.err.Error() }
 func (e *pathGuardError) Unwrap() error { return e.err }
 
-// Create adds a destination (design S3). In order: the input is validated; the target must
-// exist (Bunkarr never creates it or its parents) and is resolved with EvalSymlinks; the S4
-// overlap checks run; a target that already has a marker is refused unless o.Attach (then the
-// marker's id is reused and the marker is left as it is); a local filesystem is refused unless
-// o.AllowLocal; the capability probe runs (inside .bunkarr/probe); the marker is written
-// atomically; the row is inserted with marker_id, fs_type, root_dev and capabilities. When the
-// insert fails, the marker written by this call is removed again.
+// Create adds a destination. A restic or rclone destination (kind other than local, or engine
+// restic) is created by createEngine (phase4.md §4.5). A filecopy destination is Phase 1's (design
+// S3), in order: the input is validated; the target must exist (Bunkarr never creates it or its
+// parents) and is resolved with EvalSymlinks; the S4 overlap checks run; a target that already
+// has a marker is refused unless o.Attach (then the marker's id is reused and the marker is left
+// as it is); a local filesystem is refused unless o.AllowLocal; the capability probe runs (inside
+// .bunkarr/probe); the marker is written atomically; the row is inserted with marker_id, fs_type,
+// root_dev and capabilities. When the insert fails, the marker written by this call is removed
+// again.
 func (s *Store) Create(ctx context.Context, in Input, o CreateOptions) (Destination, error) {
 	s.createMu.Lock()
 	defer s.createMu.Unlock()
+	kind, engine, err := checkKindEngine(in.Kind, in.Engine)
+	if err != nil {
+		return Destination{}, err
+	}
+	if engine != EngineFilecopy {
+		return s.createEngine(ctx, in, o, kind, engine)
+	}
 	name, err := checkName(in.Name)
 	if err != nil {
 		return Destination{}, err
 	}
-	engine := in.Engine
-	if engine == "" {
-		engine = EngineFilecopy
+	if _, _, err := decodeRemote(in.Remote, engines.Local, remoteCheck{}); err != nil {
+		return Destination{}, err
 	}
-	if engine != EngineFilecopy {
-		return Destination{}, ValidationError(fmt.Sprintf("engine %q is not available yet (only %q)", engine, EngineFilecopy))
+	if in.Credentials != nil {
+		return Destination{}, ValidationError("credentials: a filecopy destination has no storage credentials")
+	}
+	if _, err := planEncryption(engine, kind, in.Encryption, o.Attach); err != nil {
+		return Destination{}, err
 	}
 	settings, retention := DefaultSettings(), DefaultRetention()
 	if in.Settings != nil {
-		if settings, err = in.Settings.Normalize(); err != nil {
+		if settings, err = in.Settings.NormalizeFor(engine, kind); err != nil {
 			return Destination{}, err
 		}
 	}
 	if in.Retention != nil {
-		if retention, err = in.Retention.Normalize(); err != nil {
+		if retention, err = in.Retention.NormalizeFor(engine); err != nil {
 			return Destination{}, err
 		}
 	}
 	sj, rj, err := marshalConfig(settings, retention)
 	if err != nil {
 		return Destination{}, err
+	}
+	bw := sql.NullString{String: "{}", Valid: true}
+	if in.Bandwidth != nil {
+		if bw, err = bandwidthJSON(*in.Bandwidth); err != nil {
+			return Destination{}, err
+		}
 	}
 	if taken, err := s.nameTaken(ctx, name); err != nil {
 		return Destination{}, err
@@ -204,10 +223,10 @@ func (s *Store) Create(ctx context.Context, in Input, o CreateOptions) (Destinat
 
 	var id int64
 	err = s.db.Write(ctx, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `INSERT INTO destinations (name, engine, target, marker_id, settings, retention, fs_type, root_dev, capabilities, enabled, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		res, err := tx.ExecContext(ctx, `INSERT INTO destinations (name, engine, target, marker_id, settings, retention, fs_type, root_dev, capabilities, enabled, created_at, updated_at, bandwidth)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			name, engine, resolved, marker.ID, sj, rj, fsStat.Type, int64(rootStat.Dev), string(capsJSON),
-			in.Enabled == nil || *in.Enabled, db.FormatTime(now), db.FormatTime(now))
+			in.Enabled == nil || *in.Enabled, db.FormatTime(now), db.FormatTime(now), bw.String)
 		if err != nil {
 			return mapConstraint(err)
 		}

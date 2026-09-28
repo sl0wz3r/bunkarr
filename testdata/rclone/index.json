@@ -1,0 +1,49 @@
+{
+  "recordedAt": "2026-09-27T13:53:00Z",
+  "tool": "rclone v1.74.1-DEV (alpine package in bunkarr:dev, linux/arm64)",
+  "servers": {
+    "s3": "cgr.dev/chainguard/minio@sha256:6a1d0b45c8669726bba580ced0bfa4cb9fdeed1ed636dfabd81d1577beb6937b",
+    "sftp": "atmoz/sftp:alpine@sha256:a81ea210713555be76075b4b2788a4addfaa54d137cd881f3a99ac539f0be2c5 (internal-sftp chroot: no shell, so no remote hashes)"
+  },
+  "config": "RCLONE_CONFIG=/dev/null plus RCLONE_CONFIG_<NAME>_<OPTION> env (MINIO: type=s3 provider=Minio; BKSFTP: type=sftp key_file known_hosts_file; MCRYPT: type=crypt remote=minio:rclone-crypt/bunkarr password/password2 obscured). A remote defined only by env is shown with a config hash suffix, e.g. minio{Ajh92}, mcrypt{vm1ng}",
+  "secrets": "throw-away values only; debug-vv-logs-env-secrets.txt has them replaced by FIXTURE-* placeholders",
+  "logFlags": "--use-json-log --stats 1s --stats-log-level NOTICE -v unless noted; the log goes to stderr",
+  "notes": [
+    "JSON log line: {time, level, msg, source, [object, objectType, size, skipped]}; the stats line has msg (multi-line text) and stats {bytes, checks, deletedDirs, deletes, elapsedTime, errors, eta, fatalError, listed, renames, retryError, serverSideCopies, serverSideCopyBytes, serverSideMoveBytes, serverSideMoves, speed, totalBytes, totalChecks, totalTransfers, transferTime, transfers, [transferring: [{bytes, dstFs, eta, group, name, percentage, size, speed, speedAvg, srcFs}]]}",
+    "dry run: level notice, skipped = copy | move | delete | move into backup dir",
+    "check/cryptcheck --combined lines: '= ' match, '* ' differ, '- ' missing on dst, '+ ' missing on src, '! ' error",
+    "hard links are copied once per name (two 3000000 B objects)",
+    "empty source dirs are not created (no --create-empty-src-dirs)"
+  ],
+  "fixtures": {
+    "copy-dry-run.jsonl": {"cmd": "rclone copy /src minio:rclone-plain/current --dry-run", "exit": 0},
+    "copy.jsonl": {"cmd": "rclone copy /src minio:rclone-plain/current", "exit": 0},
+    "copy-after-kill.jsonl": {"cmd": "re-run of rclone copy /src4 after kill -9 mid-transfer: finished files skipped, the cut file re-sent whole", "exit": 0},
+    "check.jsonl": {"cmd": "rclone check /src minio:rclone-plain/current --one-way --combined <file>", "exit": 0},
+    "check-combined.txt": {"cmd": "the --combined file of check.jsonl", "exit": 0},
+    "check-differences.txt": {"cmd": "rclone check ... --one-way after a change (text log)", "exit": 1},
+    "check-differences-combined.txt": {"cmd": "the --combined file of check-differences.txt", "exit": 1},
+    "sync-backup-dir-dry-run.jsonl": {"cmd": "rclone sync /src minio:rclone-plain/current --backup-dir minio:rclone-plain/versions/<UTC stamp> --dry-run", "exit": 0},
+    "sync-backup-dir.jsonl": {"cmd": "same without --dry-run: replaced and deleted files are server-side moved into the dated dir", "exit": 0},
+    "sync-backup-dir-overlap.txt": {"cmd": "rclone sync /src minio:rclone-plain/current --backup-dir minio:rclone-plain/current/.versions", "exit": 7},
+    "sync-max-delete.jsonl": {"cmd": "rclone sync /src5 minio:rclone-plain/md/ --max-delete 1 (2 deletes needed; 1 is done before the stop)", "exit": 7},
+    "copy-bwlimit-progress.jsonl": {"cmd": "rclone copy big.mkv (40 MiB) --bwlimit '00:00,4M <now>,8M 23:59,off' --stats 2s (stats.transferring present)", "exit": 0},
+    "copy-stats-one-line-date.txt": {"cmd": "rclone copy ... --bwlimit 8M --stats 2s --stats-one-line --stats-one-line-date -v (text log)", "exit": 0},
+    "copy-stats-one-line-date-format.txt": {"cmd": "rclone copy ... --bwlimit 16M:off --stats-one-line --stats-one-line-date-format '2006-01-02T15:04:05Z07:00 ' --stats-log-level NOTICE", "exit": 0},
+    "bwlimit-invalid.txt": {"cmd": "rclone copy ... --bwlimit '25:00,1M' (first and last line; usage text between removed)", "exit": 2},
+    "crypt-copy.jsonl": {"cmd": "rclone copy /src mcrypt:current", "exit": 0},
+    "cryptcheck.jsonl": {"cmd": "rclone cryptcheck /src mcrypt:current --one-way", "exit": 0},
+    "check-on-crypt-size-only.txt": {"cmd": "rclone check /src mcrypt:current --one-way ('hashes could not be checked': size only, still exit 0)", "exit": 0},
+    "crypt-wrong-password.txt": {"cmd": "rclone ls mcrypt: -v with a wrong password: names skipped at NOTICE, empty listing", "exit": 0},
+    "crypt-wrong-password-strict-names.txt": {"cmd": "same with RCLONE_CONFIG_MCRYPT_STRICT_NAMES=true", "exit": 1},
+    "sftp-copy.jsonl": {"cmd": "rclone copy /src bksftp:upload/rclone-current", "exit": 0},
+    "sftp-check-no-hashes.txt": {"cmd": "rclone check /src bksftp:upload/rclone-current --one-way (no hashes on a chroot sftp server)", "exit": 0},
+    "exit3-source-not-found.txt": {"cmd": "rclone copy /nonexistent minio:rclone-plain/x (copyto of a missing file: same)", "exit": 3},
+    "exit3-bucket-not-found.txt": {"cmd": "rclone lsd minio:no-such-bucket", "exit": 3},
+    "exit1-unknown-remote.txt": {"cmd": "rclone copy /src nosuchremote:x", "exit": 1},
+    "exit1-bad-credentials.txt": {"cmd": "rclone copy with a wrong secret_access_key --retries 1 --low-level-retries 1", "exit": 1},
+    "exit10-max-duration-soft.txt": {"cmd": "rclone copy /src6 (2 x 20 MiB) --bwlimit 4M --transfers 1 --max-duration 3s --cutoff-mode soft (first file finished, second not started)", "exit": 10},
+    "lsjson-stat-missing-object-s3.json": {"cmd": "rclone lsjson --stat minio:rclone-plain/nope.txt (a missing S3 object stats as a directory)", "exit": 0},
+    "debug-vv-logs-env-secrets.txt": {"cmd": "rclone lsd mcrypt: -vv | grep 'from environment variable' (secrets replaced by placeholders): -vv logs every env config value in clear", "exit": 0}
+  }
+}

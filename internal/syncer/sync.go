@@ -15,33 +15,33 @@ import (
 
 	"github.com/sl0wz3r/bunkarr/internal/catalog"
 	"github.com/sl0wz3r/bunkarr/internal/destinations"
+	"github.com/sl0wz3r/bunkarr/internal/engines"
 	"github.com/sl0wz3r/bunkarr/internal/engines/filecopy"
 	"github.com/sl0wz3r/bunkarr/internal/faultinject"
 	"github.com/sl0wz3r/bunkarr/internal/jobs"
 	"github.com/sl0wz3r/bunkarr/internal/tiers"
 )
 
-// SyncRunner runs sync jobs (jobs.TypeSync, design §4.1): Params.DestinationID is the destination,
-// Params.SourceIDs optionally narrows the linked sources, Params.AllowChanges runs what the
-// mass-change guard would hold, and a dry run stops after persisting the plan.
+// SyncRunner runs the sync jobs of filecopy destinations (jobs.TypeSync, design §4.1):
+// Params.DestinationID is the destination, Params.SourceIDs optionally narrows the linked sources,
+// Params.AllowChanges runs what the mass-change guard would hold, and a dry run stops after
+// persisting the plan. It plans with its embedded Planner (the planner every engine shares,
+// phase4.md §3.3) and executes with the filecopy engine, inside the destination's transfer window
+// and at its bandwidth limit (window.go).
 type SyncRunner struct {
-	base
-	planBatch    int
+	*Planner
 	recheckEvery int
 	// freeSpace is filecopy.FreeSpace; tests replace it.
 	freeSpace func(*os.Root) (free, total uint64, err error)
-	// expectedWaits and sleep pace the rescans of a webhook sync's expected files; tests shorten
-	// them.
-	expectedWaits []time.Duration
-	sleep         func(ctx context.Context, d time.Duration) error
+	// win configures the transfer windows and bandwidth limits (window.go).
+	win windowOptions
 }
 
 // NewSyncRunner returns the sync job runner. With Options.Tiers, when Options.Enqueuer is the job
 // manager (it has OnFinish), the runner registers its OnJobFinish hook there: the folder flags
 // follow the moves of a sync that ended without an attempt that could follow them.
 func NewSyncRunner(o Options) *SyncRunner {
-	r := &SyncRunner{base: newBase(o), planBatch: planBatch, recheckEvery: recheckEvery, freeSpace: filecopy.FreeSpace,
-		expectedWaits: defaultExpectedWaits, sleep: sleepCtx}
+	r := &SyncRunner{Planner: NewPlanner(o), recheckEvery: recheckEvery, freeSpace: filecopy.FreeSpace, win: newWindowOptions(o)}
 	if n, ok := o.Enqueuer.(finishNotifier); ok && o.Tiers != nil {
 		n.OnFinish(r.OnJobFinish)
 	}
@@ -126,13 +126,29 @@ type SourceSummary struct {
 	RetainsDeferred int64    `json:"retainsDeferred,omitempty"`
 }
 
-// syncRun is the state of one sync job attempt.
+// syncRun is the state of one sync job attempt: its planning (the shared planner of every engine,
+// planner.go; the exported Plan wraps it) and, for a filecopy destination, its execution.
 type syncRun struct {
-	r   *SyncRunner
+	r   *Planner
 	job jobs.Job
 	env jobs.Env
 	rep jobs.Reporter
-	h   *destinations.Handle
+	// h is the filecopy destination's handle (nil when an engine runner planned: Planner.Plan).
+	h *destinations.Handle
+
+	// What the planner reads of the destination (planner.go).
+	dest   PlanDestination
+	destFS engines.PlanFS
+	// free returns the destination's free bytes (known false: the free-space check is skipped).
+	free func() (free int64, known bool, err error)
+	opts PlanOptions
+
+	// recheckEvery is how many items run between two marker re-checks (filecopy).
+	recheckEvery int
+	// win is the destination's transfer window and bandwidth (filecopy execution, window.go).
+	win *windowRun
+	// lastItem is the item runItem ran last (the window cut records its detail).
+	lastItem *itemRun
 
 	sources []catalog.Source
 	linked  map[int64]catalog.Source
@@ -176,7 +192,7 @@ type syncRun struct {
 // failed: the manifest is the only protection of the files that are not copied.
 func (r *SyncRunner) Run(ctx context.Context, job jobs.Job, env jobs.Env) (jobs.Result, error) {
 	res, err := r.run(ctx, job, env)
-	if id := r.queueManifestExport(ctx, job, err); id != 0 {
+	if id := r.QueueManifestExport(ctx, job, err); id != 0 {
 		if st, ok := res.Stats.(SyncStats); ok && err == nil {
 			st.ManifestExportJob = id
 			res.Stats = st
@@ -216,6 +232,14 @@ func (r *SyncRunner) run(ctx context.Context, job jobs.Job, env jobs.Env) (res j
 	if !d.Enabled {
 		return jobs.Result{}, fmt.Errorf("sync: destination %q is disabled", d.Name)
 	}
+	if !job.DryRun {
+		// Outside the destination's transfer window the job waits for it, before it does anything
+		// (phase4.md §9.2, S27).
+		if err := r.win.startCheck(d, r.now()); err != nil {
+			followed = true
+			return jobs.Result{}, err
+		}
+	}
 	h, err := r.dests.Open(ctx, destID)
 	if err != nil {
 		if notMounted(err) && isFollowUp(job) {
@@ -229,8 +253,8 @@ func (r *SyncRunner) run(ctx context.Context, job jobs.Job, env jobs.Env) (res j
 	}
 	defer h.Close()
 
-	s := &syncRun{r: r, job: job, env: env, rep: reporterOf(env), h: h, linked: map[int64]catalog.Source{}, roots: map[int64]*os.Root{},
-		retentionDir: filecopy.RetentionDir(job.QueuedAt, job.ID)}
+	s := &syncRun{r: r.Planner, job: job, env: env, rep: reporterOf(env), h: h, linked: map[int64]catalog.Source{}, roots: map[int64]*os.Root{},
+		retentionDir: filecopy.RetentionDir(job.QueuedAt, job.ID), recheckEvery: r.recheckEvery}
 	defer s.closeRoots()
 	s.rep.Log(slog.LevelInfo, "sync started", "destination", d.Name, "attempt", job.Attempt, "dryRun", job.DryRun,
 		"allowChanges", job.Params.AllowChanges, "hardlinks", string(h.Settings.Hardlinks))
@@ -251,43 +275,16 @@ func (r *SyncRunner) run(ctx context.Context, job jobs.Job, env jobs.Env) (res j
 			return jobs.Result{}, fmt.Errorf("sync: %w", err)
 		}
 	}
-	if err := s.selectSources(ctx); err != nil {
-		return jobs.Result{}, err
+	// The planner reads the destination through its root (and statfs for the free space).
+	s.dest = PlanDestination{ID: h.Destination.ID, Name: h.Destination.Name, SourceIDs: h.Destination.SourceIDs,
+		Settings: h.Settings, Caps: h.Capabilities}
+	s.destFS = rootPlanFS{root: h.Root}
+	s.free = func() (int64, bool, error) {
+		free, _, err := r.freeSpace(h.Root)
+		return int64(min(free, uint64(1<<62))), err == nil, err
 	}
-
-	planned, err := env.Items.Planned(ctx, job.ID)
-	if err != nil {
+	if err := s.prepare(ctx); err != nil {
 		return jobs.Result{}, err
-	}
-	if planned {
-		s.rep.Log(slog.LevelInfo, "the plan is complete: continuing with its pending items")
-		if err := s.recheckUnknownHold(ctx); err != nil {
-			return jobs.Result{}, err
-		}
-	} else {
-		// A job with items but no complete plan was stopped while planning: plan again.
-		if err := env.Items.DeleteItems(ctx, job.ID); err != nil {
-			return jobs.Result{}, err
-		}
-		if err := s.prepareRelease(ctx); err != nil {
-			return jobs.Result{}, err
-		}
-		if err := s.scanAndPlan(ctx); err != nil {
-			if ctx.Err() != nil {
-				return jobs.Result{}, ctx.Err()
-			}
-			return jobs.Result{}, err
-		}
-		s.planned = true
-		s.movedToNonFull()
-		s.staleReleases()
-		if err := s.checkFreeSpace(ctx); err != nil {
-			if !job.DryRun {
-				return jobs.Result{}, err
-			}
-			s.warnings++
-			s.rep.Log(slog.LevelWarn, err.Error())
-		}
 	}
 	if job.DryRun {
 		return s.result(ctx, started)
@@ -295,6 +292,7 @@ func (r *SyncRunner) run(ctx context.Context, job jobs.Job, env jobs.Env) (res j
 	if err := s.openSources(); err != nil {
 		return jobs.Result{}, err
 	}
+	s.win = r.win.forDestination(d, r.now)
 	err = s.execute(ctx)
 	// The folder flags follow the executed moves also when the attempt failed or was cancelled
 	// (the moves happened; a crash is caught up by the resumed attempt, or by OnJobFinish).
@@ -315,7 +313,7 @@ func (r *SyncRunner) run(ctx context.Context, job jobs.Job, env jobs.Env) (res j
 
 // selectSources loads the destination's linked, enabled sources (narrowed by Params.SourceIDs).
 func (s *syncRun) selectSources(ctx context.Context) error {
-	for _, id := range s.h.Destination.SourceIDs {
+	for _, id := range s.dest.SourceIDs {
 		if len(s.job.Params.SourceIDs) > 0 && !slices.Contains(s.job.Params.SourceIDs, id) {
 			continue
 		}
@@ -430,8 +428,8 @@ func (s *syncRun) scanAndPlan(ctx context.Context) error {
 
 // destinationNames returns the name index (S11) of every live record of the destination.
 func (s *syncRun) destinationNames(ctx context.Context) (*nameIndex, error) {
-	names := newNameIndex(s.h.Capabilities)
-	err := s.r.store.eachLive(ctx, s.h.Destination.ID, func(rec Record) error {
+	names := newNameIndex(s.dest.Caps)
+	err := s.r.store.eachLive(ctx, s.dest.ID, func(rec Record) error {
 		_, planned := s.linked[rec.SourceID]
 		names.addRecord(rec.RelPath, !planned)
 		return nil
@@ -542,7 +540,7 @@ func (s *syncRun) planSource(ctx context.Context, src catalog.Source, names *nam
 		if err != nil {
 			return nil, err
 		}
-		if recs, err = s.r.store.LiveForSource(ctx, s.h.Destination.ID, src.ID); err != nil {
+		if recs, err = s.r.store.LiveForSource(ctx, s.dest.ID, src.ID); err != nil {
 			return nil, err
 		}
 		liveFiles = int64(len(files))
@@ -556,9 +554,9 @@ func (s *syncRun) planSource(ctx context.Context, src catalog.Source, names *nam
 	if err != nil {
 		return nil, err
 	}
-	p := &sourcePlanner{sourceID: src.ID, destFolder: src.DestFolder, caps: s.h.Capabilities, settings: s.h.Settings,
-		names: names, fs: livePlanFS{src: root, dst: s.h.Root}, files: files, targeted: s.targeted(),
-		dryRun: s.job.DryRun, release: s.tier.release}
+	p := &sourcePlanner{sourceID: src.ID, destFolder: src.DestFolder, caps: s.dest.Caps, settings: s.dest.Settings,
+		names: names, fs: livePlanFS{src: root, dst: s.destFS}, files: files, targeted: s.targeted(),
+		dryRun: s.job.DryRun, release: s.tier.release, updateKept: s.opts.UpdateKept}
 	if dec != nil {
 		p.arrAdded = dec.ArrDateAdded
 		nonFull := map[string]bool{}
@@ -586,7 +584,7 @@ func (s *syncRun) planSource(ctx context.Context, src catalog.Source, names *nam
 		}
 	}
 	items := p.items()
-	g := applyGuard(items, liveFiles, s.h.Settings, s.job.Params.AllowChanges)
+	g := applyGuard(items, liveFiles, s.dest.Settings, s.job.Params.AllowChanges)
 	sum.Changes, sum.Held = g.changes, g.held
 	sum.RetainsDeferred = p.deferred
 	s.deferred += p.deferred
@@ -631,11 +629,14 @@ func (s *syncRun) checkFreeSpace(ctx context.Context) error {
 	if s.bytesPlanned == 0 {
 		return nil
 	}
-	free, _, err := s.r.freeSpace(s.h.Root)
+	free, known, err := s.free()
 	if err != nil {
 		return fmt.Errorf("check free space: %w", err)
 	}
-	avail := availableSpace(free)
+	if !known {
+		return nil
+	}
+	avail := availableSpace(uint64(max(free, 0)))
 	if s.bytesPlanned > avail && s.tier.unknownBytes > 0 && s.bytesPlanned-s.tier.unknownBytes <= avail {
 		if s.job.DryRun {
 			s.warnings++
@@ -647,7 +648,7 @@ func (s *syncRun) checkFreeSpace(ctx context.Context) error {
 	}
 	if s.bytesPlanned > avail {
 		return fmt.Errorf("not enough free space at the destination: %s to copy, %s free (1 GiB is kept free); nothing was copied",
-			formatBytes(s.bytesPlanned), formatBytes(int64(min(free, uint64(1<<62)))))
+			formatBytes(s.bytesPlanned), formatBytes(free))
 	}
 	return nil
 }
@@ -705,11 +706,11 @@ func (s *syncRun) notBackedUp(ctx context.Context, sourceID int64, rel string) (
 	}
 	dirs, ok := s.notCurrent[sourceID]
 	if !ok {
-		live, err := s.r.store.LiveForSource(ctx, s.h.Destination.ID, sourceID)
+		live, err := s.r.store.LiveForSource(ctx, s.dest.ID, sourceID)
 		if err != nil {
 			return "", err
 		}
-		kept, err := s.r.store.retainedForSource(ctx, s.h.Destination.ID, sourceID)
+		kept, err := s.r.store.retainedForSource(ctx, s.dest.ID, sourceID)
 		if err != nil {
 			return "", err
 		}
@@ -744,7 +745,7 @@ func (s *syncRun) notBackedUpIn(ctx context.Context, sourceID int64, dir string)
 	if name, ok := s.notCurrentIn[key]; ok {
 		return name, nil
 	}
-	recs, err := s.r.store.forSourceUnder(ctx, s.h.Destination.ID, sourceID, dir)
+	recs, err := s.r.store.forSourceUnder(ctx, s.dest.ID, sourceID, dir)
 	if err != nil {
 		return "", err
 	}
@@ -788,7 +789,7 @@ func holdsContent(r Record) bool {
 // size and mtime.
 func (s *syncRun) backedUp(recs []Record, f catalog.File) bool {
 	for _, r := range recs {
-		if r.Size == f.Size && filecopy.MtimeMatch(r.MtimeNs, f.MtimeNs, s.h.Capabilities.MtimeGranularityNs, 0) {
+		if r.Size == f.Size && filecopy.MtimeMatch(r.MtimeNs, f.MtimeNs, s.dest.Caps.MtimeGranularityNs, 0) {
 			return true
 		}
 	}
@@ -812,19 +813,37 @@ func (s *syncRun) report(p jobs.Progress) {
 	s.rep.Progress(s.progress)
 }
 
-// livePlanFS is the planner's view of the real source and destination.
-type livePlanFS struct{ src, dst *os.Root }
+// livePlanFS is the planner's view: the source through its own root, the destination through
+// the engine's PlanFS (a filecopy destination's root: rootPlanFS).
+type livePlanFS struct {
+	src *os.Root
+	dst engines.PlanFS
+}
 
 func (l livePlanFS) sourceHeadTail(rel string) (string, error) {
 	return filecopy.HeadTailHash(l.src, rel)
 }
 
 func (l livePlanFS) destHeadTail(rel string) (string, error) {
-	return filecopy.HeadTailHash(l.dst, rel)
+	return l.dst.DestHeadTail(rel)
 }
 
 func (l livePlanFS) destStat(rel string) (filecopy.Stat, bool, error) {
-	st, err := filecopy.Lstat(l.dst, rel)
+	return l.dst.DestStat(rel)
+}
+
+// rootPlanFS is a filecopy destination's engines.PlanFS: the files at the destination, read
+// through the job's root.
+type rootPlanFS struct{ root *os.Root }
+
+// DestHeadTail implements engines.PlanFS.
+func (r rootPlanFS) DestHeadTail(rel string) (string, error) {
+	return filecopy.HeadTailHash(r.root, rel)
+}
+
+// DestStat implements engines.PlanFS.
+func (r rootPlanFS) DestStat(rel string) (filecopy.Stat, bool, error) {
+	st, err := filecopy.Lstat(r.root, rel)
 	if errors.Is(err, fs.ErrNotExist) {
 		return filecopy.Stat{}, false, nil
 	}

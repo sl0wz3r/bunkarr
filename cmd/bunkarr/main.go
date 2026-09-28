@@ -28,6 +28,8 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/auth"
 	"github.com/sl0wz3r/bunkarr/internal/config"
 	"github.com/sl0wz3r/bunkarr/internal/db"
+	"github.com/sl0wz3r/bunkarr/internal/engines"
+	"github.com/sl0wz3r/bunkarr/internal/engines/proc"
 	"github.com/sl0wz3r/bunkarr/internal/faultinject"
 	"github.com/sl0wz3r/bunkarr/internal/lock"
 	"github.com/sl0wz3r/bunkarr/internal/logging"
@@ -104,8 +106,9 @@ const (
 
 // serve runs the server until ctx ends (SIGINT/SIGTERM) or the listener fails. Start-up: config
 // dir, lock, logging, fault injection (BUNKARR_FAULTPOINT, tests only), master key, database,
-// auth, the Phase 1 services (api.App: stores, runners, scheduler, notifications; stored secrets
-// registered for redaction), the HTTP listener, and only then the job manager (which resumes
+// auth, the restic and rclone engines (discovered and logged), the services (api.App: stores,
+// runners, scheduler, notifications; stored secrets registered for redaction; the engines' run
+// directories swept), the HTTP listener, and only then the job manager (which resumes
 // interrupted jobs) and the scheduler. Shutdown: stop accepting HTTP requests, stop the
 // scheduler, stop the job manager (running jobs are re-queued to resume), flush notifications,
 // close the database. ready, when set, receives the listening address.
@@ -159,7 +162,7 @@ func serve(ctx context.Context, env config.Env, stdout io.Writer, ready func(net
 	}
 
 	app, err := api.NewApp(ctx, api.AppOptions{DB: database, Keyring: kr, Settings: settings, ConfigDir: env.ConfigDir, Log: log,
-		Plex: api.PlexOptions(env.Docker)})
+		Plex: api.PlexOptions(env.Docker), Engines: discoverEngines(ctx, env, log, started)})
 	if err != nil {
 		return err
 	}
@@ -222,6 +225,39 @@ func serve(ctx context.Context, env config.Env, stdout io.Writer, ready func(net
 	}
 	log.Info("Stopped")
 	return nil
+}
+
+// discoverEngines finds the restic and rclone binaries (BUNKARR_RESTIC_PATH, BUNKARR_RCLONE_PATH,
+// else PATH; checked by config.ResolveEngineBinaries), builds the exec runner over the usable ones
+// and runs their version commands (engines.Discover: restic 0.17+, rclone 1.66+), logging what it
+// found (docs/design/phase4.md §4.4, §10.1). An unavailable engine only makes its destinations
+// unusable: filecopy destinations do not need either.
+func discoverEngines(ctx context.Context, env config.Env, log *slog.Logger, started time.Time) api.EngineOptions {
+	resticBin, rcloneBin := config.ResolveEngineBinaries(env)
+	usable := func(b config.EngineBinary) string {
+		if b.Available() {
+			return b.Path
+		}
+		return ""
+	}
+	runner := proc.NewExecRunner(proc.ExecOptions{ResticPath: usable(resticBin), RclonePath: usable(rcloneBin),
+		Log: log.With("component", "engines")})
+	avail := engines.Discover(ctx, runner, resticBin, rcloneBin)
+	for _, e := range []struct {
+		name string
+		st   engines.BinaryStatus
+	}{{"restic", avail.Restic}, {"rclone", avail.Rclone}} {
+		if e.st.Available {
+			log.Info("Backup engine available", "engine", e.name, "version", e.st.Version, "path", e.st.Path)
+		} else {
+			log.Warn("Backup engine unavailable: its destinations cannot be used", "engine", e.name, "reason", e.st.Reason, "path", e.st.Path)
+		}
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		log.Warn("Could not read the host name; restic lock checks cannot tell this container's locks apart", "error", err)
+	}
+	return api.EngineOptions{Runner: runner, Restic: resticBin, Rclone: rcloneBin, Availability: avail, HostName: host, ProcessStart: started}
 }
 
 func healthcheck(env config.Env, stderr io.Writer) int {

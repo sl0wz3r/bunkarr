@@ -146,7 +146,7 @@ describe('Settings → Connect → *arr', () => {
         refresh: { cron: '15 */6 * * *', enabled: true, staleAfterHours: 24 },
         // No backup chosen: the backup fields go with their defaults (ArrBackup.tsx).
         backupFolder: '',
-        backup: { destinationId: 0, cron: '', enabled: false, maxScheduledAgeDays: 7, acceptInsecureModes: false },
+        backup: { destinationId: 0, cron: '', enabled: false, maxScheduledAgeDays: 7, acceptInsecureModes: false, targets: [] },
       },
     });
   });

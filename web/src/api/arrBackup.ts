@@ -3,7 +3,7 @@
 // only their snapshot rows, which name files, sizes and hashes.
 
 import { api } from './client';
-import type { Integration, Job, Snapshot } from './types';
+import type { BackupTarget, Integration, Job, Snapshot } from './types';
 import type { CronPreset } from '@/lib/cron';
 
 /**
@@ -19,6 +19,12 @@ export type ArrBackupSettings = {
   maxScheduledAgeDays: number;
   /** Allows a destination that does not keep files private (SMB without POSIX extensions). */
   acceptInsecureModes: boolean;
+  /**
+   * Up to four destinations, each with its schedule and acceptInsecureModes (phase4.md §8.5); the
+   * fields above mirror targets[0]. Left out: the single form is the one target. A save always
+   * sends it ([] for none): without it the server keeps the stored targets after the first.
+   */
+  targets?: BackupTarget[];
 };
 
 /** DEFAULT_ARR_BACKUP_CRON is the server's default schedule of an enabled *arr backup (weekly). */

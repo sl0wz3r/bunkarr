@@ -151,7 +151,8 @@
           "startTime",
           "uptimeSeconds",
           "databasePath",
-          "schemaVersion"
+          "schemaVersion",
+          "engines"
         ],
         "properties": {
           "appName": {
@@ -202,6 +203,9 @@
           },
           "authenticationRequired": {
             "$ref": "#/components/schemas/AuthRequired"
+          },
+          "engines": {
+            "$ref": "#/components/schemas/EngineAvailability"
           }
         }
       },
@@ -320,6 +324,14 @@
           "releaseRevision": {
             "type": "integer",
             "description": "The tier rule revision that dry run evaluated."
+          },
+          "prune": {
+            "type": "boolean",
+            "description": "A retention job of one restic destination prunes its repository now."
+          },
+          "readData": {
+            "type": "boolean",
+            "description": "A verify job reads everything once (restic check --read-data; every file on rclone and filecopy)."
           }
         }
       },
@@ -359,6 +371,23 @@
           },
           "etaSeconds": {
             "type": "integer"
+          },
+          "batch": {
+            "type": "integer",
+            "description": "Engine jobs: the batch running"
+          },
+          "batches": {
+            "type": "integer",
+            "description": "Engine jobs: the batches planned so far"
+          },
+          "limitBytesPerSec": {
+            "type": "integer",
+            "description": "The upload limit in force (0 or missing: none)"
+          },
+          "windowEndsAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the destination's transfer window closes"
           }
         }
       },
@@ -411,7 +440,7 @@
               "object",
               "null"
             ],
-            "description": "Runner-specific counters, e.g. sync: filesPlanned, filesCopied, filesUpdated, filesMoved, filesAdopted, filesLinked, filesRetained, filesDisplaced, filesHeld, filesFailed, filesSkipped, bytesPlanned, bytesCopied, durationMs, and with tier rules: tiers {full, manifest, skip, unknownPromoted: {files, bytes}}, filesKept, bytesKept, filesReleased, bytesReleased, movedToNonFull, staleReferences, tierRevision; refresh: items, itemsAdded, itemsUpdated, itemsDeleted, files, filesMapped, filesUnmapped, filesMismatched, guardHeld, followUpJobs (Plex index, Tautulli, Seerr, Maintainerr: items, files, requests and a type-specific cache object); arr_backup: method, reusedScheduled, unchanged, bytes, integrity, snapshotId, versionsPruned; manifest_export: items, files, bytes, unchanged, damagedFound, manifestId, versionsPruned."
+            "description": "Runner-specific counters, e.g. sync: filesPlanned, filesCopied, filesUpdated, filesMoved, filesAdopted, filesLinked, filesRetained, filesDisplaced, filesHeld, filesFailed, filesSkipped, bytesPlanned, bytesCopied, durationMs, and with tier rules: tiers {full, manifest, skip, unknownPromoted: {files, bytes}}, filesKept, bytesKept, filesReleased, bytesReleased, movedToNonFull, staleReferences, tierRevision; refresh: items, itemsAdded, itemsUpdated, itemsDeleted, files, filesMapped, filesUnmapped, filesMismatched, guardHeld, followUpJobs (Plex index, Tautulli, Seerr, Maintainerr: items, files, requests and a type-specific cache object); arr_backup: method, reusedScheduled, unchanged, bytes, integrity, snapshotId, versionsPruned; manifest_export: items, files, bytes, unchanged, damagedFound, manifestId, versionsPruned. Engine jobs (restic, rclone) add: sync: engine, batches, bytesUploaded, bytesRead, snapshots [{sourceId, snapshotId, batch, filesNew, filesChanged, filesUnmodified, dataAdded}], unchanged, deferrals, limitKiBps; verify: engine, check {numErrors, readSubset}, sampleFiles, sampleBytes, versionsChecked; retention: engine, snapshotsForgotten, snapshotsKept, forgetRequests, pruned, pruneDurationMs, cleanup. Engine jobs (restic, rclone) add: sync: engine, batches, bytesUploaded, bytesRead, snapshots [{sourceId, snapshotId, batch, filesNew, filesChanged, filesUnmodified, dataAdded}], unchanged, deferrals, limitKiBps; verify: engine, check {numErrors, readSubset}, sampleFiles, sampleBytes, versionsChecked; retention: engine, snapshotsForgotten, snapshotsKept, forgetRequests, pruned, pruneDurationMs, cleanup."
           },
           "warnings": {
             "type": "integer"
@@ -440,6 +469,15 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "notBefore": {
+            "type": "string",
+            "format": "date-time",
+            "description": "A queued job that a transfer window deferred does not start before this time"
+          },
+          "deferrals": {
+            "type": "integer",
+            "description": "How often a transfer window deferred the job"
           }
         }
       },
@@ -655,7 +693,8 @@
           "enabled",
           "lastRunAt",
           "nextRunAt",
-          "blockedReason"
+          "blockedReason",
+          "lastSkip"
         ],
         "properties": {
           "id": {
@@ -693,7 +732,18 @@
           },
           "blockedReason": {
             "type": "string",
-            "description": "Why the scheduler refuses this schedule's jobs, e.g. 'destination \"UNAS\" is disabled' (its destination or Plex server is disabled; Run now answers 409 too); empty when they can run"
+            "description": "Why the scheduler refuses this schedule's jobs, e.g. 'destination \"UNAS\" is disabled' or 'destination \"B2\": export and confirm the recovery kit first' (its destination or Plex server is disabled, or an engine destination's create did not finish, its recovery kit is not confirmed or its engine is not available; Run now answers 409 too); empty when they can run"
+          },
+          "lastSkip": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleSkip"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the last fire queued no job (the same job still running, or a deferred job of the destination waiting for its transfer window); null when it did"
           }
         }
       },
@@ -741,7 +791,7 @@
       },
       "PlexBackup": {
         "type": "object",
-        "description": "The scheduled Plex DB backup (managed as a plexdb_backup schedule).",
+        "description": "The scheduled Plex DB backups: one plexdb_backup schedule per target.",
         "required": [
           "destinationId",
           "cron",
@@ -758,6 +808,14 @@
           },
           "enabled": {
             "type": "boolean"
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackupTarget"
+            },
+            "maxItems": 4,
+            "description": "Up to 4 targets (always returned). The single form (destinationId, cron, enabled) is the first target; a request that sends only it replaces targets[0] and keeps the others."
           }
         }
       },
@@ -890,6 +948,11 @@
               }
             ],
             "description": "Plex only, in place of apiKey (not together with apiKey or clearApiKey). A saved integration consumes the sign-in."
+          },
+          "currentPassword": {
+            "type": "string",
+            "writeOnly": true,
+            "description": "The logged-in user's password (S29). Required, with a login session, when the request sends data off-site or relaxes a safety check; a wrong one is 400 and counts as a failed login; the API key and the local bypass get 403."
           }
         }
       },
@@ -1496,7 +1559,7 @@
       },
       "DestinationSettings": {
         "type": "object",
-        "description": "Missing or zero values take the defaults.",
+        "description": "Missing or zero values take the defaults. transfers, verify.sampleMaxBytes, restic and rclone apply to those engines only (400 on another engine).",
         "properties": {
           "verify": {
             "type": "object",
@@ -1513,6 +1576,11 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 100
+              },
+              "sampleMaxBytes": {
+                "type": "integer",
+                "minimum": 1048576,
+                "description": "restic and rclone: the most bytes one sample verify reads (default 4 GiB restic, 16 GiB rclone)"
               }
             }
           },
@@ -1544,6 +1612,19 @@
           "maxChangeFiles": {
             "type": "integer",
             "minimum": 0
+          },
+          "transfers": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32,
+            "default": 4,
+            "description": "restic and rclone: parallel transfers"
+          },
+          "restic": {
+            "$ref": "#/components/schemas/ResticSettings"
+          },
+          "rclone": {
+            "$ref": "#/components/schemas/RcloneSettings"
           }
         }
       },
@@ -1589,6 +1670,34 @@
             "minimum": 0,
             "maximum": 520,
             "description": "ISO weeks that keep their newest manifest version (0 keeps none; missing is 12)"
+          },
+          "snapshotDaily": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3650,
+            "default": 7,
+            "description": "restic only: periods that keep their newest complete snapshot (0 keeps none)"
+          },
+          "snapshotWeekly": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 520,
+            "default": 4,
+            "description": "restic only: periods that keep their newest complete snapshot (0 keeps none)"
+          },
+          "snapshotMonthly": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 120,
+            "default": 6,
+            "description": "restic only: periods that keep their newest complete snapshot (0 keeps none)"
+          },
+          "snapshotYearly": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 0,
+            "description": "restic only: periods that keep their newest complete snapshot (0 keeps none)"
           }
         }
       },
@@ -1610,7 +1719,14 @@
           "lastJob",
           "lastSync",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "kind",
+          "remote",
+          "hasCredentials",
+          "encryption",
+          "bandwidth",
+          "pending",
+          "waitingUntil"
         ],
         "properties": {
           "id": {
@@ -1620,13 +1736,11 @@
             "type": "string"
           },
           "engine": {
-            "type": "string",
-            "enum": [
-              "filecopy"
-            ]
+            "$ref": "#/components/schemas/DestEngine"
           },
           "target": {
-            "type": "string"
+            "type": "string",
+            "description": "A local destination's resolved path, or a remote's display location (sftp://user@host:22/path, s3:<endpoint>/<bucket>/<prefix>, b2:<bucket>/<prefix>)"
           },
           "enabled": {
             "type": "boolean"
@@ -1684,26 +1798,80 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DestKind"
+          },
+          "remote": {
+            "$ref": "#/components/schemas/Remote"
+          },
+          "hasCredentials": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "The storage credential fields that are stored (never a value)"
+          },
+          "encryption": {
+            "$ref": "#/components/schemas/EncryptionInfo"
+          },
+          "bandwidth": {
+            "$ref": "#/components/schemas/Bandwidth"
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "A create that initialized a repository has not finished: no job runs; create the same location again to finish it, or delete it"
+          },
+          "blockedReason": {
+            "type": "string",
+            "description": "Why no job but a dry run runs: the create did not finish, the recovery kit is not confirmed, or the engine is not available"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Warnings of the create or update that returned it (not stored)"
+          },
+          "engineVersion": {
+            "type": "string",
+            "description": "restic and rclone: the installed engine's version"
+          },
+          "engineState": {
+            "$ref": "#/components/schemas/EngineState"
+          },
+          "retentionSchedule": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CronSchedule"
+              }
+            ],
+            "description": "restic and rclone: the destination's own retention schedule (filecopy: the global retention job)"
+          },
+          "waitingUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When a job waiting for the transfer window starts again; null when none waits"
           }
         }
       },
       "DestinationInput": {
         "type": "object",
-        "description": "Create: name and target are required. Update: empty or missing fields keep the stored values.",
+        "description": "Create: name is required, and target for a local destination. Update: empty or missing fields keep the stored values; kind, engine, target, the remote's location and the encryption cannot change. S29 (a login session and currentPassword): creating a destination whose kind is not local or with acceptUnencrypted; updating credentials, remote.hostKeys or remote.caCert, or linking a source to a destination whose kind is not local.",
         "properties": {
           "name": {
             "type": "string",
             "maxLength": 100
           },
           "engine": {
-            "type": "string",
-            "enum": [
-              "filecopy"
-            ]
+            "$ref": "#/components/schemas/DestEngine"
           },
           "target": {
             "type": "string",
-            "description": "Absolute path of the mounted share; it must exist. Cannot change after creation."
+            "description": "A local destination's absolute path (a mounted share); it must exist. Remote kinds use remote. Cannot change after creation."
           },
           "enabled": {
             "type": "boolean"
@@ -1738,22 +1906,68 @@
           },
           "attach": {
             "type": "boolean",
-            "description": "Create only: adopt the existing .bunkarr/destination.json marker (S3)."
+            "description": "Create only: adopt the existing marker (filecopy, rclone) or restic repository (S3); a restic repository needs its password as encryption.secret."
           },
           "allowLocal": {
             "type": "boolean",
             "description": "Create only: accept a target on a local filesystem (S3)."
+          },
+          "kind": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DestKind"
+              }
+            ],
+            "description": "Default local"
+          },
+          "remote": {
+            "$ref": "#/components/schemas/Remote"
+          },
+          "credentials": {
+            "$ref": "#/components/schemas/StorageCredentials"
+          },
+          "encryption": {
+            "$ref": "#/components/schemas/EncryptionInput"
+          },
+          "bandwidth": {
+            "$ref": "#/components/schemas/Bandwidth"
+          },
+          "retentionSchedule": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CronSchedule"
+              }
+            ],
+            "description": "restic and rclone only. Create: missing means 30 4 * * * (daily). Update: missing keeps it."
+          },
+          "currentPassword": {
+            "type": "string",
+            "writeOnly": true,
+            "description": "The logged-in user's password (S29). Required, with a login session, when the request sends data off-site or relaxes a safety check; a wrong one is 400 and counts as a failed login; the API key and the local bypass get 403."
           }
         }
       },
       "DestinationTest": {
         "type": "object",
-        "required": [
-          "target"
-        ],
+        "description": "A filecopy target ({target}), or the connection of a restic or rclone destination to create ({kind, engine, target, remote, credentials, encryption}). Never an id or a stored secret.",
         "properties": {
           "target": {
             "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DestKind"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/DestEngine"
+          },
+          "remote": {
+            "$ref": "#/components/schemas/Remote"
+          },
+          "credentials": {
+            "$ref": "#/components/schemas/StorageCredentials"
+          },
+          "encryption": {
+            "$ref": "#/components/schemas/EncryptionInput"
           }
         }
       },
@@ -1856,6 +2070,10 @@
         "properties": {
           "dryRun": {
             "type": "boolean"
+          },
+          "readData": {
+            "type": "boolean",
+            "description": "Read everything once: restic check --read-data, every recorded file on rclone, every file's hash on filecopy"
           }
         }
       },
@@ -1892,7 +2110,8 @@
             "type": "string",
             "enum": [
               "plexdb",
-              "arr"
+              "arr",
+              "media"
             ]
           },
           "integrationId": {
@@ -1904,7 +2123,7 @@
           },
           "path": {
             "type": "string",
-            "description": "Version directory relative to the target"
+            "description": "Version directory relative to the target (empty for media snapshots)"
           },
           "createdAt": {
             "type": "string",
@@ -1932,9 +2151,33 @@
           },
           "manifest": {
             "type": "object"
+          },
+          "engineRef": {
+            "type": "string",
+            "description": "restic and rclone: the snapshot id or remote path"
+          },
+          "sourceId": {
+            "type": "integer",
+            "description": "media only"
+          },
+          "batch": {
+            "type": "integer",
+            "description": "media only"
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "media only: the batch finished"
+          },
+          "files": {
+            "type": "integer",
+            "description": "media only"
+          },
+          "dataAdded": {
+            "type": "integer",
+            "description": "media only: bytes this snapshot added to the repository"
           }
         },
-        "description": "A recorded version at a destination: a Plex DB version (kind plexdb) or an *arr backup (kind arr, never served)."
+        "description": "A recorded version at a destination: a Plex DB version (kind plexdb), an *arr backup (kind arr, never served), or on a restic destination a media snapshot of one source and batch (kind media)."
       },
       "Notification": {
         "type": "object",
@@ -2111,7 +2354,7 @@
       },
       "ArrBackup": {
         "type": "object",
-        "description": "The scheduled *arr backup (managed as an arr_backup schedule).",
+        "description": "The scheduled *arr backups: one arr_backup schedule per target.",
         "properties": {
           "destinationId": {
             "type": "integer",
@@ -2134,7 +2377,15 @@
           },
           "acceptInsecureModes": {
             "type": "boolean",
-            "description": "Allow a destination whose capabilities.enforcesModes is false (the zips hold the *arr's secrets); otherwise saving such a destination is 400"
+            "description": "The single form's (targets[0]) flag: allow a destination whose capabilities.enforcesModes is false (the zips hold the *arr's secrets); otherwise saving such a destination is 400. Setting it is S29."
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackupTarget"
+            },
+            "maxItems": 4,
+            "description": "Up to 4 targets (always returned). The single form (destinationId, cron, enabled) is the first target; a request that sends only it replaces targets[0] and keeps the others."
           }
         }
       },
@@ -4666,6 +4917,779 @@
             "type": "integer"
           }
         }
+      },
+      "DestKind": {
+        "type": "string",
+        "enum": [
+          "local",
+          "sftp",
+          "s3",
+          "b2"
+        ],
+        "description": "Where a destination is: a folder in the container (a mounted share), an SFTP server, S3-compatible storage or Backblaze B2. Cannot change after creation."
+      },
+      "DestEngine": {
+        "type": "string",
+        "enum": [
+          "filecopy",
+          "restic",
+          "rclone"
+        ],
+        "description": "filecopy (plain files, local only), restic (an encrypted, deduplicated repository) or rclone (a plain copy of the files, encrypted with rclone crypt by default). Cannot change after creation."
+      },
+      "EncryptionMode": {
+        "type": "string",
+        "enum": [
+          "none",
+          "restic",
+          "crypt"
+        ],
+        "description": "none: plain files (filecopy; rclone only with acceptUnencrypted); restic: the repository's own encryption; crypt: an rclone crypt remote over the destination."
+      },
+      "HostKey": {
+        "type": "object",
+        "required": [
+          "type",
+          "key"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "ssh-ed25519, ecdsa-sha2-nistp256/384/521 or ssh-rsa"
+          },
+          "key": {
+            "type": "string",
+            "description": "The key in base64 SSH wire format"
+          }
+        }
+      },
+      "HostKeyInfo": {
+        "type": "object",
+        "required": [
+          "type",
+          "fingerprint",
+          "key"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string",
+            "description": "SHA256:<base64>, as ssh-keygen -l prints it"
+          },
+          "key": {
+            "type": "string",
+            "description": "The key in base64 SSH wire format (pin it as a HostKey)"
+          }
+        }
+      },
+      "SFTPRemote": {
+        "type": "object",
+        "required": [
+          "host",
+          "user",
+          "path"
+        ],
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 22
+          },
+          "user": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute, or relative to the login directory"
+          },
+          "hostKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostKey"
+            },
+            "description": "The pinned host keys (from POST /destinations/sftp/hostkeys). Required to create; a test without them answers the presented keys. Changing them is S29."
+          }
+        }
+      },
+      "S3Remote": {
+        "type": "object",
+        "required": [
+          "provider",
+          "bucket"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "AWS",
+              "Minio",
+              "Wasabi",
+              "Cloudflare",
+              "Other"
+            ]
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "https URL; empty for AWS (the region's endpoint)"
+          },
+          "region": {
+            "type": "string"
+          },
+          "bucket": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "storageClass": {
+            "type": "string",
+            "description": "One the provider offers; empty for its default"
+          },
+          "forcePathStyle": {
+            "type": "boolean"
+          },
+          "caCert": {
+            "type": "string",
+            "description": "One PEM certificate for a self-signed endpoint (empty: the system roots). Changing it is S29."
+          }
+        }
+      },
+      "B2Remote": {
+        "type": "object",
+        "required": [
+          "bucket"
+        ],
+        "properties": {
+          "bucket": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          }
+        }
+      },
+      "Remote": {
+        "description": "A remote kind's non-secret location (phase4.md §4.2), decoded strictly for the kind: SFTPRemote (sftp), S3Remote (s3), B2Remote (b2); {} for local.",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SFTPRemote"
+          },
+          {
+            "$ref": "#/components/schemas/S3Remote"
+          },
+          {
+            "$ref": "#/components/schemas/B2Remote"
+          },
+          {
+            "type": "object",
+            "maxProperties": 0
+          }
+        ]
+      },
+      "StorageCredentials": {
+        "type": "object",
+        "writeOnly": true,
+        "minProperties": 1,
+        "additionalProperties": false,
+        "description": "Write-only storage credentials (never returned; hasCredentials names the stored fields). sftp: privateKey (+ privateKeyPassphrase) or password; s3: accessKeyId and secretAccessKey; b2: keyId and applicationKey. On update the fields sent replace the stored ones (tested first against the stored remote; S29); null and {} are refused.",
+        "properties": {
+          "privateKey": {
+            "type": "string"
+          },
+          "privateKeyPassphrase": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "accessKeyId": {
+            "type": "string"
+          },
+          "secretAccessKey": {
+            "type": "string"
+          },
+          "keyId": {
+            "type": "string"
+          },
+          "applicationKey": {
+            "type": "string"
+          }
+        }
+      },
+      "EncryptionInput": {
+        "type": "object",
+        "description": "Create only (it cannot change): restic always encrypts (mode restic); rclone uses crypt unless mode none with acceptUnencrypted (S29). The secret is generated unless the user gives one (at least 16 characters; attaching an existing repository needs it). A generated or typed secret is shown only in the recovery kit.",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/EncryptionMode"
+          },
+          "generate": {
+            "type": "boolean",
+            "default": true
+          },
+          "acceptUnencrypted": {
+            "type": "boolean",
+            "description": "Needed for mode none: the provider can read every file (S29)"
+          },
+          "secret": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 16
+          }
+        }
+      },
+      "EncryptionInfo": {
+        "type": "object",
+        "required": [
+          "mode",
+          "origin",
+          "kitExportedAt",
+          "kitConfirmedAt"
+        ],
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/EncryptionMode"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "generated",
+              "user",
+              ""
+            ],
+            "description": "Who chose the secret; empty: no secret"
+          },
+          "kitExportedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "kitConfirmedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "null while the recovery kit custody is not confirmed: no job but a dry run runs (S21)"
+          }
+        }
+      },
+      "BandwidthEntry": {
+        "type": "object",
+        "required": [
+          "days",
+          "from",
+          "to"
+        ],
+        "properties": {
+          "days": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "mon",
+                "tue",
+                "wed",
+                "thu",
+                "fri",
+                "sat",
+                "sun"
+              ]
+            },
+            "minItems": 1
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[0-2][0-9]:[0-5][0-9]$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^[0-2][0-9]:[0-5][0-9]$",
+            "description": "Before from: runs into the next day"
+          },
+          "uploadKiBps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "downloadKiBps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          }
+        }
+      },
+      "BandwidthWindow": {
+        "type": "object",
+        "required": [
+          "days",
+          "from",
+          "to"
+        ],
+        "description": "Sync, verify and retention jobs run only inside the window; a job still running at its end plus graceMinutes is stopped and waits for the next opening (a deferred job).",
+        "properties": {
+          "days": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "mon",
+                "tue",
+                "wed",
+                "thu",
+                "fri",
+                "sat",
+                "sun"
+              ]
+            },
+            "minItems": 1
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[0-2][0-9]:[0-5][0-9]$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^[0-2][0-9]:[0-5][0-9]$"
+          },
+          "graceMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 120,
+            "default": 15
+          },
+          "allowOverrun": {
+            "type": "boolean",
+            "description": "Let a file larger than the window start alone at its opening and run past its end"
+          }
+        }
+      },
+      "Bandwidth": {
+        "type": "object",
+        "description": "Limits in KiB/s (0: unlimited), a weekly timetable of other limits and a transfer window, in the container's time zone (phase4.md §9.1, §9.2). Engine destinations and filecopy.",
+        "properties": {
+          "uploadKiBps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "downloadKiBps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000000
+          },
+          "timetable": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BandwidthEntry"
+            },
+            "maxItems": 16
+          },
+          "window": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BandwidthWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null: always open"
+          }
+        }
+      },
+      "ResticSettings": {
+        "type": "object",
+        "description": "A restic destination's settings; missing or zero values take the defaults.",
+        "properties": {
+          "packSizeMiB": {
+            "type": "integer",
+            "minimum": 4,
+            "maximum": 128,
+            "description": "Default 64 (16 for local)"
+          },
+          "batchBytes": {
+            "type": "integer",
+            "minimum": 1048576,
+            "description": "Default 64 GiB"
+          },
+          "batchFiles": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000,
+            "default": 20000
+          },
+          "pruneEveryDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 90,
+            "default": 7
+          },
+          "pruneMaxUnused": {
+            "type": "string",
+            "default": "10%",
+            "description": "A percentage (10%), a size (5G) or unlimited"
+          }
+        }
+      },
+      "RcloneSettings": {
+        "type": "object",
+        "description": "An rclone destination's settings; missing or zero values take the defaults.",
+        "properties": {
+          "batchFiles": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000,
+            "default": 1000
+          },
+          "batchBytes": {
+            "type": "integer",
+            "minimum": 1048576,
+            "description": "Default 64 GiB"
+          }
+        }
+      },
+      "EngineState": {
+        "type": "object",
+        "description": "A restic or rclone destination's engine state (engine_state): zero values before its first job.",
+        "properties": {
+          "destinationId": {
+            "type": "integer"
+          },
+          "engineVersion": {
+            "type": "string",
+            "description": "The engine at the last job"
+          },
+          "lastPruneAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastCheckAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "readSubsetNext": {
+            "type": "integer",
+            "description": "n of the next restic check --read-data-subset=n/t"
+          },
+          "lastCleanupAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "throughputBps": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Upload rate recent syncs measured (bytes/s)"
+          },
+          "stats": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Repository or remote figures (e.g. snapshotCount, repositoryBytes)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineTestResult": {
+        "type": "object",
+        "description": "The test of a restic or rclone destination (phase4.md §4.5). Problems with the location are reported here (ok false, message); the request's secrets are redacted.",
+        "required": [
+          "ok",
+          "reachable",
+          "entries",
+          "freeBytes"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "reachable": {
+            "type": "boolean"
+          },
+          "repository": {
+            "type": "string",
+            "enum": [
+              "missing",
+              "exists",
+              "wrong-password",
+              "locked"
+            ],
+            "description": "restic"
+          },
+          "marker": {
+            "type": "string",
+            "enum": [
+              "missing",
+              "ok",
+              "unreadable",
+              "foreign",
+              "mismatch"
+            ],
+            "description": "rclone"
+          },
+          "id": {
+            "type": "string",
+            "description": "The repository id (restic) or the marker's id (rclone)"
+          },
+          "markerName": {
+            "type": "string",
+            "description": "The destination name in the marker"
+          },
+          "entries": {
+            "type": "integer",
+            "description": "Top-level entries (up to 1000)"
+          },
+          "hostKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostKeyInfo"
+            },
+            "description": "sftp without pinned keys: the keys the server presents (nothing else ran)"
+          },
+          "freeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "null when unknown"
+          },
+          "engineVersion": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "BinaryStatus": {
+        "type": "object",
+        "required": [
+          "available"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "description": "BUNKARR_RESTIC_PATH / BUNKARR_RCLONE_PATH, resolved"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the engine is not available"
+          }
+        }
+      },
+      "EngineAvailability": {
+        "type": "object",
+        "required": [
+          "restic",
+          "rclone"
+        ],
+        "description": "What start-up found for the restic and rclone binaries.",
+        "properties": {
+          "restic": {
+            "$ref": "#/components/schemas/BinaryStatus"
+          },
+          "rclone": {
+            "$ref": "#/components/schemas/BinaryStatus"
+          }
+        }
+      },
+      "EngineSettings": {
+        "type": "object",
+        "required": [
+          "uploadSlots",
+          "retryBudgetMinutes",
+          "uploadSlotsInEffect",
+          "restartRequired",
+          "note"
+        ],
+        "properties": {
+          "uploadSlots": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "default": 2,
+            "description": "How many engine syncs (not dry runs) upload at once"
+          },
+          "retryBudgetMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440,
+            "default": 10,
+            "description": "How long an engine command may keep retrying before it is stopped"
+          },
+          "uploadSlotsInEffect": {
+            "type": "integer",
+            "description": "The slot count in use (read at start-up)"
+          },
+          "restartRequired": {
+            "type": "boolean",
+            "description": "uploadSlots differs from the count in effect: it applies after a restart"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "EngineSettingsUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Missing fields keep their values.",
+        "properties": {
+          "uploadSlots": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
+          "retryBudgetMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440
+          }
+        }
+      },
+      "HostKeyScanRequest": {
+        "type": "object",
+        "required": [
+          "host"
+        ],
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 22
+          }
+        }
+      },
+      "RecoveryKitRequest": {
+        "type": "object",
+        "required": [
+          "currentPassword"
+        ],
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "writeOnly": true,
+            "description": "The logged-in user's password (S29). Required, with a login session, when the request sends data off-site or relaxes a safety check; a wrong one is 400 and counts as a failed login; the API key and the local bypass get 403."
+          },
+          "includeStorageCredentials": {
+            "type": "boolean",
+            "description": "Also put the storage credentials in the kit"
+          }
+        }
+      },
+      "RecoveryKitConfirmation": {
+        "type": "object",
+        "description": "Exactly one: the kit's check code (case, spaces and dashes ignored), or the encryption password the user typed at create, typed again.",
+        "properties": {
+          "checkCode": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string",
+            "writeOnly": true
+          }
+        }
+      },
+      "UnlockRequest": {
+        "type": "object",
+        "properties": {
+          "removeAll": {
+            "type": "boolean",
+            "description": "restic unlock --remove-all: every lock, not only stale ones"
+          }
+        }
+      },
+      "RetentionRequest": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "prune": {
+            "type": "boolean",
+            "description": "restic: prune the repository in this run"
+          }
+        }
+      },
+      "BackupTarget": {
+        "type": "object",
+        "required": [
+          "destinationId"
+        ],
+        "description": "One destination a Plex DB or *arr backup is written to, with its own schedule (params {integrationId, destinationId}). A destination whose kind is not local must be encrypted (400); adding one is S29.",
+        "properties": {
+          "destinationId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "cron": {
+            "type": "string",
+            "description": "Empty with enabled false: manual backups only"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "acceptInsecureModes": {
+            "type": "boolean",
+            "description": "Allow this target's local destination not to keep file modes (setting it is S29)"
+          }
+        }
+      },
+      "ScheduleSkip": {
+        "type": "object",
+        "required": [
+          "at",
+          "reason"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The fire's scheduled time"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
       }
     },
     "responses": {
@@ -4720,7 +5744,7 @@
         }
       },
       "BadGateway": {
-        "description": "Plex, plex.tv or an *arr answered badly or not at all",
+        "description": "Plex, plex.tv, an *arr, an SFTP server or a restic repository answered badly or not at all",
         "content": {
           "application/json": {
             "schema": {
@@ -4731,6 +5755,34 @@
       },
       "ServiceUnavailable": {
         "description": "No backup services are configured on this server, or the request was stopped (the server is shutting down)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Refused: the request needs a login session (the API key and the local-address bypass get 403), e.g. a change that sends data off-site or relaxes a safety check (S29), or the recovery kit",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "Too many failed password checks from this address (the login limiter; see Retry-After)",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds until the next try",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
         "content": {
           "application/json": {
             "schema": {
@@ -5158,6 +6210,71 @@
         }
       }
     },
+    "/settings/engines": {
+      "get": {
+        "operationId": "getEngineSettings",
+        "summary": "Settings of the restic and rclone engines",
+        "responses": {
+          "200": {
+            "description": "Settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateEngineSettings",
+        "summary": "Change the upload slots (applies after a restart) and the retry budget (applies to the next job)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngineSettingsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/integrations": {
       "get": {
         "operationId": "listIntegrations",
@@ -5235,6 +6352,12 @@
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "tags": [
@@ -5391,6 +6514,12 @@
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "tags": [
@@ -5529,7 +6658,14 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "$ref": "#/components/responses/Conflict"
+            "description": "Conflicts with the current state; or the destination's create did not finish, its recovery kit is not confirmed or its engine is not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "500": {
             "$ref": "#/components/responses/ServerError"
@@ -6100,8 +7236,8 @@
       },
       "post": {
         "operationId": "createDestination",
-        "summary": "Add a destination: checks and probes the target and writes its marker (S3); creates its schedules",
-        "description": "A target that already holds a marker needs attach (409 otherwise); a target on a local filesystem needs allowLocal (400 otherwise).",
+        "summary": "Add a destination: checks the target (filecopy) or tests the location and initializes the repository or writes the marker (restic, rclone); creates its schedules",
+        "description": "A target that already holds a marker or repository needs attach (409 otherwise); a local target on a local filesystem needs allowLocal (400 otherwise). An off-site kind or acceptUnencrypted is S29 (403 without a login session, 400 for a wrong currentPassword, 429 while the login limiter blocks). An encrypted destination runs no job but dry runs until its recovery kit is exported and confirmed.",
         "requestBody": {
           "required": true,
           "content": {
@@ -6137,6 +7273,15 @@
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
           }
         },
         "tags": [
@@ -6147,7 +7292,7 @@
     "/destinations/test": {
       "post": {
         "operationId": "testDestinationTarget",
-        "summary": "Check a target before creating a destination (writes nothing)",
+        "summary": "Check a target or a connection before creating a destination (writes nothing)",
         "requestBody": {
           "required": true,
           "content": {
@@ -6164,7 +7309,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DestinationTestResult"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/DestinationTestResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EngineTestResult"
+                    }
+                  ]
                 }
               }
             }
@@ -6177,6 +7329,63 @@
           },
           "500": {
             "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ],
+        "description": "A filecopy target answers DestinationTestResult; a restic or rclone connection answers EngineTestResult. An sftp remote without hostKeys answers the presented keys and runs nothing else."
+      }
+    },
+    "/destinations/sftp/hostkeys": {
+      "post": {
+        "operationId": "scanSftpHostKeys",
+        "summary": "Read the host keys an SFTP server presents, to confirm and pin them (never authenticates)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostKeyScanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The presented keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HostKeyInfo"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "description": "The server could not be reached or presented no key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
@@ -6229,7 +7438,7 @@
       },
       "put": {
         "operationId": "updateDestination",
-        "summary": "Update a destination and its schedules (the target cannot change)",
+        "summary": "Update a destination and its schedules (kind, engine, target, location and encryption cannot change)",
         "parameters": [
           {
             "$ref": "#/components/parameters/id"
@@ -6273,11 +7482,21 @@
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "502": {
+            "$ref": "#/components/responses/BadGateway"
           }
         },
         "tags": [
           "Destinations"
-        ]
+        ],
+        "description": "New credentials (tested first against the stored remote), remote.hostKeys, remote.caCert, or a source linked to a destination whose kind is not local are S29."
       },
       "delete": {
         "operationId": "deleteDestination",
@@ -6285,6 +7504,15 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "confirmLoseSecret",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Delete a destination whose recovery kit custody was never confirmed: its encryption secret is deleted with it (409 without it)"
           }
         ],
         "responses": {
@@ -6318,7 +7546,7 @@
     "/destinations/{id}/test": {
       "post": {
         "operationId": "testDestination",
-        "summary": "Check a destination: marker, filesystem, free space; re-runs the capability probe",
+        "summary": "Check a destination: filecopy re-checks the marker, filesystem and free space and re-runs the capability probe; restic and rclone test the stored location with the stored secrets (no body)",
         "parameters": [
           {
             "$ref": "#/components/parameters/id"
@@ -6330,13 +7558,27 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DestinationTestResult"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/DestinationTestResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EngineTestResult"
+                    }
+                  ]
                 }
               }
             }
           },
           "400": {
-            "$ref": "#/components/responses/BadRequest"
+            "description": "Invalid input, or connection fields sent for a restic or rclone destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -6396,7 +7638,14 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "$ref": "#/components/responses/Conflict"
+            "description": "The destination is disabled, a release does not match its preview, or (not for a dry run) the destination's create did not finish, its recovery kit is not confirmed or its engine is not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "500": {
             "$ref": "#/components/responses/ServerError"
@@ -6450,7 +7699,284 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "$ref": "#/components/responses/Conflict"
+            "description": "The destination is disabled, or (not for a dry run) its create did not finish, its recovery kit is not confirmed or its engine is not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/destinations/{id}/retention": {
+      "post": {
+        "operationId": "startDestinationRetention",
+        "summary": "Run the destination's retention now (restic: forget, and prune when due or asked)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The queued job (an identical queued job is returned instead of a new one)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input, or prune on a destination that is not restic",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The destination is disabled, or (not for a dry run) its create did not finish, its recovery kit is not confirmed or its engine is not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/destinations/{id}/unlock": {
+      "post": {
+        "operationId": "unlockDestination",
+        "summary": "Remove a restic repository's stale locks (removeAll: every lock)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnlockRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "Invalid input, or not a restic destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "A job of the destination (of any type) is running or waiting for its transfer window, or a backup or download is using its repository",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "502": {
+            "description": "restic unlock failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/destinations/{id}/recovery-kit": {
+      "post": {
+        "operationId": "exportRecoveryKit",
+        "summary": "Download the recovery kit: the only response that carries the encryption secret",
+        "description": "Needs a login session and the user's password (the API key and the local bypass get 403; a wrong password is 400 and counts as a failed login). Every export sends a warning notification.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryKitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The kit (an attachment)",
+            "headers": {
+              "Content-Disposition": {
+                "description": "attachment; filename=...",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input, a wrong currentPassword, or a destination without an encryption secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": [
+          "Destinations"
+        ]
+      }
+    },
+    "/destinations/{id}/recovery-kit/confirm": {
+      "post": {
+        "operationId": "confirmRecoveryKit",
+        "summary": "Confirm the recovery kit custody: the destination's jobs may run",
+        "description": "Needs a login session. A wrong check code or password is 400 and counts as a failed login.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryKitConfirmation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Confirmed"
+          },
+          "400": {
+            "description": "Invalid input, a wrong check code or password, or a destination without a recovery kit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           },
           "500": {
             "$ref": "#/components/responses/ServerError"
@@ -6467,7 +7993,7 @@
     "/destinations/{id}/snapshots": {
       "get": {
         "operationId": "listSnapshots",
-        "summary": "Plex database and *arr backup versions stored at the destination, newest first",
+        "summary": "Versions stored at the destination, newest first: Plex database and *arr backup versions, and on a restic destination its media snapshots (kind media)",
         "parameters": [
           {
             "$ref": "#/components/parameters/id"
@@ -7003,7 +8529,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The schedule is blocked (blockedReason): its destination or Plex server is disabled",
+            "description": "The schedule is blocked (blockedReason): its destination or Plex server is disabled, or an engine destination's create did not finish, its recovery kit is not confirmed or its engine is not available",
             "content": {
               "application/json": {
                 "schema": {
@@ -7476,7 +9002,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The integration or destination is disabled, or the destination does not keep file modes and backup.acceptInsecureModes is off",
+            "description": "The integration or destination is disabled, or the destination does not keep file modes and backup.acceptInsecureModes is off; or the destination's create did not finish, its recovery kit is not confirmed or its engine is not available",
             "content": {
               "application/json": {
                 "schema": {
@@ -8382,7 +9908,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The destination is disabled",
+            "description": "The destination is disabled, its create did not finish, its recovery kit is not confirmed or its engine is not available",
             "content": {
               "application/json": {
                 "schema": {
@@ -8499,7 +10025,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The version is damaged, or the destination is not mounted",
+            "description": "The version is damaged, or the destination is not mounted or not reachable",
             "content": {
               "application/json": {
                 "schema": {

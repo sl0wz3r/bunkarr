@@ -25,11 +25,12 @@ type VerifyRunner struct {
 	base
 	planBatch    int
 	recheckEvery int
+	win          windowOptions
 }
 
 // NewVerifyRunner returns the verify job runner.
 func NewVerifyRunner(o Options) *VerifyRunner {
-	return &VerifyRunner{base: newBase(o), planBatch: planBatch, recheckEvery: recheckEvery}
+	return &VerifyRunner{base: newBase(o), planBatch: planBatch, recheckEvery: recheckEvery, win: newWindowOptions(o)}
 }
 
 var _ jobs.Runner = (*VerifyRunner)(nil)
@@ -65,12 +66,12 @@ func (r *VerifyRunner) Run(ctx context.Context, job jobs.Job, env jobs.Env) (job
 	if env.Items == nil {
 		return jobs.Result{}, errors.New("verify: the job has no item store")
 	}
-	h, err := openEnabled(ctx, r.dests, job.Params.DestinationID, "verify")
+	h, win, err := openInWindow(ctx, r.dests, r.win, job, "verify", r.now)
 	if err != nil {
 		return jobs.Result{}, err
 	}
 	defer h.Close()
-	v := &verifyRun{r: r, job: job, env: env, rep: rep, h: h}
+	v := &verifyRun{r: r, job: job, env: env, rep: rep, h: h, win: win}
 	rep.Log(slog.LevelInfo, "verify started", "destination", h.Destination.Name, "mode", string(h.Settings.Verify.Mode),
 		"samplePercent", h.Settings.Verify.SamplePercent, "attempt", job.Attempt)
 	if err := prepareIdentity(ctx, h, rep, job.DryRun, &v.unsettled); err != nil {
@@ -113,6 +114,28 @@ func (r *VerifyRunner) Run(ctx context.Context, job jobs.Job, env jobs.Env) (job
 	return v.result(ctx, started)
 }
 
+// openInWindow is openEnabled for a verify or retention job of a destination: a job that is not a
+// dry run and starts outside the destination's transfer window defers before it opens anything
+// (phase4.md §9.2). It returns the window a real run checks between its steps (nil: none).
+func openInWindow(ctx context.Context, dests *destinations.Store, o windowOptions, job jobs.Job, what string, now func() time.Time) (*destinations.Handle, *windowRun, error) {
+	if job.Params.DestinationID != 0 && !job.DryRun {
+		if d, err := dests.Get(ctx, job.Params.DestinationID); err == nil && d.Enabled {
+			if err := o.startCheck(d, now()); err != nil {
+				return nil, nil, err
+			}
+		}
+	}
+	h, err := openEnabled(ctx, dests, job.Params.DestinationID, what)
+	if err != nil {
+		return nil, nil, err
+	}
+	var win *windowRun
+	if !job.DryRun {
+		win = o.forDestination(h.Destination, now)
+	}
+	return h, win, nil
+}
+
 // openEnabled loads a destination, refuses a disabled one and opens it (S3 checks).
 func openEnabled(ctx context.Context, dests *destinations.Store, id int64, what string) (*destinations.Handle, error) {
 	if id == 0 {
@@ -146,6 +169,8 @@ type verifyRun struct {
 	// and a failed check of the destination's inode numbers (prepareIdentity).
 	unsettled int
 	progress  jobs.Progress
+	// win is the destination's transfer window, checked between steps (nil: none).
+	win *windowRun
 }
 
 // plan stats every live file record and persists an item for each problem and each sampled file.
@@ -293,6 +318,9 @@ func (v *verifyRun) execute(ctx context.Context) error {
 			}
 			if it.Action != jobs.ActionVerify {
 				continue
+			}
+			if err := checkWindow(v.win, v.r.now()); err != nil {
+				return err
 			}
 			if err := v.verifyItem(ctx, it); err != nil {
 				return err

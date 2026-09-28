@@ -71,6 +71,14 @@ type Record struct {
 	VerifiedAt   *time.Time `json:"verifiedAt,omitempty"`
 	RetainedAt   *time.Time `json:"retainedAt,omitempty"`
 	ExpiresAt    *time.Time `json:"expiresAt,omitempty"`
+	// EngineRef is, on a restic destination, the snapshot that holds the recorded version; "" on
+	// a live row means the source's base (its newest recorded snapshot) holds it (phase4.md §6.2,
+	// §6.3, D31). Always "" on filecopy and rclone rows.
+	EngineRef string `json:"engineRef,omitempty"`
+	// HeadTail is, on restic and rclone destinations, the head/tail hash of the content that was
+	// backed up (filecopy.HeadTailHash), read before the upload: the move pairing compares it
+	// (§3.3). "" on filecopy rows.
+	HeadTail string `json:"headTail,omitempty"`
 }
 
 // ErrNotFound means a record does not exist.
@@ -89,7 +97,7 @@ type Store struct {
 func NewStore(d *db.DB) *Store { return &Store{db: d} }
 
 const recordColumns = `id, destination_id, source_id, rel_path, source_rel_path, size, mtime_ns, hash, link_of, state,
-	retained_path, reason, job_id, copied_at, verified_at, retained_at, expires_at`
+	retained_path, reason, job_id, copied_at, verified_at, retained_at, expires_at, engine_ref, head_tail`
 
 // liveStates is the SQL list of live states.
 const liveStates = `('present', 'linked', 'link_recorded', 'missing')`
@@ -102,14 +110,16 @@ func scanRecord(r rowScanner) (Record, error) {
 		sourceID, linkOf, jobID                     sql.NullInt64
 		hash, retained, reason                      sql.NullString
 		copiedAt, verifiedAt, retainedAt, expiresAt sql.NullString
+		engineRef, headTail                         sql.NullString
 		state                                       string
 	)
 	if err := r.Scan(&rec.ID, &rec.DestinationID, &sourceID, &rec.RelPath, &rec.SourceRelPath, &rec.Size, &rec.MtimeNs,
-		&hash, &linkOf, &state, &retained, &reason, &jobID, &copiedAt, &verifiedAt, &retainedAt, &expiresAt); err != nil {
+		&hash, &linkOf, &state, &retained, &reason, &jobID, &copiedAt, &verifiedAt, &retainedAt, &expiresAt, &engineRef, &headTail); err != nil {
 		return Record{}, err
 	}
 	rec.SourceID, rec.LinkOf, rec.JobID = sourceID.Int64, linkOf.Int64, jobID.Int64
 	rec.Hash, rec.RetainedPath, rec.Reason = hash.String, retained.String, reason.String
+	rec.EngineRef, rec.HeadTail = engineRef.String, headTail.String
 	rec.State = State(state)
 	var err error
 	for _, t := range []struct {
@@ -273,11 +283,12 @@ func nullTime(t *time.Time) sql.NullString {
 // insertRecord inserts rec (its ID is ignored) and returns the new id.
 func insertRecord(ctx context.Context, tx *sql.Tx, rec Record) (int64, error) {
 	res, err := tx.ExecContext(ctx, `INSERT INTO destination_files (destination_id, source_id, rel_path, source_rel_path, size,
-		mtime_ns, hash, link_of, state, retained_path, reason, job_id, copied_at, verified_at, retained_at, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		mtime_ns, hash, link_of, state, retained_path, reason, job_id, copied_at, verified_at, retained_at, expires_at, engine_ref,
+		head_tail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		rec.DestinationID, nullInt(rec.SourceID), rec.RelPath, rec.SourceRelPath, rec.Size, rec.MtimeNs, nullStr(rec.Hash),
 		nullInt(rec.LinkOf), string(rec.State), nullStr(rec.RetainedPath), nullStr(rec.Reason), nullInt(rec.JobID),
-		nullTime(rec.CopiedAt), nullTime(rec.VerifiedAt), nullTime(rec.RetainedAt), nullTime(rec.ExpiresAt))
+		nullTime(rec.CopiedAt), nullTime(rec.VerifiedAt), nullTime(rec.RetainedAt), nullTime(rec.ExpiresAt), nullStr(rec.EngineRef),
+		nullStr(rec.HeadTail))
 	if err != nil {
 		return 0, fmt.Errorf("record %s: %w", rec.RelPath, err)
 	}
@@ -292,10 +303,10 @@ func insertRecord(ctx context.Context, tx *sql.Tx, rec Record) (int64, error) {
 func updateRecord(ctx context.Context, tx *sql.Tx, rec Record) error {
 	res, err := tx.ExecContext(ctx, `UPDATE destination_files SET source_id = ?, rel_path = ?, source_rel_path = ?, size = ?,
 		mtime_ns = ?, hash = ?, link_of = ?, state = ?, retained_path = ?, reason = ?, job_id = ?, copied_at = ?, verified_at = ?,
-		retained_at = ?, expires_at = ? WHERE id = ?`,
+		retained_at = ?, expires_at = ?, engine_ref = ?, head_tail = ? WHERE id = ?`,
 		nullInt(rec.SourceID), rec.RelPath, rec.SourceRelPath, rec.Size, rec.MtimeNs, nullStr(rec.Hash), nullInt(rec.LinkOf),
 		string(rec.State), nullStr(rec.RetainedPath), nullStr(rec.Reason), nullInt(rec.JobID), nullTime(rec.CopiedAt),
-		nullTime(rec.VerifiedAt), nullTime(rec.RetainedAt), nullTime(rec.ExpiresAt), rec.ID)
+		nullTime(rec.VerifiedAt), nullTime(rec.RetainedAt), nullTime(rec.ExpiresAt), nullStr(rec.EngineRef), nullStr(rec.HeadTail), rec.ID)
 	if err != nil {
 		return fmt.Errorf("update record %s: %w", rec.RelPath, err)
 	}

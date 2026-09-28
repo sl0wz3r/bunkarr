@@ -139,8 +139,26 @@ const DRY_RUN_STAT_LABELS: Record<string, string> = {
   bytes: 'Size to back up',
 };
 
-/** DRY_RUN_HIDDEN_STATS are counters a dry run never moves (always 0). */
-export const DRY_RUN_HIDDEN_STATS = new Set(['bytesCopied', 'bytesExpired', 'bytesVerified', 'hashesRecorded', 'pruned']);
+/**
+ * DRY_RUN_HIDDEN_STATS are counters a dry run never moves (always 0), the engines' included: a
+ * preview uploads, reads, batches, forgets and prunes nothing, and never waits for a transfer
+ * window (internal/enginerun job.go). An engine's `unchanged` is hidden by engineStatHidden, as
+ * the *arr backup and manifest previews do fill theirs.
+ */
+export const DRY_RUN_HIDDEN_STATS = new Set([
+  'bytesCopied',
+  'bytesExpired',
+  'bytesVerified',
+  'hashesRecorded',
+  'pruned',
+  'batches',
+  'bytesUploaded',
+  'bytesRead',
+  'forgetRequests',
+  'pruneDurationMs',
+  'cleanup',
+  'deferrals',
+]);
 
 /** statLabel names a job stats key (in a dry run: what would happen); unknown keys are split from camelCase. */
 export function statLabel(key: string, dryRun = false): string {

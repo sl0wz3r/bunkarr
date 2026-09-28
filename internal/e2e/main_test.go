@@ -29,6 +29,9 @@ func TestMain(m *testing.M) {
 	if previous.dir != "" { // the Phase 2 binary of upgrade_test.go
 		_ = os.RemoveAll(previous.dir)
 	}
+	if phase3.dir != "" { // the Phase 3 binary of upgrade_phase3_test.go
+		_ = os.RemoveAll(phase3.dir)
+	}
 	os.Exit(code)
 }
 

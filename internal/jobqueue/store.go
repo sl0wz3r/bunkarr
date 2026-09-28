@@ -23,6 +23,9 @@ type Store struct {
 	now func() time.Time
 	// pruneBatch bounds how many rows one PruneHistory transaction deletes.
 	pruneBatch int
+	// onFinal fires the OnFinish hooks of a job the store itself finished (a deferred sync the
+	// scheduler superseded); the Manager that owns the store sets it.
+	onFinal func(jobs.Job)
 }
 
 var _ jobs.ItemStore = (*Store)(nil)
@@ -33,7 +36,7 @@ func NewStore(d *db.DB) *Store {
 }
 
 // jobColumns is the column list scanJob reads, in order.
-const jobColumns = `id, type, status, trigger, dry_run, params, attempt, progress, stats, warnings, summary, error, queued_at, started_at, finished_at`
+const jobColumns = `id, type, status, trigger, dry_run, params, attempt, progress, stats, warnings, summary, error, queued_at, started_at, finished_at, not_before, deferrals`
 
 // rowScanner is *sql.Row or *sql.Rows.
 type rowScanner interface {
@@ -46,10 +49,11 @@ func scanJob(sc rowScanner) (jobs.Job, error) {
 		typ, status, trigger       string
 		params, progress, stats    string
 		errText, started, finished sql.NullString
+		notBefore                  sql.NullString
 		queued                     string
 	)
 	if err := sc.Scan(&j.ID, &typ, &status, &trigger, &j.DryRun, &params, &j.Attempt, &progress, &stats,
-		&j.Warnings, &j.Summary, &errText, &queued, &started, &finished); err != nil {
+		&j.Warnings, &j.Summary, &errText, &queued, &started, &finished, &notBefore, &j.Deferrals); err != nil {
 		return j, err
 	}
 	j.Type, j.Status, j.Trigger = jobs.Type(typ), jobs.Status(status), jobs.Trigger(trigger)
@@ -77,6 +81,9 @@ func scanJob(sc rowScanner) (jobs.Job, error) {
 	if j.FinishedAt, err = parseNullTime(finished); err != nil {
 		return j, fmt.Errorf("job %d: finished_at: %w", j.ID, err)
 	}
+	if j.NotBefore, err = parseNullTime(notBefore); err != nil {
+		return j, fmt.Errorf("job %d: not_before: %w", j.ID, err)
+	}
 	return j, nil
 }
 
@@ -100,7 +107,8 @@ func nullInt(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: v !=
 //   - returns the identical queued job (type, canonical params, dry run) when there is one, except,
 //     for a sync, verify or retention spec that is not a dry run, a re-queued job whose plan is
 //     already complete (it resumes that plan without scanning again, so what changed since would
-//     be lost; see resumesStoredPlan);
+//     be lost; see resumesStoredPlan), and never a job that was deferred (Job.Deferrals > 0 or a
+//     not_before: it has a plan and waits for its transfer window, phase4.md §11.2);
 //   - otherwise, for a targeted spec that is not a dry run, coalesces it with queued jobs that are
 //     not dry runs and never started (phase2-3.md §12.2, see coalesce): it returns a queued
 //     untargeted job that covers it, or merges its paths or item ids into a queued targeted job
@@ -136,6 +144,7 @@ func (s *Store) createJob(ctx context.Context, spec jobs.Spec) (job jobs.Job, ou
 		skipPlanned := !spec.DryRun && resumesStoredPlan(spec.Type)
 		existing, err := scanJob(tx.QueryRowContext(ctx, `SELECT `+jobColumns+` FROM jobs
 			WHERE status = 'queued' AND type = ? AND params = ? AND dry_run = ? AND (? = 0 OR planned_at IS NULL)
+			AND deferrals = 0 AND not_before IS NULL
 			ORDER BY id LIMIT 1`,
 			string(spec.Type), params, spec.DryRun, skipPlanned))
 		if err == nil {
@@ -305,10 +314,11 @@ func (s *Store) ActiveForDestination(ctx context.Context, id int64) (bool, error
 		WHERE status IN ('queued', 'running') AND destination_id = ?)`, id)
 }
 
-func (s *Store) activeFor(ctx context.Context, what, q string, id int64) (bool, error) {
+// activeFor runs an EXISTS query whose first argument is the id of what.
+func (s *Store) activeFor(ctx context.Context, what, q string, args ...any) (bool, error) {
 	var active bool
-	if err := s.db.Reader().QueryRowContext(ctx, q, id).Scan(&active); err != nil {
-		return false, fmt.Errorf("check active jobs of %s %d: %w", what, id, err)
+	if err := s.db.Reader().QueryRowContext(ctx, q, args...).Scan(&active); err != nil {
+		return false, fmt.Errorf("check active jobs of %s %v: %w", what, args[0], err)
 	}
 	return active, nil
 }
@@ -407,13 +417,14 @@ func (s *Store) queuedJobs(ctx context.Context, limit int) ([]jobs.Job, error) {
 	return out, nil
 }
 
-// markRunning moves a queued job to running. ok is false when the job is no longer queued (it
-// was cancelled in the meantime).
+// markRunning moves a queued job to running and clears its not_before (a deferred job's wait is
+// over; Deferrals keeps the count). ok is false when the job is no longer queued (it was
+// cancelled in the meantime).
 func (s *Store) markRunning(ctx context.Context, id int64, now time.Time) (job jobs.Job, ok bool, err error) {
 	at := db.FormatTime(now)
 	err = s.db.Write(ctx, func(tx *sql.Tx) error {
-		job, err = scanJob(tx.QueryRowContext(ctx, `UPDATE jobs SET status = 'running', started_at = COALESCE(started_at, ?), heartbeat_at = ?
-			WHERE id = ? AND status = 'queued' RETURNING `+jobColumns, at, at, id))
+		job, err = scanJob(tx.QueryRowContext(ctx, `UPDATE jobs SET status = 'running', started_at = COALESCE(started_at, ?), heartbeat_at = ?,
+			not_before = NULL WHERE id = ? AND status = 'queued' RETURNING `+jobColumns, at, at, id))
 		return err
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -486,7 +497,8 @@ func (s *Store) requeue(ctx context.Context, id int64, progress []byte) (ok bool
 	return ok, nil
 }
 
-// cancelQueued cancels a job that has not started. ok is false when it was not queued.
+// cancelQueued cancels a queued job: one that has not started, or one that was deferred and waits
+// for its transfer window. ok is false when it was not queued.
 func (s *Store) cancelQueued(ctx context.Context, id int64, now time.Time) (ok bool, err error) {
 	return s.finishQueued(ctx, id, jobs.StatusCancelled, "", "Cancelled before it started.", now)
 }
@@ -494,8 +506,10 @@ func (s *Store) cancelQueued(ctx context.Context, id int64, now time.Time) (ok b
 // finishQueued moves a queued job straight to a final status.
 func (s *Store) finishQueued(ctx context.Context, id int64, status jobs.Status, errText, summary string, now time.Time) (ok bool, err error) {
 	err = s.db.Write(ctx, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = ?, summary = ?, finished_at = ?
-			WHERE id = ? AND status = 'queued'`, string(status), nullString(errText), summary, db.FormatTime(now), id)
+		res, err := tx.ExecContext(ctx, `UPDATE jobs SET status = ?, error = ?,
+			summary = CASE WHEN deferrals > 0 AND ? = 'cancelled' THEN 'Cancelled while it waited for its transfer window.' ELSE ? END,
+			finished_at = ?, not_before = NULL WHERE id = ? AND status = 'queued'`,
+			string(status), nullString(errText), string(status), summary, db.FormatTime(now), id)
 		if err != nil {
 			return err
 		}

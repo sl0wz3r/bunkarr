@@ -88,16 +88,21 @@ setup_identity() {
 	return 0
 }
 
-# fix_config_ownership: /config itself plus Bunkarr's own files in it. Symlinks are changed
-# themselves (-h), never followed; other filesystems are not crossed (-xdev); hard-linked files
-# are skipped so a link placed in /config cannot hand over a file from elsewhere.
+# fix_config_ownership: /config itself plus Bunkarr's own files in it: the database, key, lock
+# and logs, and the directories Bunkarr keeps between runs (0700, so a PUID/PGID change would
+# otherwise lock it out of them): run (the restic/rclone run directories), cache (restic's
+# caches), staging (Plex DB, *arr, manifest, verify and config-version staging) and backups (the
+# pre-migration database copies: migrate refuses to run when it cannot write one). Symlinks are
+# changed themselves (-h), never followed; other filesystems are not crossed (-xdev); hard-linked
+# files are skipped so a link placed in /config cannot hand over a file from elsewhere.
 fix_config_ownership() {
 	_rc=0
 	if [ "$(stat -c '%u:%g' "$CONFIG_DIR")" != "$PUID:$PGID" ]; then
 		chown "$PUID:$PGID" "$CONFIG_DIR" || _rc=1
 	fi
 	for _path in "$CONFIG_DIR"/bunkarr.db "$CONFIG_DIR"/bunkarr.db-* "$CONFIG_DIR"/bunkarr.key \
-		"$CONFIG_DIR"/bunkarr.lock "$CONFIG_DIR"/logs; do
+		"$CONFIG_DIR"/bunkarr.lock "$CONFIG_DIR"/logs "$CONFIG_DIR"/run "$CONFIG_DIR"/cache \
+		"$CONFIG_DIR"/staging "$CONFIG_DIR"/backups; do
 		[ -e "$_path" ] || [ -L "$_path" ] || continue
 		if [ -L "$_path" ]; then
 			warn "Not changing ownership through symlink $_path"

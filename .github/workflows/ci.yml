@@ -131,9 +131,16 @@ jobs:
             VERSION=0.0.0-ci
             COMMIT=${{ github.sha }}
 
-      # Healthcheck, first-run setup, API key auth, UI, PUID/PGID ownership, clean SIGTERM stop.
+      # Healthcheck, first-run setup, API key auth, restic and rclone (present, the versions of
+      # docker/engines/versions.env, restic runs), UI, PUID/PGID ownership, clean SIGTERM stop, a
+      # restart with other PUID/PGID.
       - name: Test image
         run: sh docker/test-image.sh bunkarr:ci
+
+      # deploy/docker-compose.yml renders with every required value and refuses without
+      # SERVER_NAME (docker compose config; nothing starts).
+      - name: Compose file
+        run: sh docker/test-compose.sh
 
       # BUNKARR_FAULTPOINT=copy.afterWrite, docker kill -s KILL mid-copy, docker start: the job
       # resumes (attempt 2) and the backup volume verifies with no temp file left.
@@ -145,6 +152,61 @@ jobs:
       # over NFSv4 (privileged containers; the runner's kernel needs cifs and nfsd).
       - name: Network share test
         run: sh docker/test-shares.sh bunkarr:ci
+
+  engines:
+    name: engine binaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # Real restic and rclone against MinIO and an OpenSSH SFTP server (docs/design/phase4.md
+      # D30, §14.4): go test -tags enginebin inside a golang:1.27-alpine container with alpine's
+      # restic and rclone (docker/engines/Dockerfile); no Bunkarr image and no Go on the runner.
+      - name: Engine binary tests
+        run: sh docker/test-engines.sh
+
+  offsite:
+    name: off-site acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # The drivers are Go tests (internal/e2e); they cross-compile an e2e build of this checkout
+      # into a derived test image.
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version: "1.27"
+          check-latest: true
+          cache-dependency-path: go.sum
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: bunkarr:ci
+          provenance: false
+          build-args: |
+            VERSION=0.0.0-ci
+            COMMIT=${{ github.sha }}
+
+      # docs/design/phase4.md §14.6 (acceptance 1-9): restic and rclone destinations on MinIO and
+      # an OpenSSH SFTP server (both pinned by digest): two destinations, the pinned retention
+      # table, lifecycle with a damaged object and docker kill + resume, the secrets audit (argv
+      # shims, /proc sampler), bandwidth and windows, the recovery kit restored without Bunkarr,
+      # config versions, S29, and two containers on one repository. The real-B2 test is manual
+      # (its variables are never set here).
+      - name: Off-site acceptance
+        run: sh docker/test-offsite.sh bunkarr:ci
 
   plex:
     name: plex restore

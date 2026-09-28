@@ -15,6 +15,9 @@ import (
 	"github.com/sl0wz3r/bunkarr/internal/config"
 	"github.com/sl0wz3r/bunkarr/internal/db"
 	"github.com/sl0wz3r/bunkarr/internal/destinations"
+	"github.com/sl0wz3r/bunkarr/internal/enginerun"
+	"github.com/sl0wz3r/bunkarr/internal/engines"
+	"github.com/sl0wz3r/bunkarr/internal/engines/rclone"
 	"github.com/sl0wz3r/bunkarr/internal/integrations"
 	"github.com/sl0wz3r/bunkarr/internal/integrations/plex"
 	"github.com/sl0wz3r/bunkarr/internal/jobqueue"
@@ -30,8 +33,9 @@ import (
 
 // Setting keys of the job system (settings table, plain values).
 const (
-	// SettingJobsWorkers is how many jobs run at once (default jobqueue.DefaultWorkers). Read at
-	// start-up.
+	// SettingJobsWorkers is how many jobs run at once (default jobqueue.DefaultWorkers), besides
+	// the engine syncs, which run on their upload slots (engines.uploadSlots), and the refresh
+	// jobs, which have their own pool. Read at start-up.
 	SettingJobsWorkers = "jobs.workers"
 	// SettingJobsHistoryDays is how many days finished jobs are kept (default 90). Read by every
 	// global retention job.
@@ -75,6 +79,16 @@ type AppOptions struct {
 	// ProgressEvery and ShutdownGrace are passed to the job manager (zero: its defaults).
 	ProgressEvery time.Duration
 	ShutdownGrace time.Duration
+	// Engines configures the restic and rclone engines (docs/design/phase4.md §4.4, §10.1): the
+	// exec runner and what discovery found at start-up. The zero value has neither engine
+	// available, so only filecopy destinations can be created and run.
+	Engines EngineOptions
+
+	// Test hooks (package tests only). engineRegistry replaces the engines the destinations store
+	// creates, tests and attaches through (enginetest.FakeEngine); openVersions replaces the
+	// version stores of the Plex DB, *arr and manifest runners (enginetest.FakeVersionStore).
+	engineRegistry func(engines.Kind) (engines.Engine, bool)
+	openVersions   engines.VersionOpener
 }
 
 // App is Bunkarr's wired Phase 1 services: every store, the job manager with its runners, the
@@ -102,6 +116,10 @@ type App struct {
 	// Notifications stores the Apprise targets; Notifier sends to them when jobs finish.
 	Notifications *notify.Store
 	Notifier      *notify.Dispatcher
+	// Engine runs the sync, verify and retention jobs of restic and rclone destinations (and
+	// dispatches the filecopy ones to the syncer runners), and serves their state, media snapshots,
+	// unlock and version stores (docs/design/phase4.md §3.4).
+	Engine *enginerun.Service
 	// Jobs is the job manager with every runner registered; Scheduler enqueues from the
 	// schedules table.
 	Jobs      *jobqueue.Manager
@@ -116,6 +134,12 @@ type App struct {
 	signIns *signInRegistry
 	// webhooks is the webhook intake, its event store and processor (webhooks.go).
 	webhooks *webhookService
+	// engines is the engine wiring: availability, run directories, upload slots (engines.go).
+	engines *engineWiring
+	// loc is the time zone of schedules and notification times.
+	loc *time.Location
+	// reminders sends the daily "Recovery kit not confirmed" warnings (engines.go).
+	reminders *kitReminders
 }
 
 // NewApp constructs every Phase 1 service and wires them together: the S4 path guards between
@@ -144,7 +168,12 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("app: %w", err)
 	}
-	a := &App{settings: o.Settings, log: log, plexOpts: plexOpts, signIns: newSignInRegistry(log.With("component", "plexsignin"))}
+	a := &App{settings: o.Settings, log: log, plexOpts: plexOpts, signIns: newSignInRegistry(log.With("component", "plexsignin")),
+		loc: o.Location}
+	if a.loc == nil {
+		a.loc = time.Local
+	}
+	a.engines = newEngineWiring(o, configDir, log)
 
 	guards := &pathGuards{configDir: configDir}
 	a.Files = syncer.NewStore(o.DB)
@@ -181,6 +210,13 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 		ConfigDir: configDir,
 		PathGuard: guards.destination,
 		Log:       log.With("component", "destinations"),
+		// Engine destinations (phase4.md §4, §5): secrets sealed with the keyring, rclone passwords
+		// obscured with a key derived from it (§4.4), created, tested and attached through the
+		// engine service built below (late-bound: the service needs this store).
+		Keyring:    o.Keyring,
+		ObscureKey: o.Keyring.Derive(rclone.ObscureKeyInfo, 32),
+		Engines:    a.engineRegistry(o),
+		CheckHost:  o.Engines.CheckHost,
 	})
 	guards.sources, guards.dests = a.Catalog, a.Destinations
 	a.Scanner = catalog.NewScanner(a.Catalog, catalog.ScannerOptions{ForbiddenRoots: guards.forbiddenRoots, Logger: log.With("component", "scanner")})
@@ -197,9 +233,9 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 					"type", string(inv.Type), "reason", inv.Reason)
 			}
 		}
-		if len(rep.Normalized) > 0 || len(rep.WebhookKeys) > 0 {
+		if len(rep.Normalized) > 0 || len(rep.WebhookKeys) > 0 || len(rep.Migrated) > 0 {
 			log.Info("Saved integrations updated to this version", "settingsNormalized", len(rep.Normalized),
-				"webhookKeysCreated", len(rep.WebhookKeys))
+				"webhookKeysCreated", len(rep.WebhookKeys), "backupTargetsMigrated", len(rep.Migrated))
 		}
 	}
 	if err := a.Integrations.RegisterSecrets(ctx); err != nil {
@@ -208,33 +244,53 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 	if err := a.Notifications.RegisterSecrets(ctx); err != nil {
 		log.Warn("Some notification URLs could not be decrypted", "error", err)
 	}
+	// The storage credentials and encryption secrets of engine destinations (clear, obscured and
+	// JSON-escaped, S22) are redacted from every log line and child output from now on.
+	if err := a.Destinations.RegisterSecrets(ctx); err != nil {
+		log.Warn("Some destination credentials could not be decrypted", "error", err)
+	}
+	// Backup targets of Plex and *arr integrations are checked against their destinations when
+	// saved (phase4.md §8.4 step 6: no credentials on an unencrypted remote destination).
+	a.Integrations.SetValidateOptions(integrations.ValidateOptions{Destination: a.backupDestination})
 
 	workers := o.Workers
 	if workers <= 0 {
 		workers = a.intSetting(ctx, SettingJobsWorkers, jobqueue.DefaultWorkers, 1, maxWorkers)
 	}
+	// Engine syncs hold an upload slot (phase4.md §9.3, D27), on workers of their own: the other
+	// jobs keep jobs.workers (jobPools).
+	allWorkers, slots := a.jobPools(ctx, workers)
 	a.Jobs = jobqueue.New(o.DB, log.With("component", "jobs"), jobqueue.Options{
-		Workers:       workers,
+		Workers:       allWorkers,
 		ProgressEvery: o.ProgressEvery,
 		ShutdownGrace: o.ShutdownGrace,
+		Slots:         slots,
 	})
 	a.Tiers = a.newTierEngine(o)
 	so := syncer.Options{DB: o.DB, Store: a.Files, Catalog: a.Catalog, Scanner: a.Scanner, Destinations: a.Destinations,
 		Logger: log.With("component", "syncer"), Enqueuer: a.Jobs, ManifestAfterSync: a.manifestAfterSync, ExpectedFiles: a.expectedFiles,
-		Tiers: a.Tiers}
+		Tiers: a.Tiers, Location: o.Location}
 	a.webhooks = a.newWebhooks(o)
 	a.Jobs.OnFinish(a.webhooks.proc.OnJobFinish)
 	a.Jobs.Register(jobs.TypeScan, catalog.NewScanRunner(a.Scanner))
-	a.Jobs.Register(jobs.TypeSync, syncer.NewSyncRunner(so))
-	a.Jobs.Register(jobs.TypeVerify, syncer.NewVerifyRunner(so))
-	a.Jobs.Register(jobs.TypeRetention, syncer.NewRetentionRunner(syncer.RetentionOptions{
-		Options:      so,
-		Enqueuer:     a.Jobs,
-		PruneHistory: a.Jobs.Store().PruneHistory,
-		HistoryDays: func(ctx context.Context) (int, error) {
-			return a.intSetting(ctx, SettingJobsHistoryDays, defaultHistoryDays, 1, 36500), nil
-		},
-	}))
+	// sync, verify and retention dispatch on the destination's engine (phase4.md §3.4, D18): the
+	// Phase 1-3 syncer runners stay the filecopy path, unchanged.
+	syncRunner := syncer.NewSyncRunner(so)
+	a.Engine = a.newEngineService(o, configDir, syncRunner.Planner, enginerun.FilecopyRunners{
+		Sync:   syncRunner,
+		Verify: syncer.NewVerifyRunner(so),
+		Retention: syncer.NewRetentionRunner(syncer.RetentionOptions{
+			Options:      so,
+			Enqueuer:     a.Jobs,
+			PruneHistory: a.Jobs.Store().PruneHistory,
+			HistoryDays: func(ctx context.Context) (int, error) {
+				return a.intSetting(ctx, SettingJobsHistoryDays, defaultHistoryDays, 1, 36500), nil
+			},
+		}),
+	})
+	for _, t := range []jobs.Type{jobs.TypeSync, jobs.TypeVerify, jobs.TypeRetention} {
+		a.Jobs.Register(t, a.Engine.Dispatch(t))
+	}
 	pr, err := plexdb.NewRunner(plexdb.Options{
 		DB:           o.DB,
 		Integrations: a.Integrations,
@@ -243,6 +299,7 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 		Log:          log.With("component", "plexdb"),
 		Location:     o.Location,
 		Plex:         a.plexOpts,
+		OpenVersions: a.versionOpener(o),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("app: %w", err)
@@ -276,6 +333,7 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 	a.Notifier = notify.New(a.Notifications, log.With("component", "notify"), no)
 	a.Jobs.OnFinish(a.Notifier.Handle)
 	a.Scheduler = jobqueue.NewScheduler(a.Jobs.Store(), scheduleGate{a: a}, log.With("component", "scheduler"), o.Location)
+	a.reminders = newKitReminders(a)
 	return a, nil
 }
 
@@ -304,6 +362,8 @@ func (a *App) Start(ctx context.Context) error {
 	if err := a.Scheduler.Start(context.WithoutCancel(ctx)); err != nil {
 		return fmt.Errorf("start the scheduler: %w", err)
 	}
+	// "Recovery kit not confirmed" once a day per blocked destination (S21, §5.2).
+	a.reminders.start()
 	return nil
 }
 
@@ -313,6 +373,7 @@ func (a *App) Start(ctx context.Context) error {
 // afterwards.
 func (a *App) Stop(ctx context.Context) error {
 	a.Scheduler.Stop()
+	a.reminders.stop()
 	a.signIns.clear()
 	var errs []error
 	if err := a.webhooks.proc.Stop(ctx); err != nil {
@@ -351,7 +412,9 @@ func (a *App) intSetting(ctx context.Context, key string, def, lo, hi int) int {
 
 // scheduleGate is the scheduler's Enqueuer. A scheduled job whose destination or Plex
 // integration is disabled would only fail (and notify) every time it fires, so it is refused
-// (the scheduler logs the refusal); everything else goes to the job manager.
+// (the scheduler logs the refusal); so is one of an engine destination that may run nothing but
+// dry runs (its create did not finish, its recovery kit custody is not confirmed, or its engine is
+// unavailable; phase4.md S21, §11.1). Everything else goes to the job manager.
 type scheduleGate struct{ a *App }
 
 // Enqueue implements jobs.Enqueuer.
@@ -359,6 +422,11 @@ func (g scheduleGate) Enqueue(ctx context.Context, spec jobs.Spec) (jobs.Job, er
 	if spec.Trigger == jobs.TriggerSchedule {
 		if err := g.a.checkEnabled(ctx, spec.Params); err != nil {
 			return jobs.Job{}, err
+		}
+		if !spec.DryRun {
+			if reason := g.a.destinationBlock(ctx, spec.Params.DestinationID); reason != "" {
+				return jobs.Job{}, errors.New(reason + "; its scheduled job was not queued")
+			}
 		}
 	}
 	return g.a.Jobs.Enqueue(ctx, spec)

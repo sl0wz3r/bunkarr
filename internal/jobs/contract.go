@@ -1,14 +1,17 @@
 // Package jobs is the contract between Bunkarr's job manager (internal/jobqueue: a persistent,
 // resumable queue with worker limits, cancellation, progress and the cron scheduler) and the job
-// runners (internal/catalog, internal/syncer, internal/plexdb, and from Phases 2-3
-// internal/mediaindex, internal/arrbackup, internal/manifest). It holds types, interfaces and
-// pure helpers only, so runners never depend on the manager's implementation; see
-// docs/design/phase1.md §6 and docs/design/phase2-3.md §12.
+// runners (internal/catalog, internal/syncer, internal/plexdb, from Phases 2-3
+// internal/mediaindex, internal/arrbackup, internal/manifest, and from Phase 4 internal/enginerun,
+// which runs sync, verify and retention jobs of restic and rclone destinations). It holds types,
+// interfaces and pure helpers only, so runners never depend on the manager's implementation; see
+// docs/design/phase1.md §6, docs/design/phase2-3.md §12 and docs/design/phase4.md §11.
 package jobs
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"path"
 	"strings"
@@ -125,6 +128,15 @@ type Params struct {
 	// enqueue is refused ("rules changed since the preview") unless it equals the current
 	// revision, and each release item re-checks it when it runs.
 	ReleaseRevision int64 `json:"releaseRevision,omitempty"`
+
+	// Prune makes a retention job of one destination (DestinationID set) prune its restic
+	// repository now, whatever the destination's pruneEveryDays says (phase4.md §6.5). Only on
+	// retention jobs with a destination; other engines ignore it.
+	Prune bool `json:"prune,omitempty"`
+	// ReadData makes a verify job read everything once, whatever the destination's verify mode:
+	// restic check --read-data, every recorded file's content on rclone, every file's hash on
+	// filecopy (phase4.md §6.6, §7.6). Only on verify jobs.
+	ReadData bool `json:"readData,omitempty"`
 }
 
 // ValidTargetPath reports whether p may appear in Params.Paths: a clean (path.Clean(p) == p),
@@ -169,6 +181,52 @@ type Job struct {
 	QueuedAt   time.Time       `json:"queuedAt"`
 	StartedAt  *time.Time      `json:"startedAt"`
 	FinishedAt *time.Time      `json:"finishedAt"`
+	// NotBefore is set on a queued job that was deferred (DeferredError): the manager does not
+	// start it before this time (phase4.md §9.2, §11.2).
+	NotBefore *time.Time `json:"notBefore,omitempty"`
+	// Deferrals counts how often the job was deferred (a transfer window closed on it).
+	Deferrals int `json:"deferrals,omitempty"`
+}
+
+// DeferredError is returned by a runner that stopped cleanly because it may not run now: its
+// destination's transfer window is closed, or closed while it ran (phase4.md S27, §9.2). The
+// manager re-queues the job instead of finishing it: status queued, NotBefore = Until, Deferrals
+// + 1, attempt and trigger unchanged; it releases the job's worker, lock keys and slots and starts
+// it again at or after Until. The job keeps its items and plan, so it continues like a job after
+// a clean shutdown. A deferral is not a final state: OnFinish hooks (notifications) do not run.
+// Until must be after the moment the runner returns; a zero or past Until fails the job
+// ("deferred without a time to resume"). A deferral never replaces a per-file failure: a file that
+// cannot be transferred within one whole window fails its item instead, so a job does not defer
+// forever. A deferred sync is superseded by the next fire of its destination's sync schedule: the
+// manager finishes it cancelled ("superseded by the scheduled run"), without a notification, and
+// the new job plans again; what the deferred job recorded stays (phase4.md §9.2, §11.2).
+type DeferredError struct {
+	// Until is the earliest time the job may start again (the window's next opening).
+	Until time.Time
+	// Reason is shown with the queued job, e.g. "waiting for the transfer window (01:00-07:00)".
+	Reason string
+}
+
+// Error implements error.
+func (e *DeferredError) Error() string {
+	if e.Reason == "" {
+		return fmt.Sprintf("deferred until %s", e.Until.Format(time.RFC3339))
+	}
+	return fmt.Sprintf("%s; deferred until %s", e.Reason, e.Until.Format(time.RFC3339))
+}
+
+// Defer returns a *DeferredError: the job stops now and resumes at or after until.
+func Defer(until time.Time, reason string) error {
+	return &DeferredError{Until: until, Reason: reason}
+}
+
+// AsDeferred reports whether err is, or wraps, a *DeferredError, and returns it.
+func AsDeferred(err error) (*DeferredError, bool) {
+	var d *DeferredError
+	if errors.As(err, &d) && d != nil {
+		return d, true
+	}
+	return nil, false
 }
 
 // Progress is a running job's progress. Runners set the counters; the manager fills in
@@ -183,6 +241,14 @@ type Progress struct {
 	CurrentFile string  `json:"currentFile,omitempty"`
 	BytesPerSec float64 `json:"bytesPerSec"`
 	ETASeconds  int64   `json:"etaSeconds"`
+
+	// Engine jobs (phase4.md §10.4). Batch/Batches: the restic or rclone batch running and how
+	// many the plan has. LimitBytesPerSec: the upload limit in force (0: none). WindowEndsAt:
+	// when the destination's transfer window closes (nil: no window).
+	Batch            int        `json:"batch,omitempty"`
+	Batches          int        `json:"batches,omitempty"`
+	LimitBytesPerSec int64      `json:"limitBytesPerSec,omitempty"`
+	WindowEndsAt     *time.Time `json:"windowEndsAt,omitempty"`
 }
 
 // Result is what a runner returns on success (err == nil). Warnings > 0 makes the job
@@ -206,8 +272,8 @@ const (
 	ActionLink    ItemAction = "link"    // another name of an inode already copied (hardlink)
 	ActionPromote ItemAction = "promote" // make a surviving name hold content before its primary is retained
 	ActionRetain  ItemAction = "retain"  // gone from the source: move into retention (S5)
-	ActionExpire  ItemAction = "expire"  // retention period over: delete the retained copy
-	ActionVerify  ItemAction = "verify"  // re-read and compare a destination file
+	ActionExpire  ItemAction = "expire"  // retention period over: delete the retained copy (restic: a record, or a snapshot forgotten)
+	ActionVerify  ItemAction = "verify"  // re-read and compare a destination file (restic: a check run)
 	ActionBackup  ItemAction = "backup"  // a Plex DB backup file
 	ActionSkip    ItemAction = "skip"    // recorded for the preview, nothing to do
 )

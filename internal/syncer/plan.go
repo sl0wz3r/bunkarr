@@ -99,6 +99,9 @@ type sourcePlanner struct {
 	dryRun   bool
 	release  *releasePlan
 	arrAdded func(rel string) (time.Time, bool)
+	// updateKept plans a kept file whose source changed as an update (restic, D29): a snapshot
+	// cannot keep one old file without keeping the whole snapshot. Its bytes count as kept.
+	updateKept bool
 	// replaceChecked are the same-path checks that found the backup equal (a real run records
 	// them: markReplaceChecked).
 	replaceChecked []replaceCheck
@@ -225,7 +228,7 @@ func (p *sourcePlanner) plan(ctx context.Context) error {
 	// A changed primary whose unchanged dependents still need its old content: promote first.
 	for _, f := range p.files {
 		r := f.rec
-		if r == nil || f.unchanged || r.State != StatePresent || !f.full() {
+		if r == nil || f.unchanged || r.State != StatePresent || !(f.full() || p.keptChanged(f)) {
 			continue
 		}
 		if surv := p.surviving(r); len(surv) > 0 {
@@ -293,7 +296,11 @@ func (p *sourcePlanner) plan(ctx context.Context) error {
 			prim = primary[f.group]
 		}
 		r := f.rec
-		if !f.full() {
+		if !f.full() && p.keptChanged(f) {
+			// D29 (restic): a kept file whose source changed is backed up again, as a full
+			// file's change is; it stays kept (its bytes count as kept).
+			p.tierKept.add(f.size)
+		} else if !f.full() {
 			// Not full here (S15): a move follows the backed-up content; a record is kept; a file
 			// without one is not copied.
 			switch {
@@ -371,6 +378,13 @@ func (p *sourcePlanner) plan(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// keptChanged reports whether f is a kept file (not full, with a live record that holds content)
+// whose source changed and that updateKept plans as an update (D29).
+func (p *sourcePlanner) keptChanged(f *planFile) bool {
+	r := f.rec
+	return p.updateKept && r != nil && !f.unchanged && (r.State == StatePresent || r.State == StateLinked)
 }
 
 // pairMoves finds renames (design §4.2 move): a new path (not a link of another name) whose exact

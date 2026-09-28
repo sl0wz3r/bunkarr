@@ -1,6 +1,11 @@
 package jobs
 
-import "testing"
+import (
+	"errors"
+	"fmt"
+	"testing"
+	"time"
+)
 
 func TestValidTargetPath(t *testing.T) {
 	for p, want := range map[string]bool{
@@ -25,5 +30,20 @@ func TestValidTargetPath(t *testing.T) {
 		if got := ValidTargetPath(p); got != want {
 			t.Errorf("ValidTargetPath(%q) = %v, want %v", p, got, want)
 		}
+	}
+}
+
+func TestAsDeferred(t *testing.T) {
+	until := time.Date(2026, 9, 28, 1, 0, 0, 0, time.UTC)
+	err := fmt.Errorf("sync: %w", Defer(until, "waiting for the transfer window"))
+	d, ok := AsDeferred(err)
+	if !ok || !d.Until.Equal(until) || d.Reason != "waiting for the transfer window" {
+		t.Fatalf("AsDeferred(%v) = %+v, %v", err, d, ok)
+	}
+	if _, ok := AsDeferred(errors.New("other")); ok {
+		t.Error("AsDeferred accepted a plain error")
+	}
+	if _, ok := AsDeferred(nil); ok {
+		t.Error("AsDeferred accepted nil")
 	}
 }

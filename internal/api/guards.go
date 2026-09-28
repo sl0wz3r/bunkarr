@@ -34,6 +34,9 @@ func (g *pathGuards) source(ctx context.Context, p string) error {
 		return fmt.Errorf("check the destinations: %w", err)
 	}
 	for _, d := range list {
+		if d.Kind.Remote() {
+			continue // no local path: its target is a display location (phase4.md §4.2)
+		}
 		switch {
 		case p == d.Target:
 			return fmt.Errorf("%s is the target of destination %q", p, d.Name)
@@ -68,8 +71,9 @@ func (g *pathGuards) destination(ctx context.Context, target string) error {
 }
 
 // forbiddenRoots are the directories a scan skips when it meets them inside a source (by device
-// and inode, so bind-mount aliases are caught too): every destination target and the config
-// directory.
+// and inode, so bind-mount aliases are caught too): every local destination target (filecopy
+// shares and local restic repositories) and the config directory. SFTP, S3 and B2 destinations
+// have no local path.
 func (g *pathGuards) forbiddenRoots(ctx context.Context) ([]string, error) {
 	list, err := g.dests.List(ctx)
 	if err != nil {
@@ -78,6 +82,9 @@ func (g *pathGuards) forbiddenRoots(ctx context.Context) ([]string, error) {
 	out := make([]string, 0, len(list)+1)
 	out = append(out, g.configDir)
 	for _, d := range list {
+		if d.Kind.Remote() {
+			continue
+		}
 		out = append(out, d.Target)
 	}
 	return out, nil

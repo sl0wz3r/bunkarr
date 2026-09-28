@@ -42,6 +42,7 @@ func (a *App) newManifestRunner(o AppOptions, configDir string) (*manifest.Runne
 		ConfigDir:    configDir,
 		Log:          a.log.With("component", "manifest"),
 		Location:     o.Location,
+		OpenVersions: a.versionOpener(o),
 	})
 }
 
@@ -52,6 +53,9 @@ func manifestError(err error) error {
 		return errorf(http.StatusNotFound, "%s", err.Error())
 	case errors.Is(err, manifest.ErrDamaged):
 		return errorf(http.StatusConflict, "%s", manifest.ErrDamaged.Error())
+	case errors.Is(err, manifest.ErrUnreachable):
+		// An engine destination whose identity check or fetch failed (phase4.md §8.6).
+		return errorf(http.StatusConflict, "%s", manifest.ErrUnreachable.Error())
 	case errors.Is(err, manifest.ErrBusy):
 		return errorf(http.StatusTooManyRequests, "%s", err.Error())
 	}
@@ -80,6 +84,11 @@ func (s *Server) startManifestExport(w http.ResponseWriter, r *http.Request) {
 		DryRun bool `json:"dryRun"`
 	}
 	if err := decodeOptionalBody(w, r, &body); err != nil {
+		s.fail(w, r, "start a manifest export", err)
+		return
+	}
+	// A config version job of an engine destination waits for its recovery kit (S21).
+	if err := s.app.checkRunnable(d, body.DryRun); err != nil {
 		s.fail(w, r, "start a manifest export", err)
 		return
 	}

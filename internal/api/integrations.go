@@ -33,23 +33,19 @@ func (s *Server) integrationRoutes(r chi.Router) {
 	s.deletedIntegrationRoutes(r)
 }
 
-// integrationView returns it as the API shows it: a Plex integration's backup cron and enabled
-// flag come from its stored schedule.
+// integrationView returns it as the API shows it: the cron and enabled flag of a Plex or *arr
+// integration's backup targets, and of its refresh, come from their stored schedules, and the
+// backup settings carry both the targets form and the single form (phase4.md §8.5).
 func integrationView(list []jobqueue.Schedule, it integrations.Integration) integrations.Integration {
-	if it.Type.IsArr() {
-		return arrBackupOverlay(list, arrRefreshOverlay(list, it))
-	}
-	if it.Type != integrations.TypePlex {
+	switch {
+	case it.Type.IsArr():
+		it = backupOverlay(list, arrRefreshOverlay(list, it))
+	case it.Type == integrations.TypePlex:
+		it = providerRefreshOverlay(list, backupOverlay(list, it))
+	default:
 		return providerRefreshOverlay(list, it)
 	}
-	ps, err := it.PlexSettings()
-	if err != nil {
-		return it
-	}
-	if b, err := json.Marshal(plexScheduleOverlay(list, it.ID, ps)); err == nil {
-		it.Settings = b
-	}
-	return providerRefreshOverlay(list, it)
+	return it.WithBackupTargets()
 }
 
 func (s *Server) schedules(ctx context.Context) ([]jobqueue.Schedule, error) {
@@ -107,6 +103,11 @@ func (s *Server) createIntegration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := body.Input
+	// S29: a backup target off the machine, or acceptInsecureModes, needs a session and the
+	// password (phase4.md §8.5).
+	if !s.offsite(w, r, s.integrationNeedsFreshPassword(r, in.Type, in.Settings, nil), body.CurrentPassword, "create integration") {
+		return
+	}
 	settings, err := s.preparePlexSettings(r.Context(), in.Type, in.Settings)
 	if err == nil {
 		settings, err = s.prepareArrSettings(r.Context(), in.Type, settings)
@@ -167,6 +168,11 @@ func (s *Server) updateIntegration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in := body.Input
+	// S29: a backup target added off the machine, or acceptInsecureModes set on a target, needs a
+	// session and the password (phase4.md §8.5).
+	if !s.offsite(w, r, s.integrationNeedsFreshPassword(r, cur.Type, in.Settings, &cur), body.CurrentPassword, "update integration") {
+		return
+	}
 	settings, err := s.preparePlexSettings(r.Context(), cur.Type, in.Settings)
 	if err == nil {
 		settings, err = s.prepareArrSettings(r.Context(), cur.Type, settings)
@@ -481,7 +487,10 @@ func (s *Server) plexBackup(w http.ResponseWriter, r *http.Request) {
 	}
 	destID := body.DestinationID
 	if destID == 0 {
-		destID = ps.Backup.DestinationID
+		// The first backup target (phase4.md §8.5).
+		if t, ok := ps.Backup.TargetFor(0); ok {
+			destID = t.DestinationID
+		}
 	}
 	if destID <= 0 {
 		s.fail(w, r, "start plex backup", errorf(http.StatusBadRequest, "choose a destination for the Plex database backup (destinationId)"))
@@ -501,6 +510,20 @@ func (s *Server) plexBackup(w http.ResponseWriter, r *http.Request) {
 	}
 	if !d.Enabled {
 		s.fail(w, r, "start plex backup", errorf(http.StatusConflict, "destination %q is disabled", d.Name))
+		return
+	}
+	// Preferences.xml holds the Plex token: never on an unencrypted remote destination (§8.4 step
+	// 6; the runner also checks file modes at a filecopy destination).
+	if d.IsEngine() {
+		target, _ := ps.Backup.TargetFor(destID)
+		accept := target.DestinationID == destID && target.AcceptInsecureModes
+		if err := integrations.CheckBackupDestination("Plex", d.Kind, d.Encryption.Mode, d.Capabilities.EnforcesModes, accept); err != nil {
+			s.fail(w, r, "start plex backup", errorf(http.StatusConflict, "destination %q: %v", d.Name, err))
+			return
+		}
+	}
+	if err := s.app.checkRunnable(d, body.DryRun); err != nil {
+		s.fail(w, r, "start plex backup", err)
 		return
 	}
 	job, err := s.app.Jobs.Enqueue(r.Context(), jobs.Spec{Type: jobs.TypePlexDBBackup, Trigger: jobs.TriggerManual, DryRun: body.DryRun,

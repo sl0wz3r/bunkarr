@@ -1,0 +1,3 @@
+* changing.txt
+= Movies/Nosferatu (1922)/Nosferatu.mkv
+= TV/Show/Season 01/hardlink-of-nosferatu.mkv

@@ -9,10 +9,11 @@ import { DataTable, type Column } from '@/components/DataTable';
 import { ErrorNotice } from '@/components/Notice';
 import { EmptyState, Page } from '@/components/Page';
 import { JobStatusBadge } from '@/components/StatusBadge';
+import { formatClock } from '@/lib/bandwidth';
 import { formatEta, formatRate } from '@/lib/format';
 import { jobTitle, keys, useNames } from '@/lib/lookups';
 import { POLL_MS } from '@/lib/queryClient';
-import { cancelText, JobCell, JobProgressView } from './JobParts';
+import { cancelText, isWaiting, JobCell, JobProgressView } from './JobParts';
 
 /** Activity → Queue: queued and running jobs with live progress (polls every 2 s). */
 export function Queue() {
@@ -34,6 +35,7 @@ export function Queue() {
         <div>
           <JobStatusBadge status={j.status} />
           {j.status === 'running' && j.progress?.phase && <div className="mt-1 text-xs capitalize text-ink-muted">{j.progress.phase}</div>}
+          {isWaiting(j) && <div className="mt-1 whitespace-nowrap text-xs text-info">until {formatClock(j.notBefore)}</div>}
         </div>
       ),
     },
@@ -65,7 +67,8 @@ export function Queue() {
       <ErrorNotice error={jobs.error} />
       {list && list.length === 0 ? (
         <EmptyState icon={ListOrdered} title="Nothing running">
-          Scans, syncs, verifications and Plex database backups appear here while they are queued or running, with their progress and throughput.
+          Scans, syncs, verifications and Plex database backups appear here while they are queued or running, with their progress and throughput. A job
+          waiting for its destination&apos;s transfer window stays here until the window opens.
         </EmptyState>
       ) : (
         <DataTable columns={columns} rows={list} rowKey={(j) => j.id} loading={jobs.isPending} caption="Active jobs" />

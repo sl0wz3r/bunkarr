@@ -158,7 +158,7 @@ describe('Settings → Plex', () => {
         { plex: '/data', local: '/media' },
         { plex: '/tv', local: '/media/tv' },
       ],
-      backup: { destinationId: 1, cron: '0 3 * * *', enabled: true },
+      backup: { destinationId: 1, cron: '0 3 * * *', enabled: true, targets: [{ destinationId: 1, cron: '0 3 * * *', enabled: true, acceptInsecureModes: false }] },
     });
   });
 
@@ -242,7 +242,11 @@ describe('Settings → Plex', () => {
       url: 'http://plex:32400',
       enabled: true,
       apiKey: 'secret-token',
-      settings: { dataPath: '/plex', pathMappings: [], backup: { destinationId: 1, cron: '0 6 * * *', enabled: true } },
+      settings: {
+        dataPath: '/plex',
+        pathMappings: [],
+        backup: { destinationId: 1, cron: '0 6 * * *', enabled: true, targets: [{ destinationId: 1, cron: '0 6 * * *', enabled: true, acceptInsecureModes: false }] },
+      },
     });
   });
 
@@ -265,7 +269,12 @@ describe('Settings → Plex', () => {
     await user.selectOptions(form.getByLabelText('Schedule'), 'Manual only (disabled)');
     await user.click(form.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(callsTo(calls, 'POST /api/v1/integrations')).toHaveLength(1));
-    expect((callsTo(calls, 'POST /api/v1/integrations')[0].body as IntegrationInput).settings.backup).toEqual({ destinationId: 1, cron: '0 6 * * *', enabled: false });
+    expect((callsTo(calls, 'POST /api/v1/integrations')[0].body as IntegrationInput).settings.backup).toEqual({
+      destinationId: 1,
+      cron: '0 6 * * *',
+      enabled: false,
+      targets: [{ destinationId: 1, cron: '0 6 * * *', enabled: false, acceptInsecureModes: false }],
+    });
   });
 
   it('does not send an invalid backup cron that is not in use', async () => {
@@ -281,7 +290,7 @@ describe('Settings → Plex', () => {
     await user.selectOptions(form.getByLabelText('Destination'), 'None (no database backup)');
     await user.click(form.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(callsTo(calls, 'PUT /api/v1/integrations/3')).toHaveLength(1));
-    expect((callsTo(calls, 'PUT /api/v1/integrations/3')[0].body as IntegrationInput).settings.backup).toEqual({ destinationId: 0, cron: '', enabled: false });
+    expect((callsTo(calls, 'PUT /api/v1/integrations/3')[0].body as IntegrationInput).settings.backup).toEqual({ destinationId: 0, cron: '', enabled: false, targets: [] });
   });
 
   it('backs up now and opens the job', async () => {

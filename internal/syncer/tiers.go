@@ -147,7 +147,7 @@ func (s *syncRun) decisions(ctx context.Context, src catalog.Source) (*tiers.Sou
 	if s.r.tiers == nil {
 		return nil, nil
 	}
-	d, err := s.r.tiers.Decisions(ctx, nil, s.h.Destination.ID, src)
+	d, err := s.r.tiers.Decisions(ctx, nil, s.dest.ID, src)
 	if err != nil {
 		return nil, fmt.Errorf("decide the tiers of source %q: %w", src.Name, err)
 	}
@@ -196,7 +196,7 @@ func (s *syncRun) prepareRelease(ctx context.Context) error {
 		s.tier.release = &releasePlan{allowed: map[int64]releasedRecord{}, revision: rev}
 		return nil
 	}
-	allowed, refused, err := s.r.store.releasePreview(ctx, p.ReleaseOf, s.h.Destination.ID, rev)
+	allowed, refused, err := s.r.store.releasePreview(ctx, p.ReleaseOf, s.dest.ID, rev)
 	if err != nil {
 		return err
 	}
@@ -506,11 +506,11 @@ func (s *syncRun) recheckUnknownHold(ctx context.Context) error {
 		}
 	}
 	if unknown > 0 {
-		free, _, err := s.r.freeSpace(s.h.Root)
+		free, known, err := s.free()
 		if err != nil {
 			s.warnings++
 			s.rep.Log(slog.LevelWarn, "could not check the free space for the copies whose tier is unknown", "error", err.Error())
-		} else if avail := availableSpace(free); total > avail {
+		} else if avail := availableSpace(uint64(max(free, 0))); known && total > avail {
 			return s.holdUnknownCopies(ctx, avail)
 		}
 	}
@@ -549,35 +549,41 @@ func (s *syncRun) movedToNonFull() {
 // revision the preview evaluated, and the file must still be live and not full. It returns the
 // reason to skip the item ("" to release).
 func (x *itemRun) checkRelease(ctx context.Context, v Record) (string, error) {
-	t := x.s.r.tiers
+	return x.s.checkRelease(ctx, v, x.d.TierRevision)
+}
+
+// checkRelease is itemRun.checkRelease for the release of record v planned at tier revision rev
+// (Plan.CheckRelease for the engine runners).
+func (s *syncRun) checkRelease(ctx context.Context, v Record, rev int64) (string, error) {
+	t := s.r.tiers
 	if t == nil {
 		return "no tier engine; not released", nil
 	}
-	rev, err := t.Revision(ctx)
+	cur, err := t.Revision(ctx)
 	if err != nil {
 		return "", err
 	}
-	if rev != x.d.TierRevision {
+	if cur != rev {
 		return "rules changed since the preview; not released", nil
 	}
-	src, ok := x.s.linked[v.SourceID]
+	src, ok := s.linked[v.SourceID]
 	if !ok {
 		return "its source is no longer synced to this destination; not released", nil
 	}
-	cache := x.s.tier.execDecisions[v.SourceID]
-	if cache == nil || x.now().Sub(cache.at) > time.Minute {
-		d, err := t.Decisions(ctx, nil, x.destID(), src)
+	cache := s.tier.execDecisions[v.SourceID]
+	if cache == nil || s.r.now().Sub(cache.at) > time.Minute {
+		d, err := t.Decisions(ctx, nil, s.dest.ID, src)
 		if err != nil {
 			return "", err
 		}
-		cache = &timedDecisions{d: d, at: x.now()}
-		if x.s.tier.execDecisions == nil {
-			x.s.tier.execDecisions = map[int64]*timedDecisions{}
+		cache = &timedDecisions{d: d, at: s.r.now()}
+		if s.tier.execDecisions == nil {
+			s.tier.execDecisions = map[int64]*timedDecisions{}
 		}
-		x.s.tier.execDecisions[v.SourceID] = cache
+		s.tier.execDecisions[v.SourceID] = cache
 	}
 	loc := catalog.Location{SourceID: v.SourceID, Rel: v.SourceRelPath}
-	live, err := x.s.r.cat.LiveFilesAt(ctx, nil, []catalog.Location{loc})
+	live, err := s.r.cat.LiveFilesAt(ctx, nil, []catalog.Location{loc})
 	if err != nil {
 		return "", err
 	}
@@ -603,7 +609,7 @@ func (s *syncRun) flagsAfterSync(ctx context.Context) {
 
 // followMoves lets the folder flags follow the moves job jobID executed; it returns the number of
 // warnings it logged.
-func (r *SyncRunner) followMoves(ctx context.Context, jobID int64, rep jobs.Reporter) int {
+func (r *Planner) followMoves(ctx context.Context, jobID int64, rep jobs.Reporter) int {
 	if r.tiers == nil || jobID == 0 {
 		return 0
 	}
@@ -797,7 +803,7 @@ func (s *syncRun) tierResult(ctx context.Context, st *SyncStats) error {
 	if s.job.DryRun {
 		st.FilesReleased, st.BytesReleased = s.tier.released.Files, s.tier.released.Bytes
 	} else if s.job.Params.ReleaseDemoted {
-		c, err := s.r.store.releasedBy(context.WithoutCancel(ctx), s.h.Destination.ID, s.job.ID)
+		c, err := s.r.store.releasedBy(context.WithoutCancel(ctx), s.dest.ID, s.job.ID)
 		if err != nil {
 			return err
 		}

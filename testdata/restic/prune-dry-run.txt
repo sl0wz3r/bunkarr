@@ -1,0 +1,37 @@
+loading indexes...
+loading all snapshots...
+finding data that is still in use for 7 snapshots
+[0:00] 100.00%  7 / 7 snapshots
+searching used packs...
+collecting packs for deletion and repacking
+[0:00] 100.00%  20 / 20 packs processed
+
+Would have made the following changes:
+
+used:                 35 blobs / 2.925 MiB
+unused:               12 blobs / 60.589 KiB
+total:                47 blobs / 2.984 MiB
+unused size: 1.98% of total size
+
+to repack:            30 blobs / 66.759 KiB
+this removes:          0 blobs / 0 B
+to delete:            12 blobs / 60.589 KiB
+total prune:          12 blobs / 60.589 KiB
+remaining:            35 blobs / 2.925 MiB
+unused size after prune: 0 B (0.00% of remaining size)
+
+totally used packs:         14
+partly used packs:           0
+unused packs:                6
+
+to keep:               1 packs
+to repack:            13 packs
+to delete:             6 packs
+Repeated prune dry-runs can report slightly different amounts of data to keep or repack. This is expected behavior.
+
+Would have repacked and removed the following packs:
+{17a2f0fa 54e4360e 76002cc9 7d2b9e92 8857ae65 9ca21742 ab72f680 b904eb60 c7fe43c0 cde7db38 ebd8e6f4 f1a3dc25 f232362b}
+
+Would have removed the following no longer used packs:
+{6426148f 6db1a43f 9fb7c6b7 c0f827af c5247bb7 fa7ba6c8}
+

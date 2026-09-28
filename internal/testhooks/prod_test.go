@@ -46,4 +46,7 @@ func TestProductionIgnoresOverrides(t *testing.T) {
 	if got := FreshnessNow(now); !got.Equal(now) {
 		t.Errorf("FreshnessNow = %v", got)
 	}
+	if _, _, _, ok := Window(7); ok {
+		t.Error("Window honoured BUNKARR_TEST_WINDOW in a production build")
+	}
 }

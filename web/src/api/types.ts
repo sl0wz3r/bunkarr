@@ -28,6 +28,36 @@ export interface SystemStatus {
   isDocker: boolean;
   authenticationMethod: string;
   authenticationRequired: AuthRequired;
+  /** restic and rclone as found at start-up (phase4.md §12); missing on an older server. */
+  engines?: EngineAvailability;
+}
+
+/** EngineBinaryStatus is one engine binary in GET /system/status (engines.BinaryStatus). */
+export interface EngineBinaryStatus {
+  available: boolean;
+  version?: string;
+  path?: string;
+  /** Why the engine is not available ("restic is not installed"). */
+  reason?: string;
+}
+
+export interface EngineAvailability {
+  restic: EngineBinaryStatus;
+  rclone: EngineBinaryStatus;
+}
+
+/** EngineSettings is GET and PUT /settings/engines (phase4.md §9.3, §12). */
+export interface EngineSettings {
+  /** 1–8: engine syncs that upload at once; read at start-up. */
+  uploadSlots: number;
+  /** 1–1440 minutes an engine command may keep retrying before it is stopped. */
+  retryBudgetMinutes: number;
+  /** The slot count the job manager uses now (read at start-up). */
+  uploadSlotsInEffect: number;
+  /** uploadSlots differs from the count in effect: a restart applies it. */
+  restartRequired: boolean;
+  /** Says when a change applies. */
+  note: string;
 }
 
 export interface GeneralSettings {
@@ -71,6 +101,10 @@ export interface JobParams {
   releaseOf?: number;
   /** A real release: the tier rule revision that preview evaluated. */
   releaseRevision?: number;
+  /** A retention job of one restic destination prunes its repository now (phase4.md §6.5). */
+  prune?: boolean;
+  /** A verify reads everything once (restic check --read-data; every file on rclone). */
+  readData?: boolean;
 }
 
 export interface JobProgress {
@@ -82,6 +116,13 @@ export interface JobProgress {
   currentFile?: string;
   bytesPerSec: number;
   etaSeconds: number;
+  /** Engine jobs (phase4.md §10.4): the batch running and how many the plan has. */
+  batch?: number;
+  batches?: number;
+  /** The upload limit in force (0 or missing: none). */
+  limitBytesPerSec?: number;
+  /** When the destination's transfer window closes (missing: no window). */
+  windowEndsAt?: string | null;
 }
 
 export interface Job {
@@ -101,6 +142,10 @@ export interface Job {
   queuedAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  /** A queued job its transfer window deferred: it does not start before this (phase4.md §9.2). */
+  notBefore?: string | null;
+  /** How often a transfer window deferred the job. */
+  deferrals?: number;
 }
 
 /** SyncSourceSummary is one source's part of a sync (SyncStats.sources). */
@@ -209,6 +254,17 @@ export interface Schedule {
   nextRunAt: string | null;
   /** Why the scheduler refuses the schedule's jobs (its destination or Plex server is disabled); '' when they can run. */
   blockedReason: string;
+  /**
+   * Why the schedule's last fire queued no job (a deferred job of its destination covers it,
+   * phase4.md §9.2); null or missing when it did.
+   */
+  lastSkip?: ScheduleSkip | null;
+}
+
+export interface ScheduleSkip {
+  /** The fire's scheduled time. */
+  at: string;
+  reason: string;
 }
 
 /** CronSchedule is a destination's (or Plex backup's) schedule. */
@@ -231,6 +287,21 @@ export interface PlexBackupSettings {
   destinationId: number;
   cron: string;
   enabled: boolean;
+  /**
+   * Up to four destinations, each with its schedule (phase4.md §8.5); the fields above mirror
+   * targets[0]. Missing on an older server: the single form is the one target. A save always
+   * sends it ([] for none): without it the server keeps the stored targets after the first.
+   */
+  targets?: BackupTarget[];
+}
+
+/** BackupTarget is one destination of a Plex DB or *arr backup (phase4.md §8.5). */
+export interface BackupTarget {
+  destinationId: number;
+  cron: string;
+  enabled: boolean;
+  /** Only for a local destination whose probe reports enforcesModes false (S17). */
+  acceptInsecureModes: boolean;
 }
 
 /** PlexIndexSettings configures a Plex integration's library index (design phase2-3 §6.3). */
@@ -273,6 +344,8 @@ export interface IntegrationInput {
   settings: PlexSettings;
   /** Plex only, in place of apiKey: the token of a server chosen in "Sign in with Plex". */
   plexSignIn?: PlexSignInRef;
+  /** The user's password, required by S29 (a backup target off the machine, acceptInsecureModes). */
+  currentPassword?: string;
 }
 
 export interface IntegrationTestInput {
@@ -520,12 +593,153 @@ export type HardlinkMode = 'recreate' | 'copy';
 export type AdoptMode = 'size+mtime' | 'size+hash' | 'off';
 
 export interface DestinationSettings {
-  verify: { mode: VerifyMode; samplePercent: number };
+  /** sampleMaxBytes: restic and rclone only, the bytes one sample verify reads back at most. */
+  verify: { mode: VerifyMode; samplePercent: number; sampleMaxBytes?: number };
   hardlinks: HardlinkMode;
   adoptExisting: AdoptMode;
   mtimeWindowSec: number;
   maxChangePercent: number;
   maxChangeFiles: number;
+  /** restic and rclone only (1–32, default 4): parallel transfers. Refused on filecopy. */
+  transfers?: number;
+  /** restic destinations only (phase4.md §12). */
+  restic?: ResticSettings;
+  /** rclone destinations only. */
+  rclone?: RcloneSettings;
+}
+
+export interface ResticSettings {
+  /** 4–128 (default 64 remote, 16 local). */
+  packSizeMiB: number;
+  batchBytes: number;
+  batchFiles: number;
+  /** 1–90 (default 7). */
+  pruneEveryDays: number;
+  /** "10%", "5G" or "unlimited". */
+  pruneMaxUnused: string;
+}
+
+export interface RcloneSettings {
+  batchFiles: number;
+  batchBytes: number;
+}
+
+// ---- Phase 4: destination kinds, engines, encryption, bandwidth (phase4.md §4, §5, §9) ----
+
+export type DestKind = 'local' | 'sftp' | 's3' | 'b2';
+export type EngineName = 'filecopy' | 'restic' | 'rclone';
+export type EncryptionMode = 'none' | 'restic' | 'crypt';
+export type S3Provider = 'AWS' | 'Minio' | 'Wasabi' | 'Cloudflare' | 'Other';
+
+/** HostKey is one pinned SFTP host key: its type and the key in base64 SSH wire format. */
+export interface HostKey {
+  type: string;
+  key: string;
+}
+
+/** HostKeyInfo is one key an SFTP server presents (POST /destinations/sftp/hostkeys). */
+export interface HostKeyInfo extends HostKey {
+  /** "SHA256:…" */
+  fingerprint: string;
+}
+
+export interface SftpRemote {
+  host: string;
+  port: number;
+  user: string;
+  path: string;
+  hostKeys: HostKey[];
+}
+
+export interface S3Remote {
+  provider: S3Provider;
+  /** '' for AWS: the region's endpoint. */
+  endpoint: string;
+  region: string;
+  bucket: string;
+  prefix: string;
+  storageClass: string;
+  forcePathStyle: boolean;
+  /** One PEM certificate for a self-signed endpoint ('' = the system roots). */
+  caCert: string;
+}
+
+export interface B2Remote {
+  bucket: string;
+  prefix: string;
+}
+
+/** DestinationRemote is a destination's `remote` as the API returns it: its kind's object, {} for local. */
+export type DestinationRemote = Partial<SftpRemote> & Partial<S3Remote> & Partial<B2Remote>;
+
+export type CredentialField = 'privateKey' | 'privateKeyPassphrase' | 'password' | 'accessKeyId' | 'secretAccessKey' | 'keyId' | 'applicationKey';
+
+/** CredentialsInput is write-only: a field that is sent replaces the stored one; never send '' or {}. */
+export type CredentialsInput = Partial<Record<CredentialField, string>>;
+
+/** EncryptionInfo is a destination's encryption and recovery kit custody (S21, §5.2). */
+export interface EncryptionInfo {
+  mode: EncryptionMode;
+  /** Who chose the secret: generated, user, or '' (no secret). */
+  origin: 'generated' | 'user' | '';
+  kitExportedAt: string | null;
+  kitConfirmedAt: string | null;
+}
+
+/** EncryptionInput chooses the encryption at create; it cannot change afterwards. */
+export interface EncryptionInput {
+  mode?: EncryptionMode;
+  /** Default true; false with the user's secret. */
+  generate?: boolean;
+  /** Required with mode none (rclone): the provider can read every file. S29. */
+  acceptUnencrypted?: boolean;
+  secret?: string;
+}
+
+export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+/** BandwidthEntry is one timetable line: on each of days from `from` to `to`, these limits (KiB/s, 0 = unlimited). */
+export interface BandwidthEntry {
+  days: Weekday[];
+  from: string;
+  to: string;
+  uploadKiBps: number;
+  downloadKiBps: number;
+}
+
+/** TransferWindow: sync, verify and retention run only inside it (phase4.md §9.2). */
+export interface TransferWindow {
+  days: Weekday[];
+  from: string;
+  to: string;
+  /** 0–120 (default 15). */
+  graceMinutes: number;
+  /** Let a file larger than the window start alone at its opening and run past its end. */
+  allowOverrun: boolean;
+}
+
+/** Bandwidth is a destination's limits, timetable and window (phase4.md §9.1). */
+export interface Bandwidth {
+  uploadKiBps: number;
+  downloadKiBps: number;
+  timetable: BandwidthEntry[] | null;
+  /** null: always open. */
+  window: TransferWindow | null;
+}
+
+/** EngineState is a restic or rclone destination's engine state (enginerun.EngineState). */
+export interface EngineState {
+  destinationId: number;
+  engineVersion: string;
+  lastPruneAt: string | null;
+  lastCheckAt: string | null;
+  readSubsetNext: number;
+  lastCleanupAt: string | null;
+  /** The upload rate recent syncs measured (bytes/s); null when unknown. */
+  throughputBps: number | null;
+  /** Repository or remote figures (snapshotCount, repositoryBytes, …). */
+  stats: Record<string, unknown> | null;
+  updatedAt: string;
 }
 
 export interface Retention {
@@ -540,12 +754,23 @@ export interface Retention {
   manifestDays?: number;
   /** ISO weeks that keep their newest manifest version (0–520, 0 keeps none; missing is 12). */
   manifestWeeks?: number;
+  /**
+   * restic only (phase4.md §6.5): days (0–3650), ISO weeks (0–520), months (0–120) and years
+   * (0–100) that keep their newest complete snapshot; 0 keeps none of that period.
+   */
+  snapshotDaily?: number;
+  snapshotWeekly?: number;
+  snapshotMonthly?: number;
+  snapshotYearly?: number;
 }
 
 export interface Destination {
   id: number;
   name: string;
-  engine: 'filecopy';
+  engine: EngineName;
+  /** The location type (phase4.md §4.1); local for every Phase 1–3 destination. */
+  kind: DestKind;
+  /** A local destination's path, or a remote's display location (sftp://user@host:22/path, s3:…, b2:…). */
   target: string;
   enabled: boolean;
   sourceIds: number[];
@@ -555,8 +780,27 @@ export interface Destination {
   /** {cron: '', enabled: false} when the destination has no schedule of that kind. */
   schedule: CronSchedule;
   verifySchedule: CronSchedule;
+  /** restic and rclone only: the destination's own retention schedule. */
+  retentionSchedule?: CronSchedule;
   settings: DestinationSettings;
   retention: Retention;
+  /** A remote kind's non-secret location ({} for local). */
+  remote: DestinationRemote;
+  /** The storage credential fields that are stored (never a value). */
+  hasCredentials: Partial<Record<CredentialField, boolean>> | null;
+  encryption: EncryptionInfo;
+  bandwidth: Bandwidth;
+  /** A create that initialized a repository did not finish: no job runs; create it again or delete it. */
+  pending: boolean;
+  /** Why no job but a dry run may run (the recovery kit, a create that did not finish, the engine); '' or missing when they can. */
+  blockedReason?: string;
+  /** Warnings of the create or update that returned this value (not stored). */
+  warnings?: string[];
+  /** The installed engine's version (restic and rclone). */
+  engineVersion?: string;
+  engineState?: EngineState | null;
+  /** When a job of the destination that waits for its transfer window starts again; null when none waits. */
+  waitingUntil?: string | null;
   /** The newest job of any type that worked on the destination. */
   lastJob: Job | null;
   /** The newest sync (queued, running or finished; previews excluded): the last sync status. */
@@ -567,18 +811,32 @@ export interface Destination {
 
 export interface DestinationInput {
   name: string;
-  engine: 'filecopy';
+  engine: EngineName;
+  /** Default local. */
+  kind?: DestKind;
+  /** A local destination's path (ignored for remote kinds). */
   target: string;
+  /** A remote kind's location; on update only hostKeys and caCert may differ (S29). */
+  remote?: SftpRemote | S3Remote | B2Remote;
+  /** Write-only; on update only the fields to replace (S29). */
+  credentials?: CredentialsInput;
+  /** Create only. */
+  encryption?: EncryptionInput;
+  bandwidth?: Bandwidth;
   enabled: boolean;
   sourceIds: number[];
   schedule: CronSchedule;
   verifySchedule: CronSchedule;
+  /** restic and rclone only. */
+  retentionSchedule?: CronSchedule;
   settings: DestinationSettings;
   retention: Retention;
-  /** Create only: adopt the id of an existing .bunkarr/destination.json marker. */
+  /** Create only: adopt the id of an existing .bunkarr/destination.json marker, or an existing repository. */
   attach?: boolean;
   /** Create only: accept a target on the root/config filesystem or on tmpfs/overlay. */
   allowLocal?: boolean;
+  /** The user's password for the changes of S29 (off-site kinds, credentials, host keys, sources, no encryption). */
+  currentPassword?: string;
 }
 
 export type MarkerStatus = 'ok' | 'missing' | 'mismatch' | 'foreign';
@@ -597,11 +855,47 @@ export interface DestinationTestResult {
   warnings: string[] | null;
 }
 
+/** RepositoryState is a restic test's repository finding. */
+export type RepositoryState = 'missing' | 'exists' | 'wrong-password' | 'locked';
+
+/** RemoteMarkerState is an rclone test's marker finding. */
+export type RemoteMarkerState = 'missing' | 'ok' | 'unreadable' | 'foreign';
+
+/** EngineTestResult answers a test of a restic or rclone destination (phase4.md §4.5). */
+export interface EngineTestResult {
+  ok: boolean;
+  reachable: boolean;
+  /** restic: missing, exists, wrong-password, locked. */
+  repository?: RepositoryState;
+  /** rclone: missing, ok, unreadable, foreign. */
+  marker?: RemoteMarkerState;
+  /** The repository id (restic) or the marker's id (rclone). */
+  id?: string;
+  markerName?: string;
+  entries: number;
+  /** An SFTP server's presented keys when none are pinned yet: confirm and pin them. */
+  hostKeys?: HostKeyInfo[];
+  freeBytes: number | null;
+  engineVersion?: string;
+  message?: string;
+  warnings?: string[] | null;
+}
+
+/** EngineTestInput is POST /destinations/test for a restic or rclone destination (never an id). */
+export interface EngineTestInput {
+  kind: DestKind;
+  engine: 'restic' | 'rclone';
+  target?: string;
+  remote?: SftpRemote | S3Remote | B2Remote;
+  credentials?: CredentialsInput;
+  encryption?: EncryptionInput;
+}
+
 export interface Snapshot {
   id: number;
   destinationId: number;
-  /** plexdb: a Plex DB version; arr: an *arr backup zip (never downloadable). */
-  kind?: 'plexdb' | 'arr';
+  /** plexdb: a Plex DB version; arr: an *arr backup zip (never downloadable); media: a restic snapshot of one source and batch. */
+  kind?: 'plexdb' | 'arr' | 'media';
   /** The integration backed up; 0 once that integration was deleted. */
   integrationId: number;
   /** The job that recorded the version; 0 once that job's history was deleted. */
@@ -613,6 +907,14 @@ export interface Snapshot {
   method: string;
   integrity: 'ok' | 'failed';
   manifest: Record<string, unknown> | null;
+  /** The engine's reference (a restic snapshot id). */
+  engineRef?: string;
+  /** media snapshots only. */
+  sourceId?: number;
+  batch?: number;
+  complete?: boolean;
+  files?: number;
+  dataAdded?: number;
 }
 
 // ---- Notifications ----

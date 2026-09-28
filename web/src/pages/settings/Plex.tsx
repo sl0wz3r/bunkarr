@@ -2,21 +2,24 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { DatabaseBackup, FlaskConical, Pencil, Plus, Server, Trash2, X } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { errorMessage } from '@/api/client';
+import { ApiError, errorMessage } from '@/api/client';
 import { createIntegration, deleteIntegration, plexBackup, testIntegration, updateIntegration } from '@/api/integrations';
-import type { CronSchedule, Integration, IntegrationInput, IntegrationTestResult, PathMapping, PlexSettings } from '@/api/types';
+import type { BackupTarget, CronSchedule, Integration, IntegrationInput, IntegrationTestResult, PathMapping, PlexSettings } from '@/api/types';
+import { BackupTargetsEditor, insecureModesApply, targetIndexOf, targetsNeedPassword, targetsOf, targetsProblem } from '@/components/BackupTargetsEditor';
 import { Button, IconButton } from '@/components/Button';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { CronInput } from '@/components/CronInput';
-import { CheckboxField, FormRow, FormSection, SecretField, SelectField, TextField, inputClass } from '@/components/Form';
+import { Checkbox, CheckboxField, FormRow, FormSection, SecretField, SelectField, TextField, inputClass } from '@/components/Form';
 import { Modal } from '@/components/Modal';
 import { ErrorNotice, Notice } from '@/components/Notice';
 import { EmptyState, Page } from '@/components/Page';
+import { isPasswordError, PasswordConfirm } from '@/components/PasswordConfirm';
 import { PathField, PathPicker } from '@/components/PathPicker';
 import { PlexSignInPanel, usePlexSignIn } from '@/components/plex/PlexSignIn';
 import type { PlexSignInSelection } from '@/components/plex/plexSignInMachine';
 import { Badge } from '@/components/StatusBadge';
 import { DEFAULT_PLEX_BACKUP_CRON, PLEX_BACKUP_PRESETS, describeCron, overlapsWindow, validateCron } from '@/lib/cron';
+import { isEncrypted, isRemoteKind } from '@/lib/destinationKinds';
 import { keys, useDestinations, useIntegrations } from '@/lib/lookups';
 
 /** Plex's default butler window (ButlerStartHour–ButlerEndHour) when the server does not say. */
@@ -49,8 +52,8 @@ export function Plex() {
   const servers = (integrations.data ?? []).filter((i) => i.type === 'plex');
   const destName = (id: number) => destinations.data?.find((d) => d.id === id)?.name ?? `destination #${id}`;
 
-  async function backupNow(i: Integration) {
-    const dest = i.settings?.backup?.destinationId;
+  async function backupNow(i: Integration, to?: number) {
+    const dest = to ?? i.settings?.backup?.destinationId;
     if (!dest) return;
     setNotice(null);
     setBusy(i.id);
@@ -123,9 +126,11 @@ export function Plex() {
                   <dt className="text-ink-muted">DB backup</dt>
                   <dd className="text-xs">
                     {s.backup.destinationId ? (
-                      <>
-                        to {destName(s.backup.destinationId)}, {s.backup.enabled ? describeCron(s.backup.cron) : 'manual only'}
-                      </>
+                      targetsOf(s.backup).map((t) => (
+                        <div key={t.destinationId}>
+                          to {destName(t.destinationId)}, {t.enabled ? describeCron(t.cron) : 'manual only'}
+                        </div>
+                      ))
                     ) : (
                       'no destination chosen'
                     )}
@@ -142,6 +147,20 @@ export function Plex() {
                   >
                     Back up now
                   </Button>
+                  {targetsOf(s.backup)
+                    .slice(1)
+                    .map((t) => (
+                      <Button
+                        key={t.destinationId}
+                        small
+                        variant="ghost"
+                        className="ml-1"
+                        disabled={!s.dataPath || busy === i.id}
+                        onClick={() => void backupNow(i, t.destinationId)}
+                      >
+                        Back up to {destName(t.destinationId)}
+                      </Button>
+                    ))}
                 </div>
               </article>
             );
@@ -235,6 +254,12 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
   const [mappings, setMappings] = useState<PathMapping[]>(initial.pathMappings);
   const [destinationId, setDestinationId] = useState(initial.backup.destinationId);
   const [schedule, setSchedule] = useState<CronSchedule>({ cron: initial.backup.cron, enabled: initial.backup.enabled });
+  // The targets as stored (S29 compares with them), the first one's insecure-modes flag and the
+  // targets after the first (phase4.md §8.5: up to four).
+  const [storedTargets] = useState<BackupTarget[]>(() => (integration ? targetsOf(initial.backup) : []));
+  const [firstInsecure, setFirstInsecure] = useState(() => !!targetsOf(initial.backup)[0]?.acceptInsecureModes);
+  const [extraTargets, setExtraTargets] = useState<BackupTarget[]>(() => targetsOf(initial.backup).slice(1));
+  const [password, setPassword] = useState('');
   // The last test and the URL and token (or sign-in selection) it tested.
   const [test, setTest] = useState<{ url: string; token: string; signIn: string; result: IntegrationTestResult } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -278,6 +303,14 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
   };
   const overlap = destinationId > 0 && schedule.enabled && overlapsWindow(schedule.cron, butler.start, butler.end);
 
+  const firstDest = destinations.data?.find((d) => d.id === destinationId);
+  const allTargets: BackupTarget[] = destinationId > 0 ? [{ destinationId, cron: schedule.cron, enabled: schedule.enabled, acceptInsecureModes: firstInsecure }, ...extraTargets] : [];
+  // S29: a target off this server that was not one before, or insecure modes turned on.
+  const needsPassword = targetsNeedPassword(allTargets, storedTargets, destinations.data);
+  // The server names the target a 400 is about (backup.targets[i]): shown on that row.
+  const targetError = saver.error instanceof ApiError && saver.error.status === 400 ? targetIndexOf(saver.error.message) : -1;
+  const generalSaveError = saver.error && !isPasswordError(saver.error) && targetError < 0 ? saver.error : null;
+
   function submit(e: FormEvent) {
     e.preventDefault();
     setFormError(null);
@@ -308,6 +341,18 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
       setFormError('Every path mapping needs both a Plex path and a Bunkarr path.');
       return;
     }
+    const first: BackupTarget | null = destinationId > 0 ? { destinationId, cron, enabled: schedule.enabled, acceptInsecureModes: firstInsecure } : null;
+    const targets = first ? [first, ...extraTargets] : [];
+    const targetError = targetsProblem(targets, validateCron);
+    if (targetError) {
+      setFormError(targetError);
+      return;
+    }
+    // The targets list is always sent, [] for "None": the server merges a request without one
+    // into the stored targets[1:] (a client that knows only the single form), which would keep a
+    // removed target, or promote it to the first one when the destination is None. The single
+    // form mirrors targets[0].
+    const backup: PlexSettings['backup'] = { destinationId, cron, enabled: destinationId > 0 && schedule.enabled, targets };
     const body: IntegrationInput = {
       type: 'plex',
       name: name.trim(),
@@ -319,9 +364,16 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
         ...integration?.settings,
         dataPath: dataPath.trim(),
         pathMappings,
-        backup: { destinationId, cron, enabled: destinationId > 0 && schedule.enabled },
+        backup,
       },
     };
+    if (needsPassword) {
+      if (!password) {
+        setFormError('Enter your Bunkarr password to confirm the backup target (below).');
+        return;
+      }
+      body.currentPassword = password;
+    }
     if (selection) {
       body.plexSignIn = { id: selection.signInId, serverId: selection.serverId, useAccountToken: selection.useAccountToken || undefined };
     } else if (token.trim()) {
@@ -378,7 +430,7 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
             {formError}
           </Notice>
         )}
-        <ErrorNotice error={saver.error ?? testError} />
+        <ErrorNotice error={generalSaveError ?? testError} />
         {current && (
           <Notice tone={current.ok ? 'success' : 'error'} reveal revealKey={current}>
             {current.message || (current.ok ? 'Connected.' : 'Cannot connect.')}
@@ -460,6 +512,41 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
               }
             />
           )}
+          {firstDest && isRemoteKind(firstDest.kind) && !isEncrypted(firstDest) && (
+            <p className="-mt-2 mb-4 text-xs text-danger sm:ml-[12rem]">
+              {firstDest.name} is off this server and not encrypted: Preferences.xml holds the server&apos;s Plex token, so Bunkarr refuses this target. Choose an
+              encrypted destination.
+            </p>
+          )}
+          {destinationId > 0 && (insecureModesApply(firstDest) || firstInsecure) && (
+            <div className="mb-4 rounded border border-warn/50 bg-warn/10 p-2 text-xs sm:ml-[12rem]">
+              <Checkbox
+                label="Accept insecure file modes on this destination"
+                help={`${firstDest?.name ?? 'This destination'} does not keep files private (an SMB share without POSIX extensions), or was probed before Bunkarr checked it. Preferences.xml holds the Plex token. Needs your password.`}
+                checked={firstInsecure}
+                onChange={setFirstInsecure}
+              />
+            </div>
+          )}
+          {targetError === 0 && saver.error && (
+            <p role="alert" className="-mt-2 mb-4 text-xs text-danger sm:ml-[12rem]">
+              {errorMessage(saver.error)}
+            </p>
+          )}
+          {destinationId > 0 && (
+            <FormRow label="More targets" group help="Up to four destinations in all, each with its own schedule (for example the NAS nightly and B2 weekly).">
+              <BackupTargetsEditor
+                targets={extraTargets}
+                onChange={setExtraTargets}
+                destinations={(destinations.data ?? []).filter((d) => d.id !== destinationId)}
+                presets={PLEX_BACKUP_PRESETS}
+                defaultCron={DEFAULT_PLEX_BACKUP_CRON}
+                app="Plex"
+                offset={1}
+                rowError={targetError > 0 && saver.error ? { index: targetError - 1, message: errorMessage(saver.error) } : null}
+              />
+            </FormRow>
+          )}
           {destinationId > 0 && (
             <p className="text-xs text-ink-muted sm:ml-[12rem]">
               Versions kept are set per destination (Destinations → Retention). Backups are listed under the destination&apos;s snapshots.{' '}
@@ -467,6 +554,14 @@ function PlexForm({ integration, onClose }: { integration: Integration | null; o
                 Destinations
               </Link>
             </p>
+          )}
+          {needsPassword && (
+            <PasswordConfirm
+              value={password}
+              onChange={setPassword}
+              error={saver.error}
+              reason="A backup target off this server, or accepting insecure file modes, needs your password: the backup holds the Plex token."
+            />
           )}
         </FormSection>
       </form>

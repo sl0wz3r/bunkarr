@@ -57,10 +57,14 @@ LABEL org.opencontainers.image.title="Bunkarr" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_DATE}"
 
-# tini: PID 1. su-exec: drop to PUID:PGID. restic/rclone: backup engines (Phase 4).
+# tini: PID 1. su-exec: drop to PUID:PGID. restic/rclone: backup engines (Phase 4), at the
+# upstream versions of docker/engines/versions.env, the ones the tests measured (any alpine rebuild
+# of them): another version fails the build instead of shipping untested.
 # apk upgrade picks up security fixes for the digest-pinned base's own packages.
-RUN apk upgrade --no-cache && \
-    apk add --no-cache ca-certificates su-exec tini tzdata restic rclone
+RUN --mount=type=bind,source=docker/engines/versions.env,target=/run/bunkarr-engine-versions \
+    . /run/bunkarr-engine-versions && \
+    apk upgrade --no-cache && \
+    apk add --no-cache ca-certificates su-exec tini tzdata "restic~${RESTIC_VERSION}" "rclone~${RCLONE_VERSION}"
 
 ENV PUID=1000 \
     PGID=1000 \

@@ -43,6 +43,12 @@ func TestE2EOverrides(t *testing.T) {
 	if got := FreshnessNow(now); !got.Equal(now.Add(25 * time.Hour)) {
 		t.Errorf("FreshnessNow = %v", got)
 	}
+	if open, closeAt, reopen, ok := Window(7); !ok || closeAt.Sub(open) != 15*time.Second || reopen.Sub(closeAt) != 45*time.Second {
+		t.Errorf("Window(7) = %v %v %v %v", open, closeAt, reopen, ok)
+	}
+	if _, _, _, ok := Window(8); ok {
+		t.Error("Window(8) found the window of destination 7")
+	}
 	// An invalid value falls back to the default.
 	t.Setenv(EnvWebhookQuiet, "-1s")
 	if got := WebhookQuiet(5 * time.Second); got != 5*time.Second {

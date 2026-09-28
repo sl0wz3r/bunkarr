@@ -391,6 +391,30 @@ func (s *Service) ChangeCredentials(ctx context.Context, userID int64, currentPa
 	return User{ID: userID, Username: newUsername}, nil
 }
 
+// VerifyPassword checks password against user userID's stored bcrypt hash, with the same bounded
+// bcrypt work as a login, and changes nothing: the fresh-password check of the off-site routes
+// (docs/design/phase4.md S29) and of the recovery kit (§5.2). A wrong password, and a user that
+// does not exist (compared against the dummy hash, so both take as long), is
+// ErrInvalidCredentials; the caller counts it with its login limiter.
+func (s *Service) VerifyPassword(ctx context.Context, userID int64, password string) error {
+	var hash string
+	err := s.db.Reader().QueryRowContext(ctx, `SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&hash)
+	if errors.Is(err, sql.ErrNoRows) {
+		_ = s.compare(ctx, s.dummy, password)
+		return ErrInvalidCredentials
+	}
+	if err != nil {
+		return fmt.Errorf("look up user: %w", err)
+	}
+	if err := s.compare(ctx, []byte(hash), password); err != nil {
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			return ErrInvalidCredentials
+		}
+		return err
+	}
+	return nil
+}
+
 // ResetAuth removes the user and every session, so the next visit to the UI shows the first-run
 // setup again. The API key is kept. Used by `bunkarr reset-auth` when the password is lost.
 func ResetAuth(ctx context.Context, d *db.DB) error {

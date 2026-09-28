@@ -44,6 +44,10 @@ type Verify struct {
 	Mode VerifyMode `json:"mode"`
 	// SamplePercent is the share of files a sample verify re-reads (0-100; 0 means the default).
 	SamplePercent int `json:"samplePercent"`
+	// SampleMaxBytes caps the bytes one sample verify of a restic or rclone destination restores
+	// or downloads (phase4.md §6.6, §7.6; default 4 GiB restic, 16 GiB rclone). 0 on filecopy,
+	// which leaves it out of its JSON.
+	SampleMaxBytes int64 `json:"sampleMaxBytes,omitempty"`
 }
 
 // Settings are a destination's sync settings (design §7 Destination.settings).
@@ -57,6 +61,18 @@ type Settings struct {
 	// MaxChangePercent and MaxChangeFiles are the mass-change guard limits (S10b).
 	MaxChangePercent int `json:"maxChangePercent"`
 	MaxChangeFiles   int `json:"maxChangeFiles"`
+
+	// Engine settings (phase4.md §9.3, §12; engine_settings.go). They are refused on a filecopy
+	// destination, which keeps its Phase 1-3 JSON (they are omitted when empty); NormalizeFor fills
+	// the defaults of a restic or rclone destination.
+	//
+	// Transfers is rclone's --transfers (and --checkers twice that) and restic's
+	// rclone.connections (1-32, default 4).
+	Transfers int `json:"transfers,omitempty"`
+	// Restic holds a restic destination's settings (nil on the others).
+	Restic *ResticSettings `json:"restic,omitempty"`
+	// Rclone holds an rclone destination's settings (nil on the others).
+	Rclone *RcloneSettings `json:"rclone,omitempty"`
 }
 
 // Retention are a destination's retention periods (design S5, §5).
@@ -79,6 +95,15 @@ type Retention struct {
 	// the other periods 0 is a value, no weekly versions: only a missing manifestWeeks takes the
 	// default (UnmarshalJSON records whether it was present; a Go literal's zero is missing).
 	ManifestWeeks int `json:"manifestWeeks"`
+	// Snapshot retention of a restic destination (phase4.md §6.5, engine_settings.go): how many
+	// days, ISO weeks, months and years keep their newest complete snapshot, on top of the
+	// snapshots records reference. nil on filecopy and rclone destinations (their JSON leaves
+	// them out); 0 is a value (keep none of that period). NormalizeFor fills the defaults 7, 4,
+	// 6 and 0.
+	SnapshotDaily   *int `json:"snapshotDaily,omitempty"`
+	SnapshotWeekly  *int `json:"snapshotWeekly,omitempty"`
+	SnapshotMonthly *int `json:"snapshotMonthly,omitempty"`
+	SnapshotYearly  *int `json:"snapshotYearly,omitempty"`
 	// manifestWeeksSet says ManifestWeeks is a value, not missing: it was in the decoded JSON,
 	// or the retention is normalized (so normalizing it again changes nothing).
 	manifestWeeksSet bool

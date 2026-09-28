@@ -5,7 +5,9 @@ import type { Job, JobProgress } from '@/api/types';
 import { ProgressBar } from '@/components/ProgressBar';
 import { Badge } from '@/components/StatusBadge';
 import { Stat, StatGrid } from '@/components/Page';
-import { formatBytes, formatDuration, formatDurationMs, formatNumber, formatPercent } from '@/lib/format';
+import { formatClock } from '@/lib/bandwidth';
+import { checkStat, describeCheck, engineStatHidden, engineStatLabel, formatEngineStat, shortId, snapshotStats } from '@/lib/engineStats';
+import { formatBytes, formatDuration, formatDurationMs, formatNumber, formatPercent, formatRate } from '@/lib/format';
 import { DRY_RUN_HIDDEN_STATS, sourceColumnLabel, statLabel, TRIGGER_LABELS } from '@/lib/labels';
 import { jobTitle, type Names } from '@/lib/lookups';
 
@@ -38,20 +40,60 @@ export function progressText(p: JobProgress | null | undefined): string {
   return parts.join(' · ');
 }
 
+/**
+ * isWaiting reports whether a queued job waits for its destination's transfer window (a deferred
+ * job, phase4.md §9.2, §11.2): it does not start before notBefore.
+ */
+export function isWaiting(job: Pick<Job, 'status' | 'notBefore'>, now: number = Date.now()): boolean {
+  if (job.status !== 'queued' || !job.notBefore) return false;
+  const t = Date.parse(job.notBefore);
+  return !Number.isNaN(t) && t > now;
+}
+
+/** deferralText is "deferred once", "deferred 3 times" ('' when never). */
+export function deferralText(n: number | undefined): string {
+  if (!n) return '';
+  return n === 1 ? 'deferred once' : `deferred ${formatNumber(n)} times`;
+}
+
+/** waitingText is "Waiting for the transfer window, resumes at 01:00 (deferred twice)". */
+export function waitingText(job: Pick<Job, 'notBefore' | 'deferrals'>): string {
+  const count = deferralText(job.deferrals);
+  return `Waiting for the transfer window, resumes at ${formatClock(job.notBefore)}${count ? ` (${count})` : ''}`;
+}
+
+/** engineProgressParts are an engine job's batch counter, the limit in force and the window's end. */
+export function engineProgressParts(p: JobProgress | null | undefined): string[] {
+  if (!p) return [];
+  const parts: string[] = [];
+  if (p.batches && p.batches > 0) parts.push(`Batch ${formatNumber(p.batch ?? 0)} of ${formatNumber(p.batches)}`);
+  if (p.limitBytesPerSec && p.limitBytesPerSec > 0) parts.push(`Limit ${formatRate(p.limitBytesPerSec)}`);
+  if (p.windowEndsAt) parts.push(`Window ends ${formatClock(p.windowEndsAt)}`);
+  return parts;
+}
+
 /** JobProgressView is the progress bar with its figures, phase and current file. */
 export function JobProgressView({ job, label }: { job: Job; label: string }) {
   const p = job.progress;
+  const waiting = isWaiting(job);
   const fraction = job.status === 'running' ? progressFraction(p) : job.status === 'queued' ? 0 : null;
   const text = progressText(p);
+  const engine = job.status === 'running' ? engineProgressParts(p) : [];
   return (
     <div className="min-w-[12rem]">
       <div className="flex items-center gap-2">
         <ProgressBar value={fraction} label={`Progress of ${label}`} />
         {fraction != null && <span className="w-12 shrink-0 text-right text-xs text-ink-muted">{formatPercent(fraction)}</span>}
       </div>
-      <div className="mt-1 text-xs text-ink-muted">
-        {job.status === 'queued' ? 'Waiting for a free worker or for another job on the same target' : text || (p?.phase ? `${p.phase}…` : 'Starting…')}
+      <div className={`mt-1 text-xs ${waiting ? 'text-info' : 'text-ink-muted'}`}>
+        {waiting
+          ? waitingText(job)
+          : job.status === 'queued'
+            ? 'Waiting for a free worker or for another job on the same target'
+            : text || (p?.phase ? `${p.phase}…` : 'Starting…')}
       </div>
+      {engine.length > 0 && <div className="mt-0.5 text-xs text-ink-muted">{engine.join(' · ')}</div>}
+      {!waiting && job.status === 'running' && !!job.deferrals && <div className="mt-0.5 text-xs text-ink-muted">Resumed in this window ({deferralText(job.deferrals)})</div>}
       {p?.currentFile && (
         <div className="mt-0.5 truncate font-mono text-xs text-ink-muted" title={p.currentFile}>
           {p.currentFile}
@@ -83,6 +125,13 @@ export function JobBadges({ job }: { job: Job }) {
         </Badge>
       )}
       {job.attempt > 1 && <Badge title="Resumed after a restart">Attempt {job.attempt}</Badge>}
+      {isWaiting(job) && (
+        <Badge tone="info" title={waitingText(job)}>
+          Waiting for window
+        </Badge>
+      )}
+      {job.params?.prune && <Badge title="Prunes the restic repository in this run">Prune</Badge>}
+      {job.params?.readData && <Badge title="Reads every file back once">Read all data</Badge>}
     </>
   );
 }
@@ -106,6 +155,8 @@ export function JobCell({ job, names }: { job: Job; names: Names }) {
 
 /** formatStat formats a stats value by its key: bytes*, *Bytes → size, *Ms → duration. */
 export function formatStat(key: string, v: unknown): string {
+  const engine = formatEngineStat(key, v);
+  if (engine !== undefined) return engine;
   if (typeof v === 'number') {
     if (/^bytes|Bytes$/.test(key)) return formatBytes(v);
     if (/Ms$/.test(key)) return formatDurationMs(v);
@@ -143,7 +194,7 @@ export function splitStats(stats: Record<string, unknown> | null, dryRun = false
   for (const [k, v] of Object.entries(stats ?? {})) {
     if (k === 'sources' && Array.isArray(v)) {
       sources = v.filter(isRow);
-    } else if (k === 'dryRun' || v === null || v === undefined || (dryRun && DRY_RUN_HIDDEN_STATS.has(k))) {
+    } else if (k === 'dryRun' || v === null || v === undefined || (dryRun && DRY_RUN_HIDDEN_STATS.has(k)) || engineStatHidden(k, stats, dryRun)) {
       continue;
     } else if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') {
       figures.push([k, v]);
@@ -252,7 +303,7 @@ export function JobStats({ stats, dryRun = false }: { stats: Record<string, unkn
           {figures.map(([k, v]) => (
             <Stat
               key={k}
-              label={statLabel(k, dryRun)}
+              label={engineStatLabel(k, dryRun) ?? statLabel(k, dryRun)}
               value={typeof v === 'string' && v.includes('/') ? <span className="break-all font-mono text-xs">{v}</span> : formatStat(k, v)}
               muted={v === 0}
             />
@@ -260,6 +311,56 @@ export function JobStats({ stats, dryRun = false }: { stats: Record<string, unkn
         </StatGrid>
       )}
       <SourceBreakdown rows={sources} />
+    </>
+  );
+}
+
+/**
+ * EngineJobStats shows what the generic figures cannot: a restic sync's snapshots (per source and
+ * batch) and a restic verify's repository check (phase4.md §11.4).
+ */
+export function EngineJobStats({ stats, names }: { stats: Record<string, unknown> | null; names: Names }) {
+  const snaps = snapshotStats(stats);
+  const check = checkStat(stats);
+  if (snaps.length === 0 && !check) return null;
+  return (
+    <>
+      {check && (
+        <p className={`mb-4 text-sm ${check.numErrors > 0 ? 'text-danger' : ''}`} role={check.numErrors > 0 ? 'alert' : undefined}>
+          Repository check: {describeCheck(check)}
+        </p>
+      )}
+      {snaps.length > 0 && (
+        <div className="relative mb-5 overflow-x-auto rounded border border-line bg-panel">
+          <table className="w-full text-sm">
+            <caption className="sr-only">Snapshots made</caption>
+            <thead>
+              <tr className="border-b border-line text-left text-ink-muted">
+                {['Source', 'Snapshot', 'Batch', 'New', 'Changed', 'Unmodified', 'Data added'].map((h, i) => (
+                  <th key={h} scope="col" className={`whitespace-nowrap px-3 py-2 font-medium ${i >= 2 ? 'text-right' : ''}`}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {snaps.map((r) => (
+                <tr key={`${r.snapshotId}-${r.sourceId}`} className="border-b border-line/60 last:border-b-0">
+                  <th scope="row" className="px-3 py-2 text-left font-normal">
+                    {names.source(r.sourceId)}
+                  </th>
+                  <td className="px-3 py-2 font-mono text-xs">{shortId(r.snapshotId)}</td>
+                  <td className="px-3 py-2 text-right">{formatNumber(r.batch)}</td>
+                  <td className="px-3 py-2 text-right">{formatNumber(r.filesNew)}</td>
+                  <td className="px-3 py-2 text-right">{formatNumber(r.filesChanged)}</td>
+                  <td className="px-3 py-2 text-right">{formatNumber(r.filesUnmodified)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">{formatBytes(r.dataAdded)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }

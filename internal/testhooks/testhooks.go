@@ -1,6 +1,7 @@
 // Package testhooks holds the few values that end-to-end tests must be able to change in a real
 // Bunkarr binary (docs/design/phase2-3.md §14.2, §15 E2E): the webhook processor's windows, the
-// plex.tv base URLs and a clock skew for cache freshness.
+// plex.tv base URLs, a clock skew for cache freshness and, from Phase 4, a destination's transfer
+// window as absolute times (docs/design/phase4.md §14.6 item 5).
 //
 // Overrides are honoured only in binaries built with -tags e2e (Enabled). A production build
 // never reads the environment here: every accessor returns the default its caller passes (the
@@ -15,6 +16,7 @@ package testhooks
 
 import (
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -42,6 +44,11 @@ const (
 	// duration such as "25h" (every cache refreshed less than 25 hours ago then looks 25 hours
 	// older).
 	EnvClockSkew = "BUNKARR_TEST_CLOCK_SKEW"
+	// EnvWindow replaces one destination's transfer window with absolute times:
+	// "<destinationId>,<open RFC3339>,<close RFC3339>,<reopen RFC3339>". The window is closed
+	// before open, open from open until close, closed again until reopen and open from reopen on
+	// (docs/design/phase4.md §9.2, §14.6 item 5). Other destinations keep their own windows.
+	EnvWindow = "BUNKARR_TEST_WINDOW"
 )
 
 // fileSuffix names the variable that points at a file holding the value instead.
@@ -81,6 +88,39 @@ func ClockSkew() time.Duration {
 // complete refresh with.
 func FreshnessNow(now time.Time) time.Time {
 	return now.Add(ClockSkew())
+}
+
+// Window returns the absolute transfer window of destinationID (see EnvWindow) and ok = true when
+// the override names that destination and parses (open < close <= reopen); a production build
+// always returns ok = false.
+func Window(destinationID int64) (openAt, closeAt, reopenAt time.Time, ok bool) {
+	s, set := value(EnvWindow)
+	return parseWindow(s, set, destinationID)
+}
+
+// parseWindow parses an EnvWindow value for destinationID.
+func parseWindow(s string, ok bool, destinationID int64) (openAt, closeAt, reopenAt time.Time, found bool) {
+	if !ok {
+		return
+	}
+	parts := strings.Split(s, ",")
+	if len(parts) != 4 {
+		return
+	}
+	id, err := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+	if err != nil || id != destinationID || id <= 0 {
+		return
+	}
+	var times [3]time.Time
+	for i, p := range parts[1:] {
+		if times[i], err = time.Parse(time.RFC3339, strings.TrimSpace(p)); err != nil {
+			return
+		}
+	}
+	if !times[0].Before(times[1]) || times[2].Before(times[1]) {
+		return
+	}
+	return times[0], times[1], times[2], true
 }
 
 // positiveDuration returns the override of name when it is a duration > 0, else def.

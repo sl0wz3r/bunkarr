@@ -78,6 +78,23 @@ func (e *env) scheduleStates(t *testing.T) []scheduleState {
 	return list
 }
 
+// TestScheduleListCarriesLastSkip: every schedule carries lastSkip (null until a fire queues
+// nothing; phase4.md §15, System → Tasks), as openapi.json's Schedule requires.
+func TestScheduleListCarriesLastSkip(t *testing.T) {
+	e := newEnv(t, nil)
+	e.createDestination(t, "NAS", e.mkdir(t, "nas"), nil, map[string]any{"schedule": map[string]any{"cron": "0 2 * * *", "enabled": true}})
+	var list []map[string]json.RawMessage
+	e.call(t, 200, "GET", "/schedules", nil, &list)
+	if len(list) == 0 {
+		t.Fatal("no schedules")
+	}
+	for _, sc := range list {
+		if raw, ok := sc["lastSkip"]; !ok || string(raw) != "null" {
+			t.Errorf("schedule %s: lastSkip %q (present %t)", sc["id"], raw, ok)
+		}
+	}
+}
+
 // TestSchedulesOfDisabledDestinationsAndIntegrationsAreBlocked: the scheduler refuses the jobs
 // of a disabled destination or Plex integration (scheduleGate), so GET /schedules says why
 // instead of promising a next run, and Run now answers 409 instead of queueing a job that fails.

@@ -1,0 +1,4 @@
+2026/09/27 13:57:17 ERROR : S3 bucket rclone-plain path maxdur: max transfer duration reached as set by --max-duration
+2026/09/27 13:57:17 ERROR : Cancelling sync due to fatal error: max transfer duration reached as set by --max-duration
+2026/09/27 13:57:17 ERROR : Fatal error received - not attempting retries
+2026/09/27 13:57:17 NOTICE: Failed to copy: max transfer duration reached as set by --max-duration

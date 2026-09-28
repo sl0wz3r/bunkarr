@@ -2,9 +2,12 @@
 # (linux/amd64, linux/arm64) is built ONCE and pushed to ghcr.io/<owner>/bunkarr as a candidate,
 # :candidate-<commit>, with the workflow's own GITHUB_TOKEN; the acceptance tests
 # (docs/design/phase1.md §9) run the e2e suite and the Docker suite against that very image, pulled
-# by digest on an amd64 and an arm64 runner; only then does the image job put the release tags on
-# the same digest (no rebuild, so what ships is byte for byte what was tested). Nothing gets a
-# release tag unless every test job passed; a failed candidate stays under its candidate tag.
+# by digest on an amd64 and an arm64 runner (test-image.sh also checks that its restic and rclone
+# are the versions of docker/engines/versions.env), and the off-site acceptance suite
+# (docs/design/phase4.md §14.6) runs its restic and rclone on amd64; only then does the image job
+# put the release tags on the same digest (no rebuild, so what ships is byte for byte what was
+# tested). Nothing gets a release tag unless every test job passed; a failed candidate stays under
+# its candidate tag.
 # After the FIRST push, make the ghcr.io package public by hand (package settings): new packages
 # are private and Unraid needs anonymous pulls.
 #
@@ -193,7 +196,9 @@ jobs:
             exit 1
           fi
 
-      # Healthcheck, first-run setup, API key auth, UI, PUID/PGID ownership, clean SIGTERM stop.
+      # Healthcheck, first-run setup, API key auth, restic and rclone (present, the versions of
+      # docker/engines/versions.env, restic runs), UI, PUID/PGID ownership, clean SIGTERM stop, a
+      # restart with other PUID/PGID.
       - name: Test image
         run: sh docker/test-image.sh bunkarr:release-test
 
@@ -210,10 +215,63 @@ jobs:
       - name: Network share test
         run: sh docker/test-shares.sh bunkarr:release-test
 
+  # Off-site acceptance (docs/design/phase4.md §14.6, acceptance 1-9) against the candidate's amd64
+  # image: the restic and rclone it ships, on MinIO and an OpenSSH SFTP server (pinned by digest).
+  # amd64 only: the SFTP server image is amd64 only. The docker job's test-image.sh checks the
+  # arm64 image's restic and rclone versions. The real-B2 test is manual (its variables are never
+  # set here).
+  offsite:
+    name: off-site acceptance
+    needs: [test, candidate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 130
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The drivers are Go tests (internal/e2e); they build a derived test image FROM the candidate.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27"
+          check-latest: true
+          cache-dependency-path: go.sum
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull the candidate
+        env:
+          REF: ${{ needs.candidate.outputs.image }}@${{ needs.candidate.outputs.digest }}
+          PLATFORM: linux/amd64
+        run: |
+          set -eu
+          server=$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')
+          if [ "$server" != "$PLATFORM" ]; then
+            echo "this runner's Docker is $server, want $PLATFORM" >&2
+            exit 1
+          fi
+          docker pull --platform "$PLATFORM" "$REF"
+          docker tag "$REF" bunkarr:release-test
+          got=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' bunkarr:release-test)
+          if [ "$got" != "$PLATFORM" ]; then
+            echo "bunkarr:release-test is $got, want $PLATFORM" >&2
+            exit 1
+          fi
+
+      - name: Off-site acceptance
+        run: sh docker/test-offsite.sh bunkarr:release-test
+
   # Puts the release tags on the tested candidate's digest; every tag must resolve to it.
   image:
     name: image
-    needs: [test, e2e, candidate, docker]
+    needs: [test, e2e, candidate, docker, offsite]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
