@@ -1,11 +1,11 @@
 # CI on every branch push and pull request: web UI (typecheck, tests, build), Go (gofmt, vet, race
-# tests, build, the e2e acceptance suite, govulncheck), npm audit, shellcheck, and the Docker image
-# (build + smoke test + container kill test + SMB/NFS share test, no push). The slow Plex
-# backup/restore test runs only on manual runs (workflow_dispatch) and on tags. Releases:
-# release.yml, on tags (it builds the multi-arch image once, runs the e2e suite and the Docker suite
-# against that image on amd64 and arm64, and tags it as a release only when they pass). Actions are
-# pinned to full commit SHAs (the comment names the release; Renovate bumps both). The token is
-# read-only and never persisted.
+# tests, build, the e2e acceptance suite, govulncheck), npm audit, shellcheck, the Unraid template
+# (make ca-validate), and the Docker image (build + smoke test + container kill test + SMB/NFS
+# share test, no push). The slow Plex backup/restore test runs only on manual runs
+# (workflow_dispatch) and on tags. Releases: release.yml, on tags (it builds the multi-arch image
+# once, runs the e2e suite and the Docker suite against that image on amd64 and arm64, and tags it
+# as a release only when they pass). Actions are pinned to full commit SHAs (the comment names the
+# release; Renovate bumps both). The token is read-only and never persisted.
 name: ci
 
 on:
@@ -99,7 +99,24 @@ jobs:
         run: npm audit --omit=dev --audit-level=moderate
 
       - name: Shell - shellcheck
-        run: shellcheck docker/*.sh
+        run: shellcheck docker/*.sh unraid/ca/*.sh
+
+      # The committed Unraid CA template (unraid/bunkarr.xml) and ca_profile.xml are current with
+      # unraid/ca/ and publish.env and pass every template and repository rule (see
+      # unraid/ca/README.md). Needs make and xmllint (libxml2-utils): installed when the runner
+      # image lacks them, with sudo unless the job runs as root.
+      - name: Unraid - template
+        run: |
+          set -eu
+          as_root() { if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi; }
+          set --
+          command -v make >/dev/null || set -- "$@" make
+          command -v xmllint >/dev/null || set -- "$@" libxml2-utils
+          if [ "$#" -gt 0 ]; then
+            as_root apt-get update -qq
+            as_root apt-get install -y -qq --no-install-recommends "$@"
+          fi
+          make ca-validate
 
   docker:
     name: docker build

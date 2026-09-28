@@ -20,7 +20,9 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -256,8 +258,42 @@ func discoverEngines(ctx context.Context, env config.Env, log *slog.Logger, star
 	host, err := os.Hostname()
 	if err != nil {
 		log.Warn("Could not read the host name; restic lock checks cannot tell this container's locks apart", "error", err)
+	} else if looksLikeContainerID(host) {
+		log.Warn("The host name looks like a Docker container ID, which changes whenever the container is recreated (an update or an edit): "+
+			"restic then counts the locks the previous container left as another host's and waits up to 30 minutes for them to become stale. "+
+			"Give this install a stable host name of its own", "hostName", host, "fix", hostNameFix(os.Getenv("HOST_HOSTNAME")))
 	}
 	return api.EngineOptions{Runner: runner, Restic: resticBin, Rclone: rcloneBin, Availability: avail, HostName: host, ProcessStart: started}
+}
+
+var (
+	// containerIDHost is Docker's host name for a container started without one (no --hostname,
+	// no compose hostname): the first 12 hex digits of the container ID.
+	containerIDHost = regexp.MustCompile(`^[0-9a-f]{12}$`)
+	// hostLabel is a lower-case server name that makes bunkarr-<name> a valid host name label: at
+	// most 63 characters in all, letters, digits and inner hyphens.
+	hostLabel = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,53}[a-z0-9])?$`)
+)
+
+// looksLikeContainerID reports whether host is Docker's default host name, which a recreated
+// container does not keep. restic tells its own stale locks apart from another container's by the
+// host name (docs/design/phase4.md §6.7), so with a new name after every update Bunkarr waits for
+// the locks its previous container left instead of removing them at once.
+func looksLikeContainerID(host string) bool {
+	return containerIDHost.MatchString(host)
+}
+
+// hostNameFix is the advice for a host name that looksLikeContainerID. unraidServer is
+// HOST_HOSTNAME, the server name Unraid's dockerMan passes to the containers it creates: when it
+// makes a valid host name, the advice is the exact Extra Parameters flag the template ships
+// (--hostname=bunkarr-tower on a server named Tower). Anything else (another Docker host, an
+// Unraid that does not pass it, a name with other characters) gets the general advice.
+func hostNameFix(unraidServer string) string {
+	if name := strings.ToLower(strings.TrimSpace(unraidServer)); hostLabel.MatchString(name) {
+		return "add --hostname=bunkarr-" + name + " to Extra Parameters (Advanced View) in this container's Unraid settings"
+	}
+	return "set --hostname=bunkarr-SERVER (docker run, or Extra Parameters on Unraid) or SERVER_NAME in deploy/.env (Docker Compose), " +
+		"with this server's name for SERVER"
 }
 
 func healthcheck(env config.Env, stderr io.Writer) int {

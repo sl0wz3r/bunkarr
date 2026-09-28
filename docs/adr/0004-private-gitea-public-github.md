@@ -17,6 +17,9 @@ names and home paths.
   and commits the result as one new commit on the public branch with the original message
   (trailers dropped). `v*` tags on the commit are mirrored and trigger the release workflow.
 - The Go module path is the public one (`github.com/sl0wz3r/bunkarr`), so no rewriting is needed.
+- [ADR 0009](0009-unraid-community-applications.md) adds `docs/ca/` to the excluded paths and a
+  gate before the term scan: the export's Unraid template must be current and valid
+  (`make ca-validate`), or nothing is published.
 - `.gitea/workflows` and `.github/workflows` run the same CI; Gitea ignores `.github/workflows`
   while `.gitea/workflows` exists.
 

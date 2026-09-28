@@ -31,6 +31,7 @@ make test-shares # sync and kill tests on Samba (CIFS) and NFS shares (privilege
 make test-arr    # real Sonarr, Radarr and Lidarr containers, incl. tiers (Docker, Go and internet; slow)
 make test-engines # real restic and rclone against MinIO and an SFTP server, in containers (Docker)
 make test-offsite # off-site acceptance of the image on MinIO + SFTP (Docker and Go; ~30 min)
+make ca-validate # the Unraid template and ca_profile.xml are current and pass the CA rules (xmllint)
 make help        # every target
 ```
 
@@ -86,11 +87,19 @@ The Go binary embeds `web/dist`; a Go-only build works (the UI then answers with
 the UI with `make web`: `npm run build` empties `web/dist`, including the tracked `.gitkeep`,
 which `make web` puts back.
 
-CI runs lint, the race tests, the e2e suite, govulncheck and npm audit on every push, the engine
-binary tests, the image build with the smoke, compose, kill and share tests and the off-site
-acceptance, and the Plex test on `workflow_dispatch` and tags. The release workflow tags an image
-only after the e2e suite, the whole Docker suite and the off-site acceptance pass against it. The
-GitHub and Gitea workflows are kept identical below their headers.
+CI runs lint, the race tests, the e2e suite, govulncheck and npm audit on every push, the Unraid
+template check (`make ca-validate`), the engine binary tests, the image build with the smoke,
+compose, kill and share tests and the off-site acceptance, and the Plex test on
+`workflow_dispatch` and tags. The release workflow tags an image only after the e2e suite, the
+whole Docker suite and the off-site acceptance pass against it. The GitHub and Gitea workflows are
+kept identical below their headers.
+
+The Unraid template (`unraid/bunkarr.xml`) and `ca_profile.xml` are generated from `unraid/ca/`
+([`unraid/ca/README.md`](unraid/ca/README.md)): edit the `.tmpl` files or `publish.env`, run
+`make ca-template ca-profile`, and commit the sources and the rendered files together. The
+template mirrors `deploy/docker-compose.yml`, so a change to either runs `make ca-validate` and
+`go test ./deploy/` before it is committed; the public export refuses a stale or invalid template,
+and once Bunkarr is listed in Community Applications, CA reads the template straight from `main`.
 
 ## Layout
 
@@ -162,7 +171,11 @@ testdata/arr/, testdata/webhooks/  recorded *arr API responses and webhook paylo
 testdata/tautulli/, seerr/, maintainerr/  recorded Tautulli, Seerr and Maintainerr responses
 testdata/restic/, testdata/rclone/  restic and rclone output recorded by the engine spike
 web/                       React + TypeScript + Vite + Tailwind UI
-deploy/                    docker-compose example
+deploy/                    docker-compose example; tests tying it and the release workflow's image
+                           to the Unraid template
+unraid/                    the Unraid template (bunkarr.xml, generated), icon and install guide;
+                           ca/ holds its sources, settings file and render/validate/preflight
+                           scripts
 docker/                    entrypoint; image smoke, compose, container kill, Plex restore, share,
                            engine and off-site test wrappers; engines/ (test image and the pinned
                            restic/rclone versions), offsite/ (argv shims, SFTP setup, kit restore)
@@ -258,6 +271,52 @@ Crash safety is tested by stopping the program at named step boundaries.
 - **Kill tests** (`internal/e2e`, Docker kill test): `BUNKARR_FAULTPOINT=<point>` and
   `BUNKARR_FAULTPOINT_FILE=<path>` make the process write the file and block at that point; the
   test kills it with SIGKILL and restarts it without the variable.
+
+## Releases
+
+Maintainers only. The development repository publishes every commit on `main` to the public
+repository through the sanitizing export (`make publish`, ADR 0004); a release tag there starts
+`.github/workflows/release.yml`.
+
+1. `CHANGELOG.md`: move the `[Unreleased]` entries under `## [X.Y.Z] - YYYY-MM-DD` (the tag's
+   date) and start a new, empty `## [Unreleased]` above it.
+2. `unraid/ca/bunkarr.xml.tmpl`: add `### X.Y.Z (YYYY-MM-DD)` and a few user-facing lines at the
+   top of `<Changes>` (plain ASCII, no square brackets, `arr` rather than `*arr`). It is the change
+   log Community Applications shows, and the only way to tell installed containers about a new
+   setting: they keep their saved template.
+3. `unraid/ca/publish.env`: set `VERSION` and `RELEASE_DATE`.
+4. `make ca-template` (and `make ca-profile` when its source or settings changed), then
+   `make ca-validate` and `go test ./deploy/`: `deploy/unraid_changes_test.go` fails until the
+   CHANGELOG heading, the `<Changes>` heading, `VERSION` and `RELEASE_DATE` agree.
+5. Commit on `main` (`chore(release): X.Y.Z`); the post-commit hook publishes it. To review the
+   export first, commit with `BUNKARR_NO_MIRROR=1`, run `make publish-dry`, check the result in
+   `.git/public-mirror`, then run `make publish`.
+6. `git tag vX.Y.Z` on exactly that commit, the current `HEAD`, and run `make publish` at once.
+   The hook ran before the tag existed, and the export pushes only the tags on the commit it
+   publishes, so only this second run pushes the tag. It never force-pushes a tag: never move a
+   published tag, and never tag an older commit.
+7. `release.yml` tests the candidate image and tags it `:X.Y.Z`, `:X.Y` and `:latest`; a
+   pre-release (`vX.Y.Z-rc.N`) gets only its own tag and never moves `:latest`, which Unraid's
+   update check follows. It creates no GitHub release: make one by hand
+   (`gh release create vX.Y.Z --verify-tag`, with the version's CHANGELOG section and the image
+   digest as notes; `--prerelease` for a pre-release).
+
+Once Bunkarr is listed in Community Applications:
+
+- **A release commit goes live in Community Applications at once**: CA reads `main` at its next
+  feed build, before `release.yml` has pushed the image (the off-site suite alone may run for two
+  hours). If the release fails, act right away, so CA does not announce a version that cannot
+  be pulled. Either revert the release together: the `CHANGELOG.md` heading (its entries go back
+  under `[Unreleased]`), `<Changes>`, `VERSION` and `RELEASE_DATE` (`deploy/unraid_changes_test.go`
+  fails on a partial revert). Or fix forward with the next patch version: a new CHANGELOG heading,
+  `<Changes>` entry, `VERSION`, `RELEASE_DATE` and tag. The pushed tag is never moved or reused,
+  so the fixed release always ships under a new version.
+- **Never rename or transfer the repository, rename the account, or move or rename
+  `unraid/bunkarr.xml`**: CA can blacklist the whole repository for it, and installed containers
+  keep reading their `TemplateURL`.
+- **When the icon changes**, run `make ca-icon`, append `?v=2` (then `?v=3`, ...) to `ICON_URL`
+  in `unraid/ca/publish.env` and run `make ca-template ca-profile`: Unraid and CA cache icons by
+  URL.
 
 ## Security
 

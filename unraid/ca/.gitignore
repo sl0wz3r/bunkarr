@@ -1,0 +1,3 @@
+# Rendered scratch files (make ca-template, ca-profile, ca-validate). The public repository must
+# hold exactly one Bunkarr template, unraid/bunkarr.xml: CA scans every .xml file in it.
+/out/

@@ -1,0 +1,65 @@
+name: Feature request
+description: Suggest a specific, well-defined change or addition.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! Before you write it up:
+
+        - Check the [roadmap](https://github.com/sl0wz3r/bunkarr#roadmap) and [DEFERRED.md](https://github.com/sl0wz3r/bunkarr/blob/main/DEFERRED.md), which lists postponed work with the reasons. If your idea is there, say so and add your use case.
+        - Bunkarr handles backups, so every feature has to fail safe: it never writes to source media, everything that deletes can be previewed first, and a fact Bunkarr cannot know never lowers a file's protection ([CONTRIBUTING.md](https://github.com/sl0wz3r/bunkarr/blob/main/CONTRIBUTING.md#ground-rules)).
+
+        Please do not post tokens, keys, passwords or private paths.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Sources and scans
+        - Mounted destinations and syncs
+        - Off-site destinations (restic, rclone, B2, S3, SFTP)
+        - Restoring
+        - Plex (connection, Plex DB backup)
+        - Sonarr, Radarr, Lidarr (connections, webhooks, backups, manifests)
+        - Tiers, Tautulli, Seerr, Maintainerr
+        - Schedules, activity, notifications
+        - Web UI or API
+        - Install, image or Unraid template
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe your setup and what gets in your way today. Real examples help most.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like Bunkarr to do?
+      description: How it could work from your point of view (settings, UI, behavior).
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: What could go wrong?
+      description: >-
+        Could this make Bunkarr touch a source, drop a version it should keep, or report a backup
+        as good when it is not? What should it do when a share is unmounted or data is missing,
+        stale or ambiguous? If you are not sure, say so: that is useful too.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: What you do today, or other tools that solve this.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to help build this (see CONTRIBUTING.md).

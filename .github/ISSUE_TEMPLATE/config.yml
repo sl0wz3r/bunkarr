@@ -1,0 +1,18 @@
+# New-issue chooser. Support runs on GitHub Issues (the Unraid template's <Support>; there is no
+# forum thread or Discussions yet), so a blank issue stays open for questions and setup help next to
+# the bug and feature forms.
+blank_issues_enabled: true
+contact_links:
+  - name: Unraid install guide
+    url: https://github.com/sl0wz3r/bunkarr/blob/main/unraid/README.md
+    about: Every template setting, the host name, the Docker Stop Timeout, Unassigned Devices, webhooks and updating.
+  - name: Documentation
+    url: https://github.com/sl0wz3r/bunkarr#readme
+    about: Setup, destinations, Sonarr, Radarr and Lidarr, tiers, restoring and upgrading.
+  - name: Security vulnerability
+    url: https://github.com/sl0wz3r/bunkarr/security
+    about: Please do not open a public issue. Report it privately (Security tab, "Report a vulnerability").
+  # Add once the Unraid forum support thread exists (DEFERRED.md):
+  # - name: Unraid support thread
+  #   url: https://forums.unraid.net/topic/<id>-support-sl0wz3r-bunkarr/
+  #   about: Unraid-specific installation help in the Unraid forum.

@@ -1,0 +1,139 @@
+name: Bug report
+description: Something in Bunkarr is wrong or broken.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        > **Never post secrets.** That includes your Plex token, the Sonarr, Radarr and Lidarr API keys, Bunkarr's API key and webhook keys (a webhook URL can carry one as `?apikey=`), B2, S3 and SFTP credentials, recovery kits and encryption passwords, and Apprise URLs. Do not attach `bunkarr.db`, `bunkarr.key`, a recovery kit, a Plex `Preferences.xml` or a Sonarr, Radarr or Lidarr backup zip: they all hold secrets. If one leaks, replace it (Bunkarr's API key: *Settings → General*; a webhook key: **Regenerate key** on the connection's card).
+
+        - **Security vulnerability?** Do not open an issue. Report it privately through the repository's [Security tab](https://github.com/sl0wz3r/bunkarr/security) ("Report a vulnerability").
+        - **A question or setup help?** Check the [README](https://github.com/sl0wz3r/bunkarr#readme) and, on Unraid, the [install guide](https://github.com/sl0wz3r/bunkarr/blob/main/unraid/README.md); then open a blank issue.
+        - **Did Bunkarr change a source file, or lose a backed-up file or version?** Pause the jobs of the affected destination (*Destinations → Edit → disable*), leave the destination as it is, and say so below.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues.
+          required: true
+        - label: I removed every token, key and password from what I paste below, and checked the paths, host names and addresses I share.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Bunkarr version
+      description: "*System → Status*, or `docker exec bunkarr /entrypoint.sh version`. Add the image tag or digest if you pinned one."
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Install method
+      options:
+        - Unraid, template from Community Applications
+        - Unraid, template installed by hand
+        - Unraid, Compose Manager
+        - Docker Compose (another host)
+        - docker run
+        - Other (say which below)
+    validations:
+      required: true
+  - type: input
+    id: unraid
+    attributes:
+      label: Unraid version
+      description: Unraid only. Shown at the top right of Unraid's web UI.
+      placeholder: "7.2.0"
+  - type: input
+    id: extra-params
+    attributes:
+      label: Extra Parameters
+      description: >-
+        Unraid: *Docker → bunkarr → Edit → Advanced View → Extra Parameters*, exactly as saved.
+        Docker Compose: the `hostname` and `stop_grace_period` lines.
+      placeholder: "--hostname=bunkarr-tower --stop-timeout=60"
+  - type: textarea
+    id: mounts
+    attributes:
+      label: Mounts, access modes and user
+      description: >-
+        Each mapping as host path → container path with its access mode (Read Only, Read/Write,
+        Read/Write - Slave, Read Only - Slave), PUID and PGID, and on Unraid the Docker Stop Timeout
+        (*Settings → Docker*). How the backup share is mounted (NFS or SMB, Unassigned Devices), and
+        the destinations involved (mounted folder; restic or rclone to B2, S3 or SFTP).
+      placeholder: |
+        /mnt/user/data -> /media (Read Only)
+        /mnt/user/appdata/plex/Library/Application Support/Plex Media Server -> /plex (Read Only)
+        /mnt/remotes/NAS_backup -> /backup (Read/Write - Slave), NFS through Unassigned Devices
+        PUID 99, PGID 100, Docker Stop Timeout 60
+        Destinations: the NAS share (filecopy), B2 with restic
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Sources and scans
+        - Mounted destinations and syncs
+        - Off-site destinations (restic, rclone, B2, S3, SFTP)
+        - Plex (connection, Plex DB backup)
+        - Sonarr, Radarr, Lidarr (connections, webhooks, backups, manifests)
+        - Tiers, Tautulli, Seerr, Maintainerr
+        - Schedules, activity, notifications
+        - Web UI or API
+        - Install, image or Unraid template
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: data-safety
+    attributes:
+      label: Did Bunkarr change or delete a source file, or lose a backed-up file or version?
+      description: Answer yes too if a backup Bunkarr reported as good could not be restored. These reports are handled first.
+      options:
+        - "No"
+        - "Yes"
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add a destination with target /backup/media
+        2. Run Preview on it
+        3. …
+  - type: textarea
+    id: logs
+    attributes:
+      label: Debug log
+      description: >-
+        Set the log level to `debug` (Unraid: *Edit → Advanced View → Log level*; Docker Compose:
+        add `BUNKARR_LOG_LEVEL=debug` to the environment), reproduce the problem, and paste the part
+        of the log around it: the container log (`docker logs bunkarr`, or the container's *Logs* on
+        Unraid), `/config/logs/bunkarr.log`, or the job's log (*Activity*, open the job). Bunkarr
+        redacts the secrets it knows, but not file paths, host names, IP addresses, bucket names or
+        SFTP user names: check them and replace what you do not want public, keeping the folder
+        structure. Set the level back to `info` afterwards.
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: >-
+        Screenshots (a job's items and log, a destination test, a tier preview), related issues,
+        workarounds. Crop out anything that shows a token, an API key, a webhook key or a recovery
+        kit.

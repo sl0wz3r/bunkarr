@@ -8,8 +8,15 @@
 # put the release tags on the same digest (no rebuild, so what ships is byte for byte what was
 # tested). Nothing gets a release tag unless every test job passed; a failed candidate stays under
 # its candidate tag.
-# After the FIRST push, make the ghcr.io package public by hand (package settings): new packages
-# are private and Unraid needs anonymous pulls.
+#
+# The image is ghcr.io/<repository owner, lower-case>/bunkarr (the "Image name" step). It must
+# match REGISTRY and IMAGE_NAME in unraid/ca/publish.env, <Repository> in the Unraid template
+# (unraid/bunkarr.xml) and the image in deploy/docker-compose.yml. After the FIRST push, make the
+# ghcr.io package public by hand (package page -> Package settings -> Change visibility): a new
+# package is private, does not inherit the repository's visibility, and Unraid needs an anonymous
+# pull. Public cannot be undone, and it makes every tag of the package public, the
+# :candidate-<commit> tags (failed candidates included) as well as the release tags. This workflow
+# publishes the image only; the GitHub release and its notes (CHANGELOG.md) are made by hand.
 #
 # Tags: vX.Y.Z pushes :X.Y.Z, :X.Y and :latest; a pre-release pushes only its own tag, so :latest
 # never points at a pre-release. Any other v* tag fails before anything is built.
@@ -125,6 +132,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # ghcr.io takes a multi-arch image's description, license and repository link from the index
+      # annotations (the Dockerfile's labels only reach the per-platform images). The image job's
+      # re-tag keeps this very index (same digest), so the release tags carry them too. No commas
+      # in the values: the action may split list inputs on them.
       - name: Build and push the candidate
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -135,6 +146,10 @@ jobs:
           sbom: true
           provenance: mode=max
           tags: ${{ steps.image.outputs.name }}:candidate-${{ github.sha }}
+          annotations: |
+            index:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            index:org.opencontainers.image.licenses=GPL-3.0-or-later
+            index:org.opencontainers.image.description=Self-hosted backup app for Plex libraries and the arr stack: full versioned backups of what cannot be re-downloaded and manifests of what can. Never modifies or deletes your source media.
           build-args: |
             VERSION=${{ needs.test.outputs.version }}
             COMMIT=${{ github.sha }}

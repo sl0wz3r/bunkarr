@@ -8,6 +8,32 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Unraid (decisions in ADR 0009). Bunkarr is not listed in Community Applications yet; until it
+  is, the template is installed by hand (`unraid/README.md`).
+- Unraid template `unraid/bunkarr.xml` and the repository-root `ca_profile.xml` for Community
+  Applications, rendered from `unraid/ca/` and one settings file (`unraid/ca/publish.env`) with
+  `make ca-template ca-profile`, checked offline by `make ca-validate` (CI, and the public export
+  refuses a stale or invalid template) and online by `make ca-preflight`; a 512x512 icon
+  (`make ca-icon`). The template mirrors the compose example: port 8787, `/media`, `/plex` and the
+  *arr Backups folders read-only, `/backup` `rw,slave`, PUID 99 / PGID 100, UMASK 022, no TZ
+  entry (Unraid passes the server's), and `--hostname=bunkarr-tower --stop-timeout=60` in Extra
+  Parameters. Host paths are empty except Appdata, so Unraid never creates folders at guessed
+  paths. `deploy/` tests tie the template to the compose file, the release workflow's image and
+  the docs.
+- `unraid/README.md`: install (by hand, and from Community Applications once listed), every
+  setting, the host name, Unraid's Docker Stop Timeout (raise it to 60 s: Unraid ignores
+  `--stop-timeout`), *Read/Write - Slave* and Unassigned Devices, the *arr Backups folders that
+  must exist first, webhooks from containers on `br0` ("Host access to custom networks"),
+  reverse proxies (keep Authentication required enabled), updating, and backing up `bunkarr.key`
+  with the database.
+- A start-up warning when the container's host name looks like a Docker container ID (no
+  `--hostname`), naming the Extra Parameters flag to add (`bunkarr-` plus the server name Unraid
+  passes as `HOST_HOSTNAME`).
+- GitHub issue forms: bug reports ask for the Bunkarr and Unraid versions, Extra Parameters,
+  access modes and a `debug` log, and warn to remove tokens and keys first.
+- The release workflow puts the source, license and description on the image index, where
+  ghcr.io reads them for a multi-arch image.
+
 - Phase 4: destinations and versioning (design: `docs/design/phase4.md`, decisions in ADR 0008).
 - Off-site destinations: SFTP servers, S3-compatible storage (AWS, MinIO, Wasabi, Cloudflare and
   others) and Backblaze B2, through **restic** (a deduplicated repository, one snapshot per source

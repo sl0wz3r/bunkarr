@@ -220,6 +220,36 @@ fakes from the test suite, serving their recorded answers with demo plays, reque
   files through the Plex server they are linked to. See
   [Tautulli, Seerr and Maintainerr](#tautulli-seerr-and-maintainerr).
 
+## Unraid
+
+Once Bunkarr is listed in Community Applications: **Apps** → search **Bunkarr** → **Install**.
+Until then, install its template ([`unraid/bunkarr.xml`](unraid/bunkarr.xml)) by hand, in the
+server's terminal:
+
+```sh
+mkdir -p /boot/config/plugins/dockerMan/templates-user
+wget -O /boot/config/plugins/dockerMan/templates-user/my-bunkarr.xml \
+  https://raw.githubusercontent.com/sl0wz3r/bunkarr/main/unraid/bunkarr.xml
+```
+
+then **Docker** → **Add Container** → Template **bunkarr**. The template pulls
+`ghcr.io/sl0wz3r/bunkarr:latest`, which is published from the first release (0.1.0) on; until
+then, use the [Quick start](#quick-start-docker-compose) below, which builds the image from the
+checkout. Before **Apply**, check three things:
+
+- **Extra Parameters** (Advanced View): `--hostname=bunkarr-tower`, with `tower` replaced by this
+  server's name. Every install needs its own, stable host name
+  ([One host name per install](#one-host-name-per-install)).
+- **Settings → Docker → Docker Stop Timeout**: 60 seconds (Docker keeps running while you change
+  it). Unraid ignores the template's `--stop-timeout=60` and kills a container after this
+  timeout (10 seconds by default), and a job killed three times in a row fails.
+- **Backup destination** (`/backup`): access mode *Read/Write - Slave*, so a share that
+  Unassigned Devices mounts after Docker has started still reaches the container.
+
+[`unraid/README.md`](unraid/README.md) explains every setting, the Unraid settings outside the
+template, webhooks from containers on `br0`, reverse proxies, updating, and backing up
+`bunkarr.key` with the database.
+
 ## Quick start (Docker Compose)
 
 1. Get the compose file:
@@ -913,7 +943,8 @@ before its next exclusive step (or with Destinations → Remove stale locks).
 
 Update the checkout (`git pull`) and run the Quick start's `up -d --build` again, or pull a
 released image (`docker compose -f deploy/docker-compose.yml pull`, then `up -d`). Running jobs
-are queued to resume.
+are queued to resume. On Unraid: **Docker** tab → **apply update**
+([`unraid/README.md`](unraid/README.md#7-updating)).
 
 **From Phase 1-3 (compose).** The compose example now requires `SERVER_NAME` (the container's
 host name becomes `bunkarr-<SERVER_NAME>`; restic uses it to tell stale locks apart, so it must
@@ -1054,7 +1085,7 @@ curl -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' -d '{"dryRun":true
 | 3 | Tiering: rule engine (tags, quality, Plex libraries, Tautulli, Seerr, Maintainerr), presets, preview, release of demoted files, irreplaceable flags ✅ |
 | 4 | Destinations & versioning: restic and rclone engines, B2/S3/SFTP, encryption and recovery kits, bandwidth limits and transfer windows ✅ |
 | 5 | Restore & disaster recovery: restore wizard, manifest re-acquisition, restore tests |
-| 6 | Release polish: Unraid CA template, metrics, notifications, docs site, hardening |
+| 6 | Release polish: Unraid CA listing (the template is in [`unraid/`](unraid/README.md)), metrics, notifications, docs site, hardening |
 
 Decisions are recorded in [`docs/adr`](docs/adr); postponed items with reasons in
 [`DEFERRED.md`](DEFERRED.md).

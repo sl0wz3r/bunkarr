@@ -12,6 +12,10 @@ config
 docs
 testdata
 scripts
+# The Unraid template, its sources and icon: not part of the image, and an edit to them must not
+# invalidate the Go build layer (the build stage copies the whole context).
+unraid
+ca_profile.xml
 # Runtime data anywhere in the tree (e.g. deploy/config from the compose example): the master key,
 # databases, logs and Plex DB staging must never enter a build context.
 deploy/config
