@@ -23,7 +23,7 @@ BUCKET=bunkarr-engines
 
 name=bunkarr-engines-$$
 image=$name:test
-# shellcheck disable=SC2329 # run by the EXIT trap
+# shellcheck disable=SC2317,SC2329 # run by the EXIT trap
 cleanup() {
 	docker rm -f "$name-minio" "$name-sftp" "$name-keys" "$name-test" >/dev/null 2>&1 || true
 	docker network rm "$name" >/dev/null 2>&1 || true
