@@ -115,7 +115,7 @@ const REPOSITORY_TEXT: Record<RepositoryState, { tone: Tone; label: string; titl
 const REMOTE_MARKER_TEXT: Record<RemoteMarkerState, { tone: Tone; label: string; title: string }> = {
   missing: { tone: 'info', label: 'No marker yet', title: 'Bunkarr writes .bunkarr/destination.json when you create the destination.' },
   ok: { tone: 'warn', label: 'Existing Bunkarr destination', title: 'The remote holds a Bunkarr destination: attach it to continue its backup.' },
-  unreadable: { tone: 'danger', label: 'Unreadable', title: 'The marker cannot be read: a wrong crypt password, or another crypt remote.' },
+  unreadable: { tone: 'danger', label: 'Unreadable', title: 'The marker cannot be read: a wrong crypt password or password2, another crypt remote, or a file that is not a Bunkarr marker.' },
   foreign: { tone: 'danger', label: 'Used by another destination', title: 'The remote belongs to another destination of this Bunkarr.' },
 };
 

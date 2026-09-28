@@ -84,8 +84,9 @@ export function HowField({ kind, engine, onChange }: { kind: DestKind; engine: E
 /**
  * EncryptionFields is step 4. restic always encrypts: a generated password (recommended) or the
  * user's own, which also attaches an existing repository. rclone: crypt (recommended, generated
- * or the user's own crypt password) or no encryption, which needs the acknowledgement that the
- * provider can read every file (and the user's password, S29).
+ * or the user's own crypt password, with the optional password2 a crypt remote's kit may list)
+ * or no encryption, which needs the acknowledgement that the provider can read every file (and
+ * the user's password, S29).
  */
 export function EncryptionFields({
   engine,
@@ -93,6 +94,8 @@ export function EncryptionFields({
   onChoice,
   secret,
   onSecret,
+  secret2,
+  onSecret2,
   acknowledged,
   onAcknowledge,
 }: {
@@ -101,12 +104,15 @@ export function EncryptionFields({
   onChoice: (c: EncryptionChoice) => void;
   secret: string;
   onSecret: (s: string) => void;
+  secret2: string;
+  onSecret2: (s: string) => void;
   acknowledged: boolean;
   onAcknowledge: (v: boolean) => void;
 }) {
   const name = useId();
   const sub = useId();
   const secretId = useId();
+  const secret2Id = useId();
   const own = (
     <div className="mt-2 grid gap-1 sm:grid-cols-[11rem_1fr] sm:gap-4">
       <label htmlFor={secretId} className="pt-2 text-sm font-medium">
@@ -124,9 +130,33 @@ export function EncryptionFields({
         />
         <div className="mt-1 text-xs text-ink-muted">
           At least 16 characters, no spaces at either end. It can never be changed or shown again except in the recovery kit; you type it once more after
-          creating to prove you have it. To attach an existing {engine === 'restic' ? 'repository' : 'crypt remote'}, type its password.
+          creating to prove you have it{engine === 'rclone' ? ' (with a password2, the kit’s check code instead)' : ''}. To attach an existing{' '}
+          {engine === 'restic' ? 'repository, type its password' : 'crypt remote, type its password (the kit’s “rclone crypt password”)'}.
         </div>
       </div>
+      {engine === 'rclone' && (
+        <>
+          <label htmlFor={secret2Id} className="pt-2 text-sm font-medium">
+            Crypt password2 (salt)
+          </label>
+          <div className="min-w-0">
+            <input
+              id={secret2Id}
+              type="password"
+              className={`${inputClass} max-w-md font-mono`}
+              value={secret2}
+              autoComplete="new-password"
+              spellCheck={false}
+              onChange={(e) => onSecret2(e.target.value)}
+            />
+            <div className="mt-1 text-xs text-ink-muted">
+              Optional; the recovery kit’s “rclone crypt password2”. A crypt remote whose kit lists a password2 (every one whose passwords Bunkarr generated)
+              needs both to attach. Leave it empty when the kit says none, or for a crypt remote made with a password only (rclone’s default salt). With a
+              password2, confirm the recovery kit with its check code.
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
   if (engine === 'restic') {

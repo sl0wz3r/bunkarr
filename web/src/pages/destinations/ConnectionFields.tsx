@@ -39,7 +39,12 @@ export function CredentialFields({
           help={
             <>
               {f.help && <>{f.help} </>}
-              {stored?.[f.field] ? 'Stored encrypted; never shown again. Leave empty to keep it, type to replace it.' : 'Stored encrypted and never shown again.'}
+              {!stored?.[f.field]
+                ? 'Stored encrypted and never shown again.'
+                : kind === 'sftp'
+                  ? // The server keeps one SFTP login (key, passphrase, password), not three fields (§4.3).
+                    'Stored encrypted; never shown again. Leave empty to keep it. Typing a new private key or password replaces the stored login (key, passphrase and password); the stored passphrase stays only if it opens a new encrypted key.'
+                  : 'Stored encrypted; never shown again. Leave empty to keep it, type to replace it.'}
             </>
           }
         />

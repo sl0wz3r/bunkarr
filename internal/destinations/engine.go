@@ -224,9 +224,9 @@ func (s *Store) createEngine(ctx context.Context, in Input, o CreateOptions, kin
 	if err != nil {
 		err = redactErr(err, sec.Values())
 		if o.Attach && plan.mode == engines.EncryptionCrypt && plan.secret.CryptPassword2 == "" && errors.Is(err, rclone.ErrUndecryptable) {
-			// The kit of a crypt remote Bunkarr created prints a password2 as well (§5.3).
-			err = fmt.Errorf("%w; a crypt remote that Bunkarr created has a password2 as well: give the recovery kit's "+
-				"\"rclone crypt password2\" as encryption.secret2", err)
+			// The kit of a crypt remote whose passwords Bunkarr generated prints a password2 as well (§5.3).
+			err = fmt.Errorf("%w; if the recovery kit lists a password2 (every crypt remote whose passwords Bunkarr "+
+				"generated), give the recovery kit's \"rclone crypt password2\" as encryption.secret2", err)
 		}
 		if !res.Initialized {
 			if kept := s.dropCreatedMarker(ctx, eng, d, sec, res.MarkerID, o.Attach, err); kept != nil {

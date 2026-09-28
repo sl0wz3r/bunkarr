@@ -336,6 +336,154 @@ describe('Attach a local restic repository', () => {
   });
 });
 
+describe('The crypt password2 of an rclone destination', () => {
+  it('sends both crypt passwords of the kit, on the test and on the attach', async () => {
+    const { calls, user } = renderApp(
+      '/destinations',
+      base({
+        'POST /api/v1/destinations/test': () => ({ body: tested({ marker: 'ok', engineVersion: 'rclone v1.74.1', message: 'A Bunkarr destination is here.' }) }),
+        'POST /api/v1/destinations': () => ({
+          status: 201,
+          body: rcloneDestination({ encryption: { mode: 'crypt', origin: 'user', kitExportedAt: null, kitConfirmedAt: new Date().toISOString() } }),
+        }),
+      }),
+    );
+    const form = await openAdd(user);
+    await fill(user, form.getByLabelText('Name'), 'Wasabi');
+    await user.click(form.getByRole('radio', { name: /S3-compatible storage/ }));
+    await user.click(form.getByRole('radio', { name: /rclone \(plain copy of the files\)/ }));
+    await fill(user, form.getByLabelText('Bucket'), 'media-backup');
+    await fill(user, form.getByLabelText('Access key ID'), 'AKIAEXAMPLE');
+    await fill(user, form.getByLabelText('Secret access key'), 'wJalrXUtnFEMI/K7MDENG');
+
+    // password2 belongs to the user's own crypt password only.
+    expect(form.queryByLabelText('Crypt password2 (salt)')).not.toBeInTheDocument();
+    await user.click(form.getByRole('radio', { name: /Use my own \/ an existing crypt password/ }));
+    const secret = 'the kit rclone crypt password';
+    const secret2 = 'the kit rclone crypt password2';
+    await fill(user, form.getByLabelText('Encryption password'), secret);
+    await fill(user, form.getByLabelText('Crypt password2 (salt)'), 'short');
+    await user.click(form.getByRole('button', { name: 'Save' }));
+    expect(await form.findByText('The crypt password2 needs at least 16 characters.')).toBeInTheDocument();
+
+    await fill(user, form.getByLabelText('Crypt password2 (salt)'), secret2);
+    await user.click(form.getByRole('button', { name: 'Test' }));
+    expect(await form.findByText('Existing Bunkarr destination')).toBeInTheDocument();
+    expect((callsTo(calls, 'POST /api/v1/destinations/test')[0].body as EngineTestInput).encryption).toEqual({ mode: 'crypt', generate: false, secret, secret2 });
+
+    await user.click(form.getByRole('button', { name: 'Save' }));
+    expect(await form.findByText('Confirm that you want to attach the existing Bunkarr destination on this remote.')).toBeInTheDocument();
+    await user.click(form.getByRole('checkbox', { name: /Attach the existing Bunkarr destination on this remote/ }));
+    await fill(user, form.getByLabelText('Your Bunkarr password'), LOGIN);
+    await user.click(form.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(callsTo(calls, 'POST /api/v1/destinations')).toHaveLength(1));
+    expect(callsTo(calls, 'POST /api/v1/destinations')[0].body as DestinationInput).toMatchObject({
+      kind: 's3',
+      engine: 'rclone',
+      attach: true,
+      encryption: { mode: 'crypt', generate: false, secret, secret2 },
+      currentPassword: LOGIN,
+    });
+    // An attach confirms the kit's custody: the dialog closes.
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('sends no password2 when it is left empty, or with generated crypt passwords', async () => {
+    const { calls, user } = renderApp('/destinations', base({ 'POST /api/v1/destinations/test': () => ({ body: tested({ marker: 'missing', engineVersion: 'rclone v1.74.1' }) }) }));
+    const form = await openAdd(user);
+    await user.click(form.getByRole('radio', { name: /Backblaze B2/ }));
+    await user.click(form.getByRole('radio', { name: /rclone \(plain copy of the files\)/ }));
+    await fill(user, form.getByLabelText('Bucket'), 'bunkarr-media');
+    await fill(user, form.getByLabelText('Application key ID'), '0012345abcdef0000000001');
+    await fill(user, form.getByLabelText('Application key'), 'K001abcdefghijklmnopqrstuvwxyz');
+    await user.click(form.getByRole('radio', { name: /Use my own \/ an existing crypt password/ }));
+    await fill(user, form.getByLabelText('Encryption password'), 'a crypt password only');
+    await user.click(form.getByRole('button', { name: 'Test' }));
+    await waitFor(() => expect(callsTo(calls, 'POST /api/v1/destinations/test')).toHaveLength(1));
+    expect((callsTo(calls, 'POST /api/v1/destinations/test')[0].body as EngineTestInput).encryption).toEqual({
+      mode: 'crypt',
+      generate: false,
+      secret: 'a crypt password only',
+    });
+
+    // A password2 typed before switching to generated passwords is not sent.
+    await fill(user, form.getByLabelText('Crypt password2 (salt)'), 'a leftover password2 value');
+    await user.click(form.getByRole('radio', { name: /Generate the crypt passwords/ }));
+    expect(form.queryByLabelText('Crypt password2 (salt)')).not.toBeInTheDocument();
+    await user.click(form.getByRole('button', { name: 'Test' }));
+    await waitFor(() => expect(callsTo(calls, 'POST /api/v1/destinations/test')).toHaveLength(2));
+    expect((callsTo(calls, 'POST /api/v1/destinations/test')[1].body as EngineTestInput).encryption).toEqual({ mode: 'crypt' });
+  });
+
+  it('drops a password2 typed for rclone when the engine becomes restic', async () => {
+    const { calls, user } = renderApp('/destinations', base({ 'POST /api/v1/destinations/test': () => ({ body: tested({ repository: 'missing' }) }) }));
+    const form = await openAdd(user);
+    await fill(user, form.getByLabelText('Name'), 'B2');
+    await user.click(form.getByRole('radio', { name: /Backblaze B2/ }));
+    await user.click(form.getByRole('radio', { name: /rclone \(plain copy of the files\)/ }));
+    await fill(user, form.getByLabelText('Bucket'), 'bunkarr-media');
+    await fill(user, form.getByLabelText('Application key ID'), '0012345abcdef0000000001');
+    await fill(user, form.getByLabelText('Application key'), 'K001abcdefghijklmnopqrstuvwxyz');
+    await user.click(form.getByRole('radio', { name: /Use my own \/ an existing crypt password/ }));
+    await fill(user, form.getByLabelText('Crypt password2 (salt)'), 'short');
+
+    await user.click(form.getByRole('radio', { name: /restic \(snapshots, deduplicated\)/ }));
+    await user.click(form.getByRole('radio', { name: /Use my own \/ existing repository/ }));
+    expect(form.queryByLabelText('Crypt password2 (salt)')).not.toBeInTheDocument();
+    const secret = 'my own long repository password';
+    await fill(user, form.getByLabelText('Encryption password'), secret);
+    await user.click(form.getByRole('button', { name: 'Test' }));
+    expect(await form.findByText('No repository yet')).toBeInTheDocument();
+    // The server refuses secret2 with restic (400).
+    expect((callsTo(calls, 'POST /api/v1/destinations/test')[0].body as EngineTestInput).encryption).toEqual({ mode: 'restic', generate: false, secret });
+    // The hidden rclone password2 does not block the restic create.
+    await user.click(form.getByRole('button', { name: 'Save' }));
+    expect(await form.findByText(/Enter your Bunkarr password to confirm/)).toBeInTheDocument();
+    expect(form.queryByText('The crypt password2 needs at least 16 characters.')).not.toBeInTheDocument();
+  });
+
+  it('confirms a crypt remote created with a password2 by the kit’s check code only', async () => {
+    const { calls, user } = renderApp(
+      '/destinations',
+      base({
+        'POST /api/v1/destinations/test': () => ({ body: tested({ marker: 'missing', engineVersion: 'rclone v1.74.1' }) }),
+        'POST /api/v1/destinations': () => ({ status: 201, body: rcloneDestination({ encryption: { mode: 'crypt', origin: 'user', kitExportedAt: null, kitConfirmedAt: null } }) }),
+      }),
+    );
+    const form = await openAdd(user);
+    await fill(user, form.getByLabelText('Name'), 'Wasabi');
+    await user.click(form.getByRole('radio', { name: /S3-compatible storage/ }));
+    await user.click(form.getByRole('radio', { name: /rclone \(plain copy of the files\)/ }));
+    await fill(user, form.getByLabelText('Bucket'), 'media-backup');
+    await fill(user, form.getByLabelText('Access key ID'), 'AKIAEXAMPLE');
+    await fill(user, form.getByLabelText('Secret access key'), 'wJalrXUtnFEMI/K7MDENG');
+    await user.click(form.getByRole('radio', { name: /Use my own \/ an existing crypt password/ }));
+    await fill(user, form.getByLabelText('Encryption password'), 'my own rclone crypt password');
+    await fill(user, form.getByLabelText('Crypt password2 (salt)'), 'my own rclone crypt password2');
+    await user.click(form.getByRole('button', { name: 'Test' }));
+    expect(await form.findByText('No marker yet')).toBeInTheDocument();
+    await fill(user, form.getByLabelText('Your Bunkarr password'), LOGIN);
+    await user.click(form.getByRole('button', { name: 'Save' }));
+
+    const kit = within(await screen.findByRole('dialog', { name: 'Recovery kit · Wasabi' }));
+    expect(callsTo(calls, 'POST /api/v1/destinations')[0].body as DestinationInput).not.toHaveProperty('attach');
+    // The server refuses the password alone: the kit holds both, so only its check code confirms it.
+    expect(kit.queryByRole('region', { name: 'Type your password again' })).not.toBeInTheDocument();
+    expect(kit.getByRole('region', { name: 'Type the check code from the kit' })).toBeInTheDocument();
+    expect(kit.getByText(/until you download its recovery kit and type the check code/)).toBeInTheDocument();
+  });
+});
+
+describe('Edit an rclone destination', () => {
+  it('keeps the SFTP login hint off the stored S3 keys', async () => {
+    const { user } = renderApp('/destinations', base({ 'GET /api/v1/destinations': () => ({ body: [rcloneDestination()] }) }));
+    await user.click(await screen.findByRole('button', { name: 'Edit Wasabi' }));
+    const form = within(await screen.findByRole('dialog', { name: 'Edit destination · Wasabi' }));
+    expect(form.getAllByText(/Leave empty to keep it, type to replace it\./)).toHaveLength(2);
+    expect(form.queryByText(/replaces the stored login/)).not.toBeInTheDocument();
+  });
+});
+
 describe('Edit a restic destination', () => {
   it('keeps kind and location read-only, shows stored credentials, and asks for the password for new ones', async () => {
     const d = resticDestination({ encryption: { mode: 'restic', origin: 'generated', kitExportedAt: null, kitConfirmedAt: new Date().toISOString() }, blockedReason: '' });
@@ -355,6 +503,8 @@ describe('Edit a restic destination', () => {
     const pw = form.getByLabelText(/^Password/);
     expect(pw).toHaveValue('');
     expect(pw).toHaveAttribute('placeholder', 'Stored. Leave empty to keep it; type to replace it.');
+    // The server replaces the whole SFTP login when a key or password is sent.
+    expect(form.getByText(/Typing a new private key or password replaces the stored login/)).toBeInTheDocument();
     expect(form.queryByLabelText('Your Bunkarr password')).not.toBeInTheDocument();
 
     // A change that sends nothing new needs no password and sends no credentials.

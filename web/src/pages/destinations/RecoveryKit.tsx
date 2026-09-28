@@ -18,11 +18,14 @@ import { keys } from '@/lib/lookups';
 // kit is the only way to read the backup without this server's /config, so no job but a dry run
 // runs until its custody is confirmed. For a generated secret: download the kit (the user's
 // password in the same dialog), then type the check code printed in it. For a secret the user
-// typed at create: type it again (or use the kit).
+// typed at create: type it again (or use the kit), except a crypt password typed with a password2,
+// which only the check code confirms (the kit holds both; the server refuses the password alone).
 
 /** confirmErrorText explains a wrong confirmation. */
 function confirmErrorText(e: unknown, bySecret: boolean): string {
   if (e instanceof ApiError && e.status === 400) {
+    // A crypt remote created with a password2 as well is confirmed with the kit's check code.
+    if (bySecret && /password2/.test(e.message)) return 'This crypt remote has a password2 as well: confirm with the check code of its recovery kit, which holds both.';
     return bySecret
       ? 'That is not the encryption password this destination was created with.'
       : 'Wrong check code: type the 8 characters after "Check code" in the kit (dashes and case do not matter).';
@@ -32,8 +35,13 @@ function confirmErrorText(e: unknown, bySecret: boolean): string {
   return errorMessage(e);
 }
 
-/** RecoveryKitPanel is the kit step: download, then confirm with the check code or the typed secret. */
-export function RecoveryKitPanel({ destination, onConfirmed }: { destination: Destination; onConfirmed?: () => void }) {
+/**
+ * RecoveryKitPanel is the kit step: download, then confirm with the check code or the typed
+ * secret. retype says whether typing the secret again can confirm it; by default a secret the user
+ * typed can. The wizard knows when that secret came with a crypt password2 and passes false; the
+ * API does not say, so from the card the server's refusal explains it.
+ */
+export function RecoveryKitPanel({ destination, onConfirmed, retype }: { destination: Destination; onConfirmed?: () => void; retype?: boolean }) {
   const qc = useQueryClient();
   const codeId = useId();
   const secretId = useId();
@@ -44,7 +52,7 @@ export function RecoveryKitPanel({ destination, onConfirmed }: { destination: De
   const [secret, setSecret] = useState('');
   const [confirmedNow, setConfirmedNow] = useState(false);
   const state = confirmedNow ? 'confirmed' : kitState(destination);
-  const userSecret = destination.encryption.origin === 'user';
+  const userSecret = (retype ?? true) && destination.encryption.origin === 'user';
 
   const exporter = useMutation({
     mutationFn: () => exportRecoveryKit(destination.id, { currentPassword: password, includeStorageCredentials: includeCredentials }),
@@ -86,7 +94,10 @@ export function RecoveryKitPanel({ destination, onConfirmed }: { destination: De
       {userSecret && state !== 'confirmed' && (
         <section aria-label="Type your password again" className="mb-5">
           <h3 className="mb-1 text-sm font-semibold">Type your password again</h3>
-          <p className="mb-2 text-xs text-ink-muted">The encryption password you chose when you created {destination.name}: typing it again proves you have it.</p>
+          <p className="mb-2 text-xs text-ink-muted">
+            The encryption password you chose when you created {destination.name}: typing it again proves you have it. A crypt remote created with a password2
+            as well is confirmed with the kit&apos;s check code instead.
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <label htmlFor={secretId} className="sr-only">
               Encryption password

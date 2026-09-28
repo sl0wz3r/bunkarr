@@ -89,6 +89,31 @@ describe('Destination cards', () => {
     expect(await screen.findByRole('heading', { name: 'Sync #40' })).toBeInTheDocument();
   });
 
+  it('points to the check code when a crypt remote with a password2 is confirmed by its password', async () => {
+    const crypt = rcloneDestination({
+      encryption: { mode: 'crypt', origin: 'user', kitExportedAt: null, kitConfirmedAt: null },
+      blockedReason: 'export and confirm the recovery kit first',
+    });
+    const { calls, user } = renderApp(
+      '/destinations',
+      base([crypt], {
+        'POST /api/v1/destinations/10/recovery-kit/confirm': () => ({
+          status: 400,
+          body: { message: 'this crypt remote has a password2 as well: confirm with the check code of its recovery kit, which holds both' },
+        }),
+      }),
+    );
+    expect(await screen.findByText(/type its encryption password again \(unless it also has a crypt password2\) or download/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Recovery kit' }));
+    const kit = within(await screen.findByRole('dialog', { name: 'Recovery kit · Wasabi' }));
+    const secret = 'my own rclone crypt password';
+    await user.type(kit.getByLabelText('Encryption password'), secret);
+    await user.click(kit.getByRole('button', { name: 'Confirm password' }));
+    expect(await kit.findByText('This crypt remote has a password2 as well: confirm with the check code of its recovery kit, which holds both.')).toBeInTheDocument();
+    expect(kit.queryByText(/That is not the encryption password/)).not.toBeInTheDocument();
+    expect(callsTo(calls, 'POST /api/v1/destinations/10/recovery-kit/confirm')[0].body).toEqual({ secret });
+  });
+
   it('shows the confirmed kit, the waiting state and the repository figures, and prunes now', async () => {
     const until = new Date(Date.now() + 3 * 3600_000).toISOString();
     const restic = resticDestination({

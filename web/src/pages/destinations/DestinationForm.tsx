@@ -151,12 +151,16 @@ function retentionFor(r: Retention, engine: EngineName): Retention {
   return out;
 }
 
-/** encryptionFor builds the request's encryption; forTest sends a "none" choice as accepted (a test stores nothing). */
-function encryptionFor(engine: EngineName, choice: EncryptionChoice, secret: string, acknowledged: boolean, forTest: boolean): EncryptionInput | undefined {
+/**
+ * encryptionFor builds the request's encryption; forTest sends a "none" choice as accepted (a test
+ * stores nothing). secret2 (crypt's password2) goes only with the user's own crypt password.
+ */
+function encryptionFor(engine: EngineName, choice: EncryptionChoice, secret: string, secret2: string, acknowledged: boolean, forTest: boolean): EncryptionInput | undefined {
   if (engine === 'filecopy') return undefined;
   if (engine === 'restic') return choice === 'own' ? { mode: 'restic', generate: false, secret } : { mode: 'restic' };
   if (choice === 'none') return { mode: 'none', acceptUnencrypted: forTest || acknowledged };
-  return choice === 'own' ? { mode: 'crypt', generate: false, secret } : { mode: 'crypt' };
+  if (choice !== 'own') return { mode: 'crypt' };
+  return secret2 ? { mode: 'crypt', generate: false, secret, secret2 } : { mode: 'crypt', generate: false, secret };
 }
 
 /**
@@ -215,6 +219,7 @@ export function DestinationForm({ destination, resume, onClose }: { destination:
   const [creds, setCreds] = useState<CredentialsInput>({});
   const [encChoice, setEncChoice] = useState<EncryptionChoice>('generate');
   const [secret, setSecret] = useState('');
+  const [secret2, setSecret2] = useState('');
   const [acknowledged, setAcknowledged] = useState(false);
   const [enabled, setEnabled] = useState(destination?.enabled ?? true);
   const [sourceIds, setSourceIds] = useState<number[]>(init?.sourceIds ?? []);
@@ -256,7 +261,7 @@ export function DestinationForm({ destination, resume, onClose }: { destination:
         engine: engine as 'restic' | 'rclone',
         ...(kind === 'local' ? { target: target.trim() } : { remote: remoteFor(kind, locations) }),
         ...(typed ? { credentials: typed } : {}),
-        encryption: resuming ? keptEncryption(resuming, acknowledged, true) : encryptionFor(engine, encChoice, secret, acknowledged, true),
+        encryption: resuming ? keptEncryption(resuming, acknowledged, true) : encryptionFor(engine, encChoice, secret, secret2, acknowledged, true),
       }
     : null;
   const testKey = JSON.stringify(testInput);
@@ -349,7 +354,7 @@ export function DestinationForm({ destination, resume, onClose }: { destination:
       return null;
     }
     if (encChoice === 'own') {
-      const p = secretProblem(secret);
+      const p = secretProblem(secret) ?? (engine === 'rclone' && secret2 ? secretProblem(secret2, 'The crypt password2') : null);
       if (p) return p;
     }
     if (engine === 'rclone' && encChoice === 'none' && !acknowledged) {
@@ -372,7 +377,9 @@ export function DestinationForm({ destination, resume, onClose }: { destination:
         return null;
       }
     } else {
-      if (t.marker === 'unreadable') return 'The remote holds a Bunkarr marker that cannot be read: a wrong crypt password, or another crypt remote.';
+      if (t.marker === 'unreadable') {
+        return 'The remote holds a marker that cannot be read: a wrong crypt password or password2 (a crypt remote whose recovery kit lists a password2 needs both), another crypt remote, or a file that is not a Bunkarr marker.';
+      }
       if (t.marker === 'foreign') return 'The remote belongs to another destination of this Bunkarr.';
       if (engineNeedsAttach(t, engine)) {
         if (!attach) return 'Confirm that you want to attach the existing Bunkarr destination on this remote.';
@@ -432,7 +439,7 @@ export function DestinationForm({ destination, resume, onClose }: { destination:
       }
       if (remoteKind) body.remote = remoteFor(kind, locations);
       if (typed) body.credentials = typed;
-      body.encryption = resuming ? keptEncryption(resuming, acknowledged, false) : encryptionFor(engine, encChoice, secret, acknowledged, false);
+      body.encryption = resuming ? keptEncryption(resuming, acknowledged, false) : encryptionFor(engine, encChoice, secret, secret2, acknowledged, false);
       if (attach && !resuming) body.attach = true;
       if (allowLocal) body.allowLocal = true;
     } else {
@@ -502,7 +509,8 @@ export function DestinationForm({ destination, resume, onClose }: { destination:
       >
         <Notice tone="success">{created.name} was created.</Notice>
         <WarningList warnings={created.warnings} />
-        <RecoveryKitPanel destination={created} />
+        {/* A crypt password typed with a password2 is confirmed by the kit's check code only. */}
+        <RecoveryKitPanel destination={created} retype={!(engine === 'rclone' && encChoice === 'own' && secret2)} />
       </Modal>
     );
   }
@@ -676,6 +684,8 @@ export function DestinationForm({ destination, resume, onClose }: { destination:
                 }}
                 secret={secret}
                 onSecret={setSecret}
+                secret2={secret2}
+                onSecret2={setSecret2}
                 acknowledged={acknowledged}
                 onAcknowledge={setAcknowledged}
               />

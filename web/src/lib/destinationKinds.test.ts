@@ -71,6 +71,7 @@ describe('credentials', () => {
     expect(secretProblem(' 0123456789abcdef')).toMatch(/space/);
     expect(secretProblem('0123456789abcdef\n')).toMatch(/space|control/);
     expect(secretProblem('0123456789\u0007abcdef')).toMatch(/control/);
+    expect(secretProblem('short', 'The crypt password2')).toBe('The crypt password2 needs at least 16 characters.');
   });
 });
 

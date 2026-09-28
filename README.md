@@ -728,7 +728,8 @@ Without that secret the backup cannot be read, and Bunkarr keeps it only in `/co
 creating an off-site destination, **export its recovery kit** (the destination card → Recovery
 kit, with your password) and **type the check code** printed in it. Until you do, the destination
 runs nothing but previews, its card shows a red banner, and a daily notification reminds you
-(a secret you typed at create is confirmed by typing it again instead). The kit is a text file
+(a secret you typed at create is confirmed by typing it again instead, except a crypt password
+typed with a password2, which needs the check code). The kit is a text file
 with the destination's location, the secret (and, if you tick the box, the storage credentials),
 the check code, the layout, and step-by-step commands to list and restore without Bunkarr.
 
@@ -757,9 +758,12 @@ Hardlinked names are recreated from `.bunkarr/links.tsv` as described in [Restor
 (restic restores hardlinks within one restore by itself). The Plex DB, *arr and manifest versions
 are snapshots tagged `bunkarr-kind:plexdb|arr|manifest` (restic) or folders under
 `.bunkarr/plex`, `.bunkarr/arr` and `.bunkarr/manifests` (rclone). After losing `/config`,
-**attach** the destination to a new Bunkarr (create it with *Attach* and the kit's secret): the
-first sync reads your sources again and uploads only what is missing. The old snapshots stay in
-the repository under their old tag.
+**attach** the destination to a new Bunkarr (create it with *Attach* and the kit's secret: for
+restic its repository password; for rclone crypt, under *Use my own / an existing crypt
+password*, its "rclone crypt password" and, when the kit lists one, its "rclone crypt password2";
+leave password2 empty when the kit says none): the first sync reads your sources again and
+uploads only what is missing. The old snapshots stay in the repository under
+their old tag.
 
 **Test the kit once**, on another machine: restore one file as above. That is the only proof that
 the kit you keep is complete.

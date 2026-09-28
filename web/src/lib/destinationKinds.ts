@@ -182,7 +182,10 @@ export const CREDENTIAL_FIELDS: Record<Exclude<DestKind, 'local'>, CredentialFie
   ],
 };
 
-/** typedCredentials keeps the credential fields the user typed (a field sent replaces the stored one). */
+/**
+ * typedCredentials keeps the credential fields the user typed: a field sent replaces the stored
+ * one, except SFTP, whose private key or password sent replaces the whole stored login.
+ */
 export function typedCredentials(kind: DestKind, values: CredentialsInput): CredentialsInput | undefined {
   if (kind === 'local') return undefined;
   const out: CredentialsInput = {};
@@ -212,11 +215,11 @@ export function credentialProblem(kind: DestKind, c: CredentialsInput): string |
   }
 }
 
-/** secretProblem checks an encryption password the user chose (S21), or null. */
-export function secretProblem(secret: string): string | null {
-  if ([...secret].length < 16) return 'The encryption password needs at least 16 characters.';
-  if (secret.trim() !== secret) return 'The encryption password may not start or end with a space.';
-  if (/[\u0000-\u001f\u007f-\u009f]/.test(secret)) return 'The encryption password may not contain control characters.';
+/** secretProblem checks an encryption password the user chose (S21), named what in the problem, or null. */
+export function secretProblem(secret: string, what = 'The encryption password'): string | null {
+  if ([...secret].length < 16) return `${what} needs at least 16 characters.`;
+  if (secret.trim() !== secret) return `${what} may not start or end with a space.`;
+  if (/[\u0000-\u001f\u007f-\u009f]/.test(secret)) return `${what} may not contain control characters.`;
   return null;
 }
 

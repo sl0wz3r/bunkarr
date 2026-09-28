@@ -694,6 +694,11 @@ export interface EncryptionInput {
   /** Required with mode none (rclone): the provider can read every file. S29. */
   acceptUnencrypted?: boolean;
   secret?: string;
+  /**
+   * rclone crypt's password2 (the salt), with the user's secret only: attaching a crypt remote
+   * whose kit lists a password2 needs both of its crypt passwords. Omitted: rclone's default salt.
+   */
+  secret2?: string;
 }
 
 export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';

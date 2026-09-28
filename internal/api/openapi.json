@@ -5097,7 +5097,7 @@
         "writeOnly": true,
         "minProperties": 1,
         "additionalProperties": false,
-        "description": "Write-only storage credentials (never returned; hasCredentials names the stored fields). sftp: privateKey (+ privateKeyPassphrase) or password; s3: accessKeyId and secretAccessKey; b2: keyId and applicationKey. On update the fields sent replace the stored ones (tested first against the stored remote; S29); null and {} are refused.",
+        "description": "Write-only storage credentials (never returned; hasCredentials names the stored fields). sftp: privateKey (+ privateKeyPassphrase) or password; s3: accessKeyId and secretAccessKey; b2: keyId and applicationKey. On update the fields sent replace the stored ones (tested first against the stored remote; S29), except sftp: privateKey or password sent replaces the whole login (privateKey, privateKeyPassphrase and password; a stored passphrase is kept only when it opens a newly sent encrypted key and no passphrase is sent), and privateKeyPassphrase alone keeps the stored key; null and {} are refused.",
         "properties": {
           "privateKey": {
             "type": "string"
@@ -5141,6 +5141,12 @@
             "type": "string",
             "writeOnly": true,
             "minLength": 16
+          },
+          "secret2": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 16,
+            "description": "rclone crypt's password2 (the salt), only with the user's secret (refused without it and on restic). Attaching a crypt remote whose recovery kit lists a password2 (every one whose crypt passwords Bunkarr generated) needs both (\"rclone crypt password\" as secret, \"rclone crypt password2\" as secret2); omitted, password2 stays rclone's default, for a kit that lists none or a crypt remote made with a password only. Same rules as secret: at least 16 characters, no leading or trailing whitespace. A crypt remote created with a secret2 confirms its recovery kit with the check code."
           }
         }
       },
@@ -5618,7 +5624,7 @@
       },
       "RecoveryKitConfirmation": {
         "type": "object",
-        "description": "Exactly one: the kit's check code (case, spaces and dashes ignored), or the encryption password the user typed at create, typed again.",
+        "description": "Exactly one: the kit's check code (case, spaces and dashes ignored), or the encryption password the user typed at create, typed again (not for a crypt remote created with a secret2, which needs the check code).",
         "properties": {
           "checkCode": {
             "type": "string"

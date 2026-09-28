@@ -283,7 +283,7 @@ export function Destinations() {
           <p>
             {d.pending
               ? `Creating ${d.name} did not finish: finish it (Finish create, or add a destination at the same location; its encryption password is kept and used), or delete it.`
-              : `No backup runs to ${d.name} until you ${d.encryption.origin === 'user' ? 'type its encryption password again or ' : ''}download its recovery kit and type the check code from it. Without the kit, losing this server's /config makes the backup unreadable.`}
+              : `No backup runs to ${d.name} until you ${d.encryption.origin === 'user' ? 'type its encryption password again (unless it also has a crypt password2) or ' : ''}download its recovery kit and type the check code from it. Without the kit, losing this server's /config makes the backup unreadable.`}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {d.pending && (
