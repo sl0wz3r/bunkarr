@@ -5975,6 +5975,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "403": {
+            "description": "The Host header is not one of Bunkarr's own names (an IP address, localhost, a single-label name, a .local, .home.arpa or .internal name, or one listed in BUNKARR_ALLOWED_HOSTS): refused so a DNS rebinding page cannot create the user"
+          },
           "409": {
             "description": "Setup already completed"
           },

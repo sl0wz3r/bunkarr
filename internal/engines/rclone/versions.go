@@ -267,12 +267,64 @@ func (s *versionStore) checkVersionFile(ref engines.Ref, name string) (string, e
 	return string(ref) + "/" + name, nil
 }
 
-// ReadFile implements engines.VersionStore: the file is downloaded byte-exact (rclone copyto)
-// into a scratch run directory and at most limit bytes are returned.
+// transferCap is the Download cap of a file whose size was listed first. A transfer that
+// reaches the cap exactly is refused, and a retry of rclone's (--retries) can count again what it
+// transfers again, so the cap is three times the listed size plus 1 MiB: still a bound on what
+// reaches the local disk (and on the provider's egress) when the object changes after the listing
+// or the server serves more than it listed.
+func transferCap(size int64) int64 {
+	size = max(size, 0)
+	if size >= (MaxDownloadCap-1<<20)/3 {
+		return MaxDownloadCap
+	}
+	return 3*size + 1<<20
+}
+
+// statFile lists the one file name of the version ref (StatMany, which reports files only). S2
+// fences the path, but whether it names an object or a prefix, and how large it is, is the
+// remote's to say: a name that is not a file there, missing or a prefix with objects under it
+// standing in for it (copyto would copy all of them, cat print them all), is ErrObjectNotFound
+// and fs.ErrNotExist, and nothing is downloaded.
+func (s *versionStore) statFile(ctx context.Context, ref engines.Ref, name, rel string) (Object, error) {
+	got, err := s.c.StatMany(ctx, string(ref), []string{name})
+	if err != nil {
+		return Object{}, err
+	}
+	o, ok := got[name]
+	if !ok {
+		return Object{}, fmt.Errorf("%w: %s: %w", ErrObjectNotFound, rel, fs.ErrNotExist)
+	}
+	return o, nil
+}
+
+// ReadFile implements engines.VersionStore. The file is listed first (statFile). One of at most
+// limit bytes is downloaded byte-exact (rclone copyto) into a scratch run directory, capped at
+// transferCap of its listed size. A larger one is never downloaded: its first limit bytes are
+// read with rclone cat --count, which is line-based (fine for the text files ReadFile is for), and
+// they come back as exactly limit bytes or an error, so a caller that asked for one byte more
+// than it accepts (snapshots.EngineVersions.ReadSmall) always sees an oversized file as one.
 func (s *versionStore) ReadFile(ctx context.Context, ref engines.Ref, name string, limit int64) ([]byte, error) {
 	rel, err := s.checkVersionFile(ref, name)
 	if err != nil {
 		return nil, err
+	}
+	o, err := s.statFile(ctx, ref, name, rel)
+	if err != nil {
+		return nil, err
+	}
+	limit = max(limit, 0)
+	if o.Size > limit {
+		if limit == 0 {
+			return []byte{}, nil
+		}
+		b, err := s.c.Cat(ctx, rel, limit)
+		if err != nil {
+			return nil, err
+		}
+		if int64(len(b)) != limit {
+			return nil, fmt.Errorf("read %s: the first %d of its %d bytes did not read back whole", rel, limit, o.Size)
+		}
+		return b, nil
 	}
 	scratch, err := s.c.dirs.New(s.c.rt.JobID)
 	if err != nil {
@@ -280,7 +332,7 @@ func (s *versionStore) ReadFile(ctx context.Context, ref engines.Ref, name strin
 	}
 	defer func() { _ = scratch.Remove() }()
 	local := scratch.DataPath("version-file")
-	if err := s.c.Download(ctx, rel, local); err != nil {
+	if err := s.c.Download(ctx, rel, local, transferCap(o.Size)); err != nil {
 		return nil, err
 	}
 	f, err := os.Open(local)
@@ -288,14 +340,16 @@ func (s *versionStore) ReadFile(ctx context.Context, ref engines.Ref, name strin
 		return nil, fmt.Errorf("read %s: %w", rel, err)
 	}
 	defer f.Close()
-	b, err := io.ReadAll(io.LimitReader(f, max(limit, 0)))
+	b, err := io.ReadAll(io.LimitReader(f, limit))
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", rel, err)
 	}
 	return b, nil
 }
 
-// Fetch implements engines.VersionStore: the file is downloaded to dstDir/<base name> (0600).
+// Fetch implements engines.VersionStore: the file is listed first (statFile) and downloaded to
+// dstDir/<base name> (0600), capped at transferCap of its listed size (the size a caller's
+// free-space check counts, verify §7.6).
 func (s *versionStore) Fetch(ctx context.Context, ref engines.Ref, name, dstDir string) error {
 	rel, err := s.checkVersionFile(ref, name)
 	if err != nil {
@@ -304,8 +358,12 @@ func (s *versionStore) Fetch(ctx context.Context, ref engines.Ref, name, dstDir 
 	if err := checkLocal(dstDir); err != nil {
 		return err
 	}
+	o, err := s.statFile(ctx, ref, name, rel)
+	if err != nil {
+		return err
+	}
 	dst := filepath.Join(dstDir, path.Base(name))
-	if err := s.c.Download(ctx, rel, dst); err != nil {
+	if err := s.c.Download(ctx, rel, dst, transferCap(o.Size)); err != nil {
 		return err
 	}
 	if err := os.Chmod(dst, 0o600); err != nil {

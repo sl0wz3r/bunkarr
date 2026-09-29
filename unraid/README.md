@@ -167,13 +167,18 @@ trusted-proxy setting yet: behind a reverse proxy (SWAG, Nginx Proxy Manager) ev
 from the proxy's address, so *Disabled for local addresses* would let everyone who reaches the
 proxy in without a login, and the login limiter counts all clients as one. Serve Bunkarr at the
 root of a host name of its own (there is no URL base setting). The session cookie is marked
-`Secure` when the proxy sends `X-Forwarded-Proto: https`.
+`Secure` when the proxy sends `X-Forwarded-Proto: https`. Logins work under the proxy's name;
+the first-run setup does not (do it once by IP address, or add the name to the variable
+`BUNKARR_ALLOWED_HOSTS`, see [First start](#5-first-start)).
 
 ## 5. First start
 
 1. **Create your login right away**: container icon → **WebUI** (or `http://SERVER-IP:8787`).
    Until a user exists, whoever reaches Bunkarr first can create it; the container log warns
-   meanwhile.
+   meanwhile. Open it by IP address or server name (`http://tower:8787`, `tower.local`): under
+   another name (`tower.lan`, a reverse proxy's domain) the setup answers 403, because a web page
+   could point a name of its own at your server (DNS rebinding). To use such a name, add a
+   Variable `BUNKARR_ALLOWED_HOSTS` with it (comma-separated) in the container's settings.
 2. Follow the README's [First run](../README.md#first-run) with this template's container paths:
    Plex **Data path** `/plex`, path mappings from Plex's and the apps' paths to `/media` (for
    example `/data` → `/media`), destination target `/backup` (or a folder inside it).

@@ -39,7 +39,7 @@ type RunDirOptions struct {
 // excludes, samples, combined check output) always in <config>/run/<jobId>-<random>-data/.
 type RunDirs struct {
 	runDir string // <config>/run
-	shm    string // <ShmDir>/bunkarr-run
+	shm    string // ShmDir; secret run directories go in <ShmDir>/bunkarr-run
 	statfs func(string) (int64, error)
 }
 
@@ -55,6 +55,12 @@ func NewRunDirs(configDir string, o RunDirOptions) *RunDirs {
 	}
 	return &RunDirs{runDir: filepath.Join(configDir, "run"), shm: shm, statfs: statfs}
 }
+
+// SecretRoot is the directory that holds the secret run directories while commands run
+// (<ShmDir>/bunkarr-run, as configured, symlinks not resolved). No source may reach it (S4): a
+// scan would catalog the secret files and a sync copy them to a share in the clear. When ShmDir
+// is not a tmpfs they go to <config>/run instead, which the config directory's guard covers.
+func (d *RunDirs) SecretRoot() string { return filepath.Join(d.shm, runSubdir) }
 
 // onTmpfs reports whether the shm directory is a tmpfs.
 func (d *RunDirs) onTmpfs() bool {

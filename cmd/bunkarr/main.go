@@ -156,6 +156,7 @@ func serve(ctx context.Context, env config.Env, stdout io.Writer, ready func(net
 
 	settings := config.NewSettings(database, kr)
 	authSvc := auth.New(database, settings, log)
+	authSvc.SetAllowedHosts(env.AllowedHosts)
 	if err := authSvc.Init(ctx); err != nil {
 		return err
 	}

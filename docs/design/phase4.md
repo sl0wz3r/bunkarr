@@ -1223,6 +1223,14 @@ type VersionStore interface {
   `rclone copyto <dir>/manifest.json <root>/<logical path>/manifest.json`, then `statMany` of every
   file (sizes as staged). `manifest.json` is written last, so a version directory without it is
   incomplete.
+- `ReadFile`/`Fetch`: `statMany` of the one name first. A name that is not a file there, missing
+  or a prefix with objects under it (whoever can write the bucket decides which), is not found,
+  and nothing is downloaded. Then `rclone copyto <root>/<logical path>/<name> <local>
+  --max-transfer <3 × listed size + 1 MiB>B --cutoff-mode hard`: rclone stops at the cap (exit 8)
+  whatever the remote serves. A `ReadFile` whose file is listed larger than its limit reads only
+  the first limit bytes (`rclone cat --count`). `cat` output is collected up to its count at
+  most, and the command is stopped there, because a directory at the path prints every object
+  under it.
 - `Remove`: `rclone purge <root>/<logical path> --max-delete <files of the version + 1>`, after the
   path is checked against the version pattern of its kind (`snapshots.Layout.SplitVersionPath`).
 - Recovery (the runner's, at the start of each run):

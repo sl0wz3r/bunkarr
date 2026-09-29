@@ -91,6 +91,9 @@ var (
 	ErrFatal = errors.New("rclone stopped with a fatal error")
 	// ErrFailed: exit 1 without an error naming an object (credentials, connection).
 	ErrFailed = errors.New("rclone failed")
+	// ErrMaxTransfer: exit 8, a download reached its --max-transfer cap (Download): the object is
+	// larger than it was listed.
+	ErrMaxTransfer = errors.New("--max-transfer reached (the object is larger than it was listed)")
 	// ErrCutoff: exit 10 where a cutoff is not expected.
 	ErrCutoff = errors.New("--max-duration reached")
 	// ErrInterrupted: Bunkarr interrupted the command (a transfer window's end) where the caller
@@ -158,6 +161,8 @@ func fail(cmd command, out outcome) *Error {
 		e.Err = ErrTemporary
 	case st.Code == 7 && out.maxDelete:
 		e.Err = ErrMaxDelete
+	case st.Code == 8:
+		e.Err = ErrMaxTransfer
 	case st.Code == 10:
 		e.Err = ErrCutoff
 	case st.Code == 1:

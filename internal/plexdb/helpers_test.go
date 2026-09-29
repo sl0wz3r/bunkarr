@@ -156,7 +156,7 @@ func invariants(t *testing.T, copyPath string) int64 {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d := openDB(uri)
+	d := openDB(plainDriver, uri)
 	defer d.Close()
 	var sum, last, maxN, count, items, parts int64
 	for q, dst := range map[string]*int64{

@@ -14,8 +14,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -32,7 +34,9 @@ type Mode string
 const (
 	// ModeEnabled requires a login (or API key) for every client.
 	ModeEnabled Mode = "enabled"
-	// ModeLocalDisabled lets clients with a private/loopback address in without a login.
+	// ModeLocalDisabled lets clients with a private/loopback address in without a login, except
+	// the container's gateways and requests under a host name that is not Bunkarr's own
+	// (localBypass).
 	ModeLocalDisabled Mode = "disabled_for_local_addresses"
 )
 
@@ -89,10 +93,16 @@ type Service struct {
 	bcrypt   chan struct{} // bounds concurrent bcrypt work
 	dummy    []byte        // hash compared against for unknown users (constant-ish timing)
 	Limiter  *Limiter
+	// relays are the container's gateways (relayAddrs, read by Init): never local.
+	relays []netip.Addr
+	// relayWarned, bypassHostWarned and refusedHostWarned throttle the warnings of localBypass
+	// (a gateway, an unknown host name) and RequireTrustedHost.
+	relayWarned, bypassHostWarned, refusedHostWarned atomic.Int64
 
-	mu     sync.RWMutex
-	apiKey string
-	mode   Mode
+	mu           sync.RWMutex
+	apiKey       string
+	mode         Mode
+	allowedHosts map[string]bool
 }
 
 // New returns a Service. Call Init before use.
@@ -114,13 +124,16 @@ func New(d *db.DB, s *config.Settings, log *slog.Logger) *Service {
 // SetBcryptCost lowers the work factor (tests only).
 func (s *Service) SetBcryptCost(c int) { s.cost = c }
 
-// Init generates the API key on first run and loads the cached settings.
+// Init generates the API key on first run, loads the cached settings and reads the container's
+// gateways (relayAddrs).
 func (s *Service) Init(ctx context.Context) error {
 	dummy, err := bcrypt.GenerateFromPassword([]byte("bunkarr-timing-equalizer"), s.cost)
 	if err != nil {
 		return err
 	}
 	s.dummy = dummy
+	s.relays = relayAddrs()
+	s.log.Debug("The local-address bypass never applies to the container's gateways", "gateways", s.relays)
 
 	key, ok, err := s.settings.GetSecret(ctx, config.KeyAPIKey)
 	if err != nil {

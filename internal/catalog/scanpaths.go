@@ -412,6 +412,14 @@ func (s *scan) walkTarget(ctx context.Context, t string) (Target, error) {
 		if sm, ok := MetaOf(si); !ok || sm.Dev != m.Dev || sm.Inode != m.Inode {
 			return dropped(t, "%s changed during the scan", child), nil
 		}
+		why, err := s.holdsKey(sub, nil)
+		switch {
+		case err != nil:
+			return fatalOrDrop(t, child, err)
+		case why != "":
+			s.res.Skipped[SkipOverlap]++
+			return dropped(t, "%s %s", child, why), nil
+		}
 		dir, rel = sub, child
 	}
 	leaf := comps[len(comps)-1]
@@ -609,8 +617,8 @@ func (s *Store) relsWithInode(ctx context.Context, sourceID int64, k devIno) ([]
 
 // lstatPartner lstats the regular file rel through the source root, resolving it component by
 // component like a target: every name listed by its folder under exactly that spelling, every
-// ancestor a real directory that is neither excluded nor forbidden, the file itself regular and
-// not excluded. ok is false when it is not such a file.
+// ancestor a real directory that is neither excluded nor forbidden nor holding the master key
+// (holdsKey), the file itself regular and not excluded. ok is false when it is not such a file.
 func (s *scan) lstatPartner(rel string) (Meta, bool, error) {
 	comps := strings.Split(rel, "/")
 	dir, cur := s.root, "."
@@ -657,6 +665,9 @@ func (s *scan) lstatPartner(rel string) (Meta, bool, error) {
 		}
 		if sm, ok := MetaOf(si); !ok || sm.Dev != m.Dev || sm.Inode != m.Inode {
 			return Meta{}, false, nil
+		}
+		if why, err := s.holdsKey(sub, nil); err != nil || why != "" {
+			return fail(err)
 		}
 		dir, cur = sub, child
 	}

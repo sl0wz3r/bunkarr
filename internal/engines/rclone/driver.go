@@ -198,6 +198,12 @@ type command struct {
 	// stdout receives each stdout line; nil collects them in outcome.stdout. An error stops the
 	// command and is returned.
 	stdout func(line string) error
+	// stdoutLimit, when > 0, bounds what is collected in outcome.stdout: once that many bytes
+	// arrived (each line counted with its "\n") Bunkarr stops the command, and what it collected
+	// is the result (outcome.stdoutFull, an exit-0 status). rclone cat applies --count to each
+	// object it prints, and a directory at the path (a prefix with objects under it, a directory
+	// an SFTP server serves) prints every object under it, so --count alone bounds nothing.
+	stdoutLimit int64
 	// onLog receives each parsed stderr line.
 	onLog func(LogLine)
 	// interrupt, when closed, interrupts the command (a transfer window's end).
@@ -210,6 +216,8 @@ func (cmd command) name() string { return "rclone " + strings.Join(cmd.words, " 
 type outcome struct {
 	status proc.ExitStatus
 	stdout []string
+	// stdoutFull: stdout reached command.stdoutLimit and Bunkarr stopped the command.
+	stdoutFull bool
 	// objectErrors maps an object named by an ERROR line to its last message.
 	objectErrors map[string]string
 	// lastError is the last error-level (or failure notice) message, redacted.
@@ -335,10 +343,11 @@ func (c *Conn) exec(ctx context.Context, cmd command) (outcome, error) {
 		}()
 	}
 	var stopErr error
+	var collected int64
 	for l := range p.Lines() {
 		if !l.Stderr {
 			switch {
-			case stopErr != nil:
+			case stopErr != nil || out.stdoutFull:
 			case cmd.stdout != nil:
 				if err := cmd.stdout(l.Text); err != nil {
 					stopErr = err
@@ -346,6 +355,11 @@ func (c *Conn) exec(ctx context.Context, cmd command) (outcome, error) {
 				}
 			default:
 				out.stdout = append(out.stdout, l.Text)
+				collected += int64(len(l.Text)) + 1
+				if cmd.stdoutLimit > 0 && collected >= cmd.stdoutLimit {
+					out.stdoutFull = true
+					cancel()
+				}
 			}
 			continue
 		}
@@ -360,6 +374,10 @@ func (c *Conn) exec(ctx context.Context, cmd command) (outcome, error) {
 	switch {
 	case stopErr != nil:
 		return out, stopErr
+	case out.stdoutFull && ctx.Err() == nil:
+		// Stopped by Bunkarr because it printed enough: how it ended is not the result.
+		out.status = proc.ExitStatus{}
+		return out, nil
 	case err != nil:
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return out, ctxErr

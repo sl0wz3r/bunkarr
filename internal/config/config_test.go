@@ -172,3 +172,17 @@ func TestEnvFromOS(t *testing.T) {
 		t.Fatal("expected an error for a non-numeric port")
 	}
 }
+
+func TestEnvAllowedHosts(t *testing.T) {
+	t.Setenv("BUNKARR_ALLOWED_HOSTS", " Tower.LAN, ,bunkarr.example.com,")
+	e, err := EnvFromOS()
+	if err != nil || strings.Join(e.AllowedHosts, " ") != "tower.lan bunkarr.example.com" {
+		t.Fatalf("EnvFromOS = %q, %v", e.AllowedHosts, err)
+	}
+	for _, bad := range []string{"http://tower.lan", "tower.lan:8787", "*.example.com", "tower lan", "tower.lan.", ".lan"} {
+		t.Setenv("BUNKARR_ALLOWED_HOSTS", bad)
+		if _, err := EnvFromOS(); err == nil {
+			t.Errorf("BUNKARR_ALLOWED_HOSTS=%q accepted", bad)
+		}
+	}
+}

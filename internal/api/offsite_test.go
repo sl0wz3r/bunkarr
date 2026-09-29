@@ -1,11 +1,13 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sl0wz3r/bunkarr/internal/destinations"
 	"github.com/sl0wz3r/bunkarr/internal/engines"
@@ -47,6 +49,72 @@ func (ee *engineEnv) checkS29(t *testing.T, c *http.Client, method, path string,
 		t.Fatalf("%s %s: %d engine calls before the password was checked", method, path, n-calls)
 	}
 	return ee.sessionCall(t, c, want, method, path, withPassword(body, sessionPassword), nil)
+}
+
+// TestSessionPasswordChecksHoldTheLimitConcurrently: the checks a stolen session could use to
+// find the password (S29, the recovery kit's export, a credentials change) or a typed encryption
+// secret (the kit's confirmation) count a guess before checking it, like login, so guesses sent
+// together get 5 checked and 429 for the rest. Counting only after the check let every guess
+// sent at once past the limiter while the first bcrypt compares ran (the slower hash below keeps
+// them in flight, as a production cost does).
+func TestSessionPasswordChecksHoldTheLimitConcurrently(t *testing.T) {
+	ee := newEngineEnv(t, engineEnvOptions{})
+	ee.auth.SetBcryptCost(10) // before the session: the user's hash is made at this cost
+	c := ee.session(t)
+	id := ee.createEngineDest(t, c, s3Body("Offsite", "restic", "media", "guesses"))
+	kit := fmt.Sprintf("/destinations/%d/recovery-kit", id)
+	calls := ee.engineCalls()
+	for _, tc := range []struct {
+		name, method, path string
+		body               map[string]any
+	}{
+		{"S29", "POST", "/destinations", withPassword(s3Body("Other", "restic", "media", "other"), "wrong horse")},
+		{"kit export", "POST", kit, kitWrongPw},
+		{"credentials", "PUT", "/auth/credentials", map[string]any{"currentPassword": "wrong horse", "newPassword": "another one"}},
+		{"kit confirmation", "POST", kit + "/confirm", map[string]any{"checkCode": "AAAA-AAAA"}},
+	} {
+		ee.auth.Limiter.Success(testLocalIP)
+		raw, err := json.Marshal(tc.body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const n = 12
+		codes := make(chan int, n)
+		for range n {
+			go func() {
+				req, err := http.NewRequest(tc.method, ee.srv.URL+"/api/v1"+tc.path, bytes.NewReader(raw))
+				if err != nil {
+					codes <- 0
+					return
+				}
+				req.Header.Set("Content-Type", "application/json")
+				res, err := c.Do(req)
+				if err != nil {
+					codes <- 0
+					return
+				}
+				_ = res.Body.Close()
+				codes <- res.StatusCode
+			}()
+		}
+		got := map[int]int{}
+		timeout := time.After(60 * time.Second)
+		for range n {
+			select {
+			case code := <-codes:
+				got[code]++
+			case <-timeout:
+				t.Fatalf("%s: not every guess was answered: %v", tc.name, got)
+			}
+		}
+		if got[400] != 5 || got[429] != n-5 {
+			t.Errorf("%s: %d wrong guesses sent together: %v, want 5×400 and %d×429", tc.name, n, got, n-5)
+		}
+	}
+	ee.auth.Limiter.Success(testLocalIP)
+	if n := ee.engineCalls(); n != calls {
+		t.Fatalf("%d engine calls for wrong passwords", n-calls)
+	}
 }
 
 // TestS29OffsiteRoutes checks every route S29 names, and that the API key keeps what S29 does not

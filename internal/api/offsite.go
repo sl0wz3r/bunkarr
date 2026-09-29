@@ -51,15 +51,19 @@ func (s *Server) sessionOnly(w http.ResponseWriter, r *http.Request, forbidden s
 	return p, true
 }
 
-// limited answers a client the login limiter blocks as login does (429 with Retry-After) and
-// reports whether it did.
-func (s *Server) limited(w http.ResponseWriter, r *http.Request) bool {
-	if blocked, wait := s.auth.Limiter.Blocked(auth.ClientIP(r).String()); blocked {
+// attempt starts one password (or kit secret) check with the login limiter (Limiter.Attempt):
+// for a client the limiter blocks it answers as login does (429 with Retry-After) and reports
+// false. A check that may run already counts as a failed login, so guesses sent together cannot
+// all be checked before the first failure is counted; after it the caller does nothing more for
+// a wrong answer, calls Limiter.Success for a right password, and calls undo when no guess was
+// checked (or a right answer must leave the count as it was).
+func (s *Server) attempt(w http.ResponseWriter, r *http.Request) (undo func(), ok bool) {
+	undo, wait, ok := s.auth.Limiter.Attempt(auth.ClientIP(r).String())
+	if !ok {
 		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
 		writeError(w, http.StatusTooManyRequests, msgTooManyFailures)
-		return true
 	}
-	return false
+	return undo, ok
 }
 
 // freshPassword is S29's check (and the recovery kit's, §5.2): a UI session with a user (else 403
@@ -73,18 +77,20 @@ func (s *Server) freshPassword(w http.ResponseWriter, r *http.Request, password,
 		s.log.Warn("Refused without a login session and password", "action", action, "via", p.Kind, "remote", auth.ClientIP(r).String())
 		return false
 	}
-	if s.limited(w, r) {
+	undo, ok := s.attempt(w, r)
+	if !ok {
 		return false
 	}
 	client := auth.ClientIP(r).String()
 	err := s.auth.VerifyPassword(r.Context(), p.User.ID, password)
 	if errors.Is(err, auth.ErrInvalidCredentials) {
-		s.auth.Limiter.Fail(client)
+		// Counted by attempt already.
 		s.log.Warn("Wrong password for a protected change", "action", action, "remote", client)
 		writeError(w, http.StatusBadRequest, msgWrongPassword)
 		return false
 	}
 	if err != nil {
+		undo()
 		s.fail(w, r, action, err)
 		return false
 	}

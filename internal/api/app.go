@@ -175,7 +175,7 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 	}
 	a.engines = newEngineWiring(o, configDir, log)
 
-	guards := &pathGuards{configDir: configDir}
+	guards := &pathGuards{configDir: configDir, runRoot: resolvedRunRoot(a.engines.runDirs)}
 	a.Files = syncer.NewStore(o.DB)
 	a.Catalog = catalog.NewStore(o.DB, catalog.StoreOptions{
 		PathGuard:  guards.source,
@@ -219,7 +219,10 @@ func NewApp(ctx context.Context, o AppOptions) (*App, error) {
 		CheckHost:  o.Engines.CheckHost,
 	})
 	guards.sources, guards.dests = a.Catalog, a.Destinations
-	a.Scanner = catalog.NewScanner(a.Catalog, catalog.ScannerOptions{ForbiddenRoots: guards.forbiddenRoots, Logger: log.With("component", "scanner")})
+	// KeyFile (config.Env.KeyPath) finds the config directory where (dev, ino) cannot: through
+	// another filesystem view, such as Unraid's /mnt/user and the pool under it (S28).
+	a.Scanner = catalog.NewScanner(a.Catalog, catalog.ScannerOptions{ForbiddenRoots: guards.forbiddenRoots,
+		KeyFile: filepath.Join(configDir, "bunkarr.key"), Logger: log.With("component", "scanner")})
 	a.Integrations = integrations.NewStore(o.DB, o.Keyring)
 	a.Notifications = notify.NewStore(o.DB, o.Keyring)
 	// Rows saved before Phase 2 are brought to its rules (phase2-3.md §4.1) before their keys are

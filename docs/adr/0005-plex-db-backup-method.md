@@ -55,11 +55,14 @@ against PMS 1.43.4 (whose `Plex SQLite` is 3.53.3) with `modernc.org/sqlite` v1.
 - **Verification (`plexdb.Verify`).**
   - Open the staged copy with `mode=ro&immutable=1`, so no side files are created.
   - Register a binary-compare stub for every non-built-in collation named in a `COLLATE` clause
-    or an index key (`pragma_index_xinfo`). Today that is only `icu_root`. Register each name
-    once per process, with `(*sqlite.Driver).RegisterCollationUtf8` on a private modernc driver
-    that `internal/plexdb` owns and uses for Plex's databases and the copies, never with the
-    package-level `sqlite.RegisterCollationUtf8` on the shared `sqlite` driver (see
-    Consequences).
+    or an index key (`pragma_index_xinfo`). Today that is only `icu_root`. Register them with
+    `(*sqlite.Driver).RegisterCollationUtf8` on a new private modernc driver for each check,
+    never with the package-level `sqlite.RegisterCollationUtf8` on the shared `sqlite` driver
+    (see Consequences). The names come from the copy: more than 16, or one with a control
+    character or longer than 64 bytes, fails the check.
+  - A schema whose checks would run its own SQL fails the check: a virtual generated column
+    (`quick_check` computes it) or an index on an expression or with a `WHERE` clause
+    (`integrity_check` computes those). Plex's schema has none.
   - `PRAGMA quick_check` must return `ok`.
   - Run `PRAGMA integrity_check(100000000)`. Ignore only lines matching
     `row N missing from index <idx>` where `<idx>` is declared with one of those custom
@@ -113,10 +116,11 @@ against PMS 1.43.4 (whose `Plex SQLite` is 3.53.3) with `modernc.org/sqlite` v1.
 - Verification cannot check the order of `index_title_sort_icu` or the contents of FTS4.
   Structural damage, torn copies (`wrong # of entries in index`) and truncation are caught. PMS
   can `REINDEX` or run its repair tool.
-- The stubs live on `internal/plexdb`'s private driver. modernc reads a driver's collation map
+- The stubs live on a private driver of each check. modernc reads a driver's collation map
   without a lock when it opens a connection and wants registrations before the first open, so
   registering on the shared `sqlite` driver while Bunkarr's database pools open connections is a
-  concurrent map read/write that can crash the process. The private driver guards registration
-  against its own opens, and the stubs never reach Bunkarr's own connections (a test checks
-  this).
+  concurrent map read/write that can crash the process. Each check registers on its own driver
+  before opening it, so the stubs never reach Bunkarr's own connections or a later check (tests
+  check both): modernc creates every stub of a driver again on each open, and the names of one
+  crafted copy must not slow or change the checks that follow.
 - No Plex binaries ship with Bunkarr. `Plex SQLite` is used only in the Docker test suite.

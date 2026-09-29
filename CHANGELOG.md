@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+Fixes from a pre-release security review (no critical or high findings remained after
+verification; open follow-ups are in DEFERRED.md):
+
+- DNS rebinding: the first-run setup and *Disabled for local addresses* apply only when Bunkarr is
+  opened by its own name (an IP address, `localhost`, a single-label name, `.local`, `.home.arpa`,
+  `.internal`, or a name in the new `BUNKARR_ALLOWED_HOSTS`); logins work under any name.
+- *Disabled for local addresses* no longer admits connections Docker relays through the
+  container's gateway (IPv6 clients on an IPv4 bridge network, the Docker host itself).
+- The login limiter counts an attempt before checking the password, so concurrent requests cannot
+  exceed it, and keys IPv6 clients by their /64.
+- A source can no longer include the secret run directory, and the scanner skips any folder that
+  holds a copy of this install's `bunkarr.key` (the config directory seen through another path,
+  such as `/mnt/user` vs a pool on Unraid).
+- restic and rclone batches check every file through the source's root first, so a folder swapped
+  for a symlink after the scan cannot send files from outside the source.
+- The Plex and *arr database checks refuse schema expressions, bound what they read and keep, and
+  limit collation stubs, so a crafted backup cannot hang a job worker or exhaust memory.
+- rclone marker and config-version reads are size-limited before download; a FIFO swapped into a
+  source cannot block a filecopy job.
+- The release workflow pins its QEMU and BuildKit images by digest.
+
 ### Added
 
 - Unraid (decisions in ADR 0009). Bunkarr is not listed in Community Applications yet; until it

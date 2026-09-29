@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -34,7 +35,16 @@ type Env struct {
 	// §4.4). ResolveEngineBinaries checks them at start-up.
 	ResticPath string
 	RclonePath string
+	// AllowedHosts are extra host names of this server (BUNKARR_ALLOWED_HOSTS, comma-separated:
+	// tower.lan, a reverse proxy's bunkarr.example.com). IP addresses, localhost, single-label
+	// names and names under .local, .home.arpa and .internal are always accepted; under any other
+	// name the first-run setup and the local-address bypass are refused, since a DNS rebinding page
+	// could be using it (ADR 0002).
+	AllowedHosts []string
 }
+
+// hostNameRE is a DNS name without scheme, port or trailing dot.
+var hostNameRE = regexp.MustCompile(`^[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?)*$`)
 
 // EnvFromOS reads BUNKARR_* variables, applying defaults.
 func EnvFromOS() (Env, error) {
@@ -62,6 +72,15 @@ func EnvFromOS() (Env, error) {
 			return e, fmt.Errorf("BUNKARR_PORT=%q is not a number", p)
 		}
 		e.Port = n
+	}
+	for _, h := range strings.Split(os.Getenv("BUNKARR_ALLOWED_HOSTS"), ",") {
+		if h = strings.ToLower(strings.TrimSpace(h)); h == "" {
+			continue
+		}
+		if !hostNameRE.MatchString(h) {
+			return e, fmt.Errorf("BUNKARR_ALLOWED_HOSTS: %q is not a host name (list names such as tower.lan, without scheme or port)", h)
+		}
+		e.AllowedHosts = append(e.AllowedHosts, h)
 	}
 	if e.LogLevel == "" {
 		e.LogLevel = "info"

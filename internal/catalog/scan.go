@@ -3,13 +3,16 @@ package catalog
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
@@ -86,6 +89,15 @@ type ScannerOptions struct {
 	// one that exists is stat'ed, and directories of the source with the same (dev, ino) are
 	// skipped with a warning (safety rule S4: bind-mount aliases). nil means none.
 	ForbiddenRoots func(ctx context.Context) ([]string, error)
+	// KeyFile is Bunkarr's master key file (<config>/bunkarr.key; "" for none), read at scan start.
+	// A folder of the source holding a regular file of that name with the same content is the
+	// config directory reached through another filesystem view, which the (dev, ino) check above
+	// cannot see: Unraid's /mnt/user (FUSE, its own device and inode numbers) and the pool under
+	// it, or mergerfs and its disks, show one folder under two identities. The scan skips it like
+	// a forbidden root, so the key and the database never enter a filecopy or rclone sync (S28).
+	// Matching the content, not only the name like restic's --exclude-if-present, means a file
+	// planted under that name in a source hides nothing.
+	KeyFile string
 	// Logger receives server-side log lines (nil discards them).
 	Logger *slog.Logger
 }
@@ -304,7 +316,12 @@ type scan struct {
 	root      *os.Root
 	ident     rootIdentity
 	forbidden map[devIno]string
-	res       ScanResult
+	// keyName, keySize and keySum describe the running master key file (loadKey; keyName "" when
+	// there is none): a folder holding it is the config directory (holdsKey).
+	keyName string
+	keySize int64
+	keySum  [sha256.Size]byte
+	res     ScanResult
 	// devChangedFrom is the recorded root_dev when an anonymous device's number changed.
 	devChangedFrom sql.NullInt64
 
@@ -457,14 +474,16 @@ func rootIdentityOf(root *os.Root) (rootIdentity, error) {
 	return newRootIdentity(name, fuse, m), nil
 }
 
-// loadForbidden stats the destination roots and the config directory (S4).
+// loadForbidden stats the destination roots and the config directory (S4) and reads the master
+// key that marks the config directory seen through another filesystem view (loadKey); the source
+// root may be neither.
 func (s *scan) loadForbidden(ctx context.Context) error {
-	if s.sc.opts.ForbiddenRoots == nil {
-		return nil
-	}
-	paths, err := s.sc.opts.ForbiddenRoots(ctx)
-	if err != nil {
-		return fmt.Errorf("list destination and config roots: %w", err)
+	var paths []string
+	if s.sc.opts.ForbiddenRoots != nil {
+		var err error
+		if paths, err = s.sc.opts.ForbiddenRoots(ctx); err != nil {
+			return fmt.Errorf("list destination and config roots: %w", err)
+		}
 	}
 	for _, p := range paths {
 		fi, err := os.Stat(p)
@@ -478,7 +497,113 @@ func (s *scan) loadForbidden(ctx context.Context) error {
 	if p, bad := s.forbidden[devIno{s.ident.dev, s.ident.ino}]; bad {
 		return refuse(nil, "the source root %s is the same directory as %s (a destination or the config directory)", s.src.path, p)
 	}
+	if err := s.loadKey(); err != nil {
+		return err
+	}
+	why, err := s.holdsKey(s.root, nil)
+	switch {
+	case err != nil:
+		return refuse(err, "I/O error reading the source root %s: %v (is the share still mounted?)", s.src.path, err)
+	case why != "":
+		return refuse(nil, "the source root %s %s", s.src.path, why)
+	}
 	return nil
+}
+
+// loadKey reads the running master key file (ScannerOptions.KeyFile), whose name and content mark
+// the config directory wherever a source reaches it. A missing or empty file marks nothing (there
+// is no key to leak, and an empty one would match any empty file); any other error fails the scan
+// rather than walk without the check.
+func (s *scan) loadKey() error {
+	p := s.sc.opts.KeyFile
+	if p == "" {
+		return nil
+	}
+	b, err := os.ReadFile(p)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil
+	case err != nil:
+		return fmt.Errorf("read the master key file to recognize the config directory: %w", err)
+	case len(b) == 0:
+		return nil
+	}
+	s.keyName, s.keySize, s.keySum = filepath.Base(p), int64(len(b)), sha256.Sum256(b)
+	return nil
+}
+
+// holdsKey says why the folder dir must be skipped as Bunkarr's config directory seen through
+// another filesystem view, as a phrase that follows its path ("" when it must not): it holds a
+// regular file named like the master key file with the same size and content (KeyFile). fi is that
+// entry's lstat from the folder's listing, or nil to look it up. A file of that name and size that
+// cannot be read counts as the key: the folder stays out of the catalog rather than let the key
+// and the database enter a sync. Only a fatal I/O error is returned.
+func (s *scan) holdsKey(dir *os.Root, fi fs.FileInfo) (string, error) {
+	if s.keyName == "" {
+		return "", nil
+	}
+	if fi == nil {
+		var err error
+		if fi, err = dir.Lstat(s.keyName); err != nil {
+			if isFatalIO(err) {
+				return "", err
+			}
+			return "", nil // absent (or the folder is unreadable, which its own reads report)
+		}
+	}
+	if !fi.Mode().IsRegular() || fi.Size() != s.keySize {
+		return "", nil
+	}
+	// O_NONBLOCK and the fstat: a name swapped for a FIFO since the lstat must not block the scan.
+	f, err := dir.OpenFile(s.keyName, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	var b []byte
+	if err == nil {
+		var ofi fs.FileInfo
+		if ofi, err = f.Stat(); err == nil && ofi.Mode().IsRegular() {
+			b, err = io.ReadAll(io.LimitReader(f, s.keySize+1))
+		}
+		_ = f.Close()
+	}
+	switch {
+	case isFatalIO(err):
+		return "", err
+	case err != nil && isNotExist(err):
+		return "", nil // gone since the listing
+	case err != nil:
+		return fmt.Sprintf("holds a %s that cannot be read to tell whether it is Bunkarr's master key (%v)", s.keyName, err), nil
+	case int64(len(b)) == s.keySize && sha256.Sum256(b) == s.keySum:
+		return fmt.Sprintf("is Bunkarr's config directory (it holds the master key %s)", s.keyName), nil
+	}
+	return "", nil
+}
+
+// keyFolder reports whether walkDir must skip the folder rel (listing entries, sorted by name)
+// because it holds the master key (holdsKey); it counts and reports the skip.
+func (s *scan) keyFolder(dir *os.Root, rel string, entries []fs.DirEntry) (bool, error) {
+	if s.keyName == "" {
+		return false, nil
+	}
+	i, found := slices.BinarySearchFunc(entries, s.keyName, func(e fs.DirEntry, n string) int { return cmp.Compare(e.Name(), n) })
+	if !found {
+		return false, nil
+	}
+	fi, err := entries[i].Info()
+	if err != nil {
+		if isFatalIO(err) {
+			return false, refuse(err, "I/O error reading %s: %v; is the share still mounted? (nothing was changed)", joinRel(rel, s.keyName), err)
+		}
+		return false, nil // vanished
+	}
+	why, err := s.holdsKey(dir, fi)
+	switch {
+	case err != nil:
+		return false, refuse(err, "I/O error reading %s: %v; is the share still mounted? (nothing was changed)", joinRel(rel, s.keyName), err)
+	case why == "":
+		return false, nil
+	}
+	s.res.Skipped[SkipOverlap]++
+	s.warn("skipped %s: it %s", s.where(rel), why)
+	return true, nil
 }
 
 func joinRel(dir, name string) string {
@@ -529,6 +654,10 @@ func (s *scan) walkDir(ctx context.Context, dir *os.Root, rel string) error {
 		return s.dirError(rel, err)
 	}
 	slices.SortFunc(entries, func(a, b fs.DirEntry) int { return cmp.Compare(a.Name(), b.Name()) })
+	// The config directory seen through another filesystem view: not a single entry of it (S28).
+	if skip, err := s.keyFolder(dir, rel, entries); skip || err != nil {
+		return err
+	}
 	for _, e := range entries {
 		if err := ctx.Err(); err != nil {
 			return err

@@ -310,6 +310,7 @@ template, webhooks from containers on `br0`, reverse proxies, updating, and back
 | `TZ` | required | `Etc/UTC` | e.g. `America/New_York`. Use Plex's time zone (the Plex backup checks Plex's maintenance hours in it). |
 | `BUNKARR_PORT` | — | `8787` | Web UI and API port inside the container. |
 | `BUNKARR_BIND` | — | all interfaces | Listen address. |
+| `BUNKARR_ALLOWED_HOSTS` | optional | — | Extra host names of this server, comma-separated (for example `tower.lan,bunkarr.example.com`). An IP address, `localhost`, a single-label name (`tower`) and names under `.local`, `.home.arpa` or `.internal` always work. Under any other name the first-run setup is refused and *Disabled for local addresses* does not apply (log in instead), because a web page can point a name of its own at your server's address (DNS rebinding). A name listed here gets the local-address bypass too, so do not list a reverse proxy's name if that bypass is on. |
 | `BUNKARR_LOG_LEVEL` | — | `info` | `debug`, `info`, `warn`, `error`. |
 | `BUNKARR_LOG_FORMAT` | — | `text` | stdout format (`text` or `json`); `/config/logs/bunkarr.log` is always JSON. |
 | `BUNKARR_RESTIC_PATH` / `BUNKARR_RCLONE_PATH` | optional | the image's `restic` / `rclone` | Another restic or rclone program: an absolute path to a file the Bunkarr user cannot write, without spaces or quotes. It receives every off-site destination's secrets, so it is only ever set here, never in the UI. |

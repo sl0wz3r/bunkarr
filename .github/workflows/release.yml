@@ -123,8 +123,20 @@ jobs:
           echo "name=ghcr.io/$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')/bunkarr" >> "$GITHUB_OUTPUT"
           echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
+      # The builder images are pinned by digest like the Dockerfile's base images: binfmt runs
+      # privileged and registers the QEMU that the arm64 runtime stage's RUN (apk add restic
+      # rclone) executes under, and BuildKit writes every layer next to the ghcr.io credentials.
+      # The actions' defaults are mutable Docker Hub tags (tonistiigi/binfmt:latest,
+      # moby/buildkit:buildx-stable-1), so whoever moved one at release time would ship in every
+      # install. Only the arm64 emulator is installed. Renovate keeps the pins current
+      # (.github/renovate.json, custom.regex); deploy/workflows_test.go checks them.
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          image: tonistiigi/binfmt:qemu-v10.2.3@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0
+          platforms: arm64
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: image=moby/buildkit:v0.32.2@sha256:28a898719c18a33f4e8000685287fa36fd0dd9560c6440227d3a732d79bb41d8
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -143,7 +155,9 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          sbom: true
+          # The SBOM scanner BuildKit runs over each platform's result (its default is
+          # docker/buildkit-syft-scanner:stable-1), pinned like the builder images above.
+          sbom: generator=docker/buildkit-syft-scanner:1.12.0@sha256:ae4f3b554449e7e25548e7d8ccc029d17357348e30c6e3df01b92bc93654d6a9
           provenance: mode=max
           tags: ${{ steps.image.outputs.name }}:candidate-${{ github.sha }}
           annotations: |
@@ -293,7 +307,12 @@ jobs:
       contents: read
       packages: write
     steps:
+      # imagetools only talks to the registry: the docker driver starts no BuildKit container in
+      # this packages:write job (the default docker-container driver would pull
+      # moby/buildkit:buildx-stable-1 by its mutable tag and run it privileged).
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver: docker
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:

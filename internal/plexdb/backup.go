@@ -314,7 +314,7 @@ func hasLog(src *os.Root, rel string) (bool, error) {
 // onlineBackup copies the database at srcURI into dstPath with one Step(-1) of SQLite's online
 // backup API and returns the SQLite version.
 func onlineBackup(ctx context.Context, srcURI, dstPath string, busy time.Duration) (version string, err error) {
-	db := openDB(srcURI)
+	db := openDB(plainDriver, srcURI)
 	defer db.Close()
 	conn, err := db.Conn(ctx)
 	if err != nil {

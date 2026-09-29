@@ -1,8 +1,19 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Keeps the digest-pinned base images (Dockerfile) and the SHA-pinned actions current. Go modules and npm packages are updated by hand and gated in CI by govulncheck and npm audit.",
+  "description": "Keeps the digest-pinned base images (Dockerfile), the digest-pinned builder images of the release workflow (binfmt, BuildKit, the SBOM scanner) and the SHA-pinned actions current. Go modules and npm packages are updated by hand and gated in CI by govulncheck and npm audit.",
   "extends": ["config:recommended", "docker:pinDigests", "helpers:pinGitHubActionDigestsToSemver"],
-  "enabledManagers": ["dockerfile", "github-actions"],
+  "enabledManagers": ["dockerfile", "github-actions", "custom.regex"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Builder images in the workflows' action inputs (image: and driver-opts image= of the setup actions, sbom generator= of build-push-action), which the github-actions manager does not read. deploy/workflows_test.go checks that this matches every pin.",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": [
+        "(?:image: |image=|generator=)(?<depName>[a-z0-9][a-z0-9._/-]*):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
   "packageRules": [
     {
       "description": "Go and Node: stay on the lines the project targets; only patches and digests.",
@@ -21,6 +32,17 @@
       "description": "Wait 3 days before pinning a new action release.",
       "matchManagers": ["github-actions"],
       "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Builder images: wait 3 days like the actions (a moved tag is the attack the pins stop), in one group.",
+      "matchManagers": ["custom.regex"],
+      "minimumReleaseAge": "3 days",
+      "groupName": "builder images"
+    },
+    {
+      "description": "binfmt: follow its qemu-vX.Y.Z tags, not the desktop-, buildkit- or -NN build tags (Renovate's docker versioning cannot read the qemu- prefix).",
+      "matchPackageNames": ["tonistiigi/binfmt"],
+      "versioning": "regex:^qemu-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
     }
   ]
 }

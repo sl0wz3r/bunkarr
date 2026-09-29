@@ -92,7 +92,7 @@ export function General() {
             </Row>
             <Row
               label="Authentication required"
-              help="Disabled for local addresses lets devices on your LAN (private IP ranges) in without a login. Requests through a reverse proxy come from the proxy's address."
+              help="Disabled for local addresses lets devices on your LAN (private IP ranges) in without a login when they open Bunkarr by its IP address or server name (or a name in BUNKARR_ALLOWED_HOSTS). Connections Docker relays through the container's gateway, such as IPv6 clients on the bridge network, still log in. Requests through a reverse proxy come from the proxy's address."
             >
               <select
                 aria-label="Authentication required"

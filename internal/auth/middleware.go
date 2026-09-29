@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"slices"
+	"sync/atomic"
 	"time"
 )
 
@@ -62,10 +64,44 @@ func (s *Service) Identify(r *http.Request) (p Principal, ok bool, err error) {
 			return Principal{Kind: KindSession, User: &u, Token: c.Value}, true, nil
 		}
 	}
-	if s.Mode() == ModeLocalDisabled && IsLocal(ClientIP(r)) {
+	if s.Mode() == ModeLocalDisabled && s.localBypass(r) {
 		return Principal{Kind: KindLocal}, true, nil
 	}
 	return Principal{}, false, nil
+}
+
+// warnEvery spaces out the warnings of localBypass and RequireTrustedHost.
+const warnEvery = time.Hour
+
+// localBypass reports whether r may skip the login in ModeLocalDisabled: its peer is local
+// (IsLocal) but not one of the container's gateways, which relay clients from anywhere
+// (relayAddrs), and its Host is one a DNS rebinding page cannot send (TrustedHost). Otherwise the
+// login is required as in ModeEnabled.
+func (s *Service) localBypass(r *http.Request) bool {
+	ip := ClientIP(r)
+	if !IsLocal(ip) {
+		return false
+	}
+	if slices.Contains(s.relays, ip) {
+		s.warnThrottled(&s.relayWarned, "Login required for a connection from the container's gateway despite \"Disabled for local addresses\": "+
+			"Docker relays clients from anywhere through it (IPv6 clients on an IPv4-only bridge, the Docker host itself)",
+			"remote", ip.String())
+		return false
+	}
+	if !s.TrustedHost(r) {
+		s.warnThrottled(&s.bypassHostWarned, "Login required for a host name that is not Bunkarr's own despite \"Disabled for local addresses\" "+
+			"(a DNS rebinding page, or a name missing from BUNKARR_ALLOWED_HOSTS)", "host", truncate(hostName(r.Host), 100), "remote", ip.String())
+		return false
+	}
+	return true
+}
+
+// warnThrottled logs msg at most once per warnEvery for each counter.
+func (s *Service) warnThrottled(last *atomic.Int64, msg string, args ...any) {
+	now, prev := s.now().UnixNano(), last.Load()
+	if now-prev >= int64(warnEvery) && last.CompareAndSwap(prev, now) {
+		s.log.Warn(msg, args...)
+	}
 }
 
 // Require rejects unauthenticated requests with 401 and stores the principal in the context.

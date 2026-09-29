@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -218,6 +219,85 @@ func TestLoginRateLimited(t *testing.T) {
 	}
 }
 
+// heldBody reports the first Read of a request body on reading, then waits for gate.
+type heldBody struct {
+	io.ReadCloser
+	once    sync.Once
+	reading chan<- struct{}
+	gate    <-chan struct{}
+}
+
+func (b *heldBody) Read(p []byte) (int, error) {
+	b.once.Do(func() {
+		b.reading <- struct{}{}
+		<-b.gate
+	})
+	return b.ReadCloser.Read(p)
+}
+
+// TestLoginLimiterHoldsForConcurrentGuesses: a guess counts against the limiter before its
+// password is checked, so guesses sent together cannot all pass the limiter before the first
+// failure lands (checking it, then counting after the bcrypt compare, let 60 wrong logins sent at
+// once from one address all be checked). Every body is held until each request is reading its
+// body or has its answer, so all 20 have passed the limiter before any password is checked: 5 are
+// checked (401), 15 are 429.
+func TestLoginLimiterHoldsForConcurrentGuesses(t *testing.T) {
+	e := newEnv(t, nil)
+	if _, err := e.auth.Setup(context.Background(), "admin", "correct horse"); err != nil {
+		t.Fatal(err)
+	}
+	const n = 20
+	reading, gate := make(chan struct{}, n), make(chan struct{})
+	h := e.api.Handler()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = &heldBody{ReadCloser: r.Body, reading: reading, gate: gate}
+		h.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() {
+		select {
+		case <-gate:
+		default:
+			close(gate)
+		}
+	})
+	codes := make(chan int, n)
+	for range n {
+		go func() {
+			res, err := http.Post(srv.URL+"/api/v1/auth/login", "application/json", strings.NewReader(`{"username":"admin","password":"wrong-pass"}`))
+			if err != nil {
+				codes <- 0
+				return
+			}
+			_ = res.Body.Close()
+			codes <- res.StatusCode
+		}()
+	}
+	got := map[int]int{}
+	timeout := time.After(20 * time.Second)
+	for pending := n; pending > 0; pending-- {
+		select {
+		case <-reading:
+		case code := <-codes:
+			got[code]++
+		case <-timeout:
+			t.Fatalf("the requests did not all get past the limiter: %v", got)
+		}
+	}
+	close(gate)
+	for answered := got[401] + got[429] + got[0]; answered < n; answered++ {
+		select {
+		case code := <-codes:
+			got[code]++
+		case <-timeout:
+			t.Fatalf("not every login was answered: %v", got)
+		}
+	}
+	if got[401] != 5 || got[429] != n-5 {
+		t.Fatalf("20 wrong logins sent together: %v, want 5×401 and 15×429", got)
+	}
+}
+
 func TestCrossSiteRequestsRefused(t *testing.T) {
 	e := newEnv(t, nil)
 	code, _, _ := e.do(t, nil, "POST", "/api/v1/auth/setup", `{"username":"admin","password":"correct horse"}`,
@@ -234,6 +314,51 @@ func TestCrossSiteRequestsRefused(t *testing.T) {
 		map[string]string{"Sec-Fetch-Site": "same-origin", "X-Api-Key": e.auth.APIKey()})
 	if code != 200 {
 		t.Fatalf("same-origin key regeneration: %d, want 200", code)
+	}
+}
+
+// TestDNSRebindingRefused checks the requests of a DNS rebinding page (ADR 0002): the user's own
+// browser on the LAN, same-origin to itself, under the attacker's host name. It can neither create
+// the first user nor use the local-address bypass; the server's own address still can.
+func TestDNSRebindingRefused(t *testing.T) {
+	e := newEnv(t, nil)
+	rebound := func(method, path, body string) int {
+		t.Helper()
+		req, _ := http.NewRequest(method, e.srv.URL+path, strings.NewReader(body))
+		req.Host = "rebind.attacker.example:8787"
+		req.Header.Set("Sec-Fetch-Site", "same-origin")
+		req.Header.Set("Origin", "http://rebind.attacker.example:8787")
+		req.Header.Set("Content-Type", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = res.Body.Close()
+		if res.Header.Get("Set-Cookie") != "" {
+			t.Fatalf("%s %s under a rebound name set a cookie", method, path)
+		}
+		return res.StatusCode
+	}
+	if code := rebound("POST", "/api/v1/auth/setup", `{"username":"attacker","password":"attacker-pass"}`); code != 403 {
+		t.Fatalf("setup under a rebound name: %d, want 403", code)
+	}
+	if req, err := e.auth.SetupRequired(context.Background()); err != nil || !req {
+		t.Fatalf("a user was created under a rebound name (setup required %v, %v)", req, err)
+	}
+	if code, _, _ := e.do(t, nil, "POST", "/api/v1/auth/setup", `{"username":"admin","password":"correct horse"}`, nil); code != 201 {
+		t.Fatalf("setup under the server's address: %d, want 201", code)
+	}
+	if err := e.auth.SetMode(context.Background(), auth.ModeLocalDisabled); err != nil {
+		t.Fatal(err)
+	}
+	if code := rebound("GET", "/api/v1/settings/general", ""); code != 401 {
+		t.Fatalf("local bypass under a rebound name: %d, want 401", code)
+	}
+	if code := rebound("POST", "/api/v1/settings/general/apikey", ""); code != 401 {
+		t.Fatalf("API key regeneration under a rebound name: %d, want 401", code)
+	}
+	if code, _, _ := e.do(t, nil, "GET", "/api/v1/settings/general", "", nil); code != 200 {
+		t.Fatalf("local bypass under the server's address: %d, want 200", code)
 	}
 }
 

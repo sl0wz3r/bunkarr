@@ -910,6 +910,75 @@ func TestScanSkipsDestinationAndConfigDirs(t *testing.T) {
 	}
 }
 
+// testKey is a master key file's content (config.LoadOrCreateMasterKey: 32 bytes as hex).
+var testKey = strings.Repeat("ab", 32) + "\n"
+
+// TestScanSkipsConfigDirSeenThroughAnotherView: the config directory reached through another
+// filesystem view (Unraid's /mnt/user FUSE and the pool under it show one folder under two device
+// and inode numbers; a copy stands in for it here, which the (dev, ino) check misses the same way)
+// is recognized by its master key file's content and skipped whole, so bunkarr.key and bunkarr.db
+// never enter a sync (S28), and the rows a scan without the check recorded are marked deleted. A
+// file planted under the key's name with other content, or another size, hides nothing; one of the
+// key's size that cannot be read hides its folder; a source rooted in that view is refused.
+func TestScanSkipsConfigDirSeenThroughAnotherView(t *testing.T) {
+	ctx := context.Background()
+	st := newStore(t, StoreOptions{})
+	base := tempDir(t)
+	cfg, root := filepath.Join(base, "config"), filepath.Join(base, "src")
+	writeFiles(t, cfg, map[string]string{"bunkarr.key": testKey, "bunkarr.db": "db"})
+	writeFiles(t, root, map[string]string{
+		"a.mkv":                       "a",
+		"appdata/bunkarr/bunkarr.key": testKey, "appdata/bunkarr/bunkarr.db": "db", "appdata/bunkarr/backups/b.db": "b",
+		"appdata/plex/Preferences.xml": "p",
+		"planted/bunkarr.key":          strings.Repeat("cd", 32) + "\n", "planted/keep.mkv": "k",
+		"sized/bunkarr.key": testKey + "x", "sized/keep.mkv": "k",
+	})
+	forbidden := func(context.Context) ([]string, error) { return []string{cfg}, nil }
+	src := createSource(t, st, "S", root)
+	mustScan(t, NewScanner(st, ScannerOptions{ForbiddenRoots: forbidden}), src.ID)
+	if _, ok := liveRows(t, st, src.ID)["appdata/bunkarr/bunkarr.key"]; !ok {
+		t.Fatal("setup: the (dev, ino) check alone skipped the copy of the config directory")
+	}
+
+	sc := NewScanner(st, ScannerOptions{ForbiddenRoots: forbidden, KeyFile: filepath.Join(cfg, "bunkarr.key")})
+	r := mustScan(t, sc, src.ID)
+	got := keys(liveRows(t, st, src.ID))
+	slices.Sort(got)
+	want := []string{"a.mkv", "appdata/plex/Preferences.xml", "planted/bunkarr.key", "planted/keep.mkv", "sized/bunkarr.key", "sized/keep.mkv"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("catalog = %v, want %v", got, want)
+	}
+	if r.Skipped[SkipOverlap] != 1 || r.Deleted != 3 || r.WarningCount != 1 ||
+		!strings.Contains(r.Warnings[0], "skipped appdata/bunkarr: it is Bunkarr's config directory") {
+		t.Fatalf("scan = %+v", r)
+	}
+
+	if os.Geteuid() != 0 { // root reads a mode-0 file
+		writeFiles(t, root, map[string]string{"locked/bunkarr.key": strings.Repeat("ef", 32) + "\n", "locked/keep.mkv": "k"})
+		if err := os.Chmod(filepath.Join(root, "locked/bunkarr.key"), 0); err != nil {
+			t.Fatal(err)
+		}
+		r = mustScan(t, sc, src.ID)
+		if _, ok := liveRows(t, st, src.ID)["locked/keep.mkv"]; ok || r.Skipped[SkipOverlap] != 2 ||
+			!strings.Contains(strings.Join(r.Warnings, "\n"), "skipped locked: it holds a bunkarr.key that cannot be read") {
+			t.Fatalf("scan with an unreadable key-sized file = %+v", r)
+		}
+	}
+
+	inner := createSource(t, st, "Inner", filepath.Join(root, "appdata/bunkarr"))
+	if _, err := sc.Scan(ctx, inner.ID, nil); !errors.Is(err, ErrScanRefused) || !strings.Contains(err.Error(), "is Bunkarr's config directory") {
+		t.Fatalf("scan of a source rooted in the config directory: err = %v", err)
+	}
+	// A missing key file marks nothing (there is no key to leak); an unreadable one fails the scan
+	// rather than walk without the check.
+	if _, err := NewScanner(st, ScannerOptions{KeyFile: filepath.Join(base, "none")}).Scan(ctx, inner.ID, nil); err != nil {
+		t.Fatalf("scan without a key file: %v", err)
+	}
+	if _, err := NewScanner(st, ScannerOptions{KeyFile: cfg}).Scan(ctx, src.ID, nil); err == nil || !strings.Contains(err.Error(), "master key file") {
+		t.Fatalf("scan with an unreadable key file: err = %v", err)
+	}
+}
+
 func TestScanLocking(t *testing.T) {
 	ctx := context.Background()
 	st := newStore(t, StoreOptions{})

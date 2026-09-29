@@ -91,6 +91,46 @@ func TestSourceOverlapGuards(t *testing.T) {
 	}
 }
 
+// TestSourceNeverHoldsSecretRunFiles: engine commands keep their secret files (restic's repository
+// password, rclone's config) in <ShmDir>/bunkarr-run while they run (S22), so a source may not be
+// that directory, inside it or contain it, nor be a system directory (/dev holds /dev/shm, /proc
+// every child's environment): the API key could otherwise scan one and sync the secrets in the
+// clear to a local share, which the recovery kit's custody gate keeps from it. Scans skip the run
+// directory wherever they meet it (a source saved before this check).
+func TestSourceNeverHoldsSecretRunFiles(t *testing.T) {
+	e := newEnv(t, nil)
+	root := e.app.engines.runDirs.SecretRoot()
+	job := filepath.Join(root, "7-0123456789abcdef")
+	if err := os.MkdirAll(job, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{filepath.Dir(root), root, job, "/dev"} {
+		code, msg := e.status(t, "POST", "/sources", map[string]any{"name": "X", "path": p})
+		if code != 400 || !strings.HasPrefix(msg, "path: ") {
+			t.Errorf("source %s: %d %q, want 400", p, code, msg)
+		}
+	}
+	// /proc and /sys are not there on every test host: the guard itself.
+	g := &pathGuards{configDir: e.config, runRoot: resolvedRunRoot(e.app.engines.runDirs), sources: e.app.Catalog, dests: e.app.Destinations}
+	for _, p := range []string{"/proc", "/proc/1", "/sys/kernel", "/dev/shm"} {
+		if err := g.source(context.Background(), p); err == nil {
+			t.Errorf("source %s was accepted", p)
+		}
+	}
+	for _, p := range []string{"/devices", "/processed", e.mkdir(t, "media")} {
+		if err := g.source(context.Background(), p); err != nil {
+			t.Errorf("source %s: %v", p, err)
+		}
+	}
+	roots, err := g.forbiddenRoots(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(roots) != 2 || roots[1] != g.runRoot {
+		t.Fatalf("forbidden roots %v lack the run directory %s", roots, g.runRoot)
+	}
+}
+
 func TestSourceTestScanAndFiles(t *testing.T) {
 	e := newEnv(t, nil)
 	dir := e.mkdir(t, "media/movies")

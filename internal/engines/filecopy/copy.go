@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -216,7 +217,10 @@ func copyLoop(ctx context.Context, in io.Reader, w io.Writer, h hash.Hash, size 
 
 // openRegular opens rel read-only after an lstat that requires a regular file, and checks that
 // the opened file is the one the lstat saw (same dev/inode), so a symlink swapped in between is
-// never followed (S1).
+// never followed (S1). The open is O_NONBLOCK (no effect on a regular file's reads): a FIFO
+// swapped in after the lstat would otherwise block open(2) in the kernel until a writer appears,
+// where no cancellation reaches it, and hold the job (and its destination's lock) until a
+// restart; with it the open returns at once and the identity check refuses the FIFO.
 func openRegular(root *os.Root, rel string, side Side) (*os.File, Stat, error) {
 	wrap := func(op string, err error) error {
 		if side == SideSource {
@@ -235,7 +239,8 @@ func openRegular(root *os.Root, rel string, side Side) (*os.File, Stat, error) {
 		return nil, Stat{}, wrap("open", fmt.Errorf("%w (%s)", ErrNotRegular, fi.Mode().Type()))
 	}
 	pre := statOf(fi)
-	f, err := root.OpenFile(rel, os.O_RDONLY|noFollow, 0)
+	faultinject.Point("open.afterLstat")
+	f, err := root.OpenFile(rel, os.O_RDONLY|noFollow|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, Stat{}, wrap("open", err)
 	}

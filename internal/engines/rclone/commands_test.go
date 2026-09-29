@@ -351,6 +351,43 @@ func TestCheckMarker(t *testing.T) {
 	})
 }
 
+// TestCatReadsAtMostLimit: rclone cat applies --count to each object it prints, and a directory
+// at the path (objects under ".bunkarr/destination.json/", or a directory an SFTP server serves
+// there) prints every object under it. Bunkarr keeps at most the limit and stops the command,
+// instead of holding all of it in memory for up to the listing budget.
+func TestCatReadsAtMostLimit(t *testing.T) {
+	many := make([]string, 300) // 300 KB, far over MarkerLimit
+	for i := range many {
+		many[i] = strings.Repeat("x", 999)
+	}
+	d, f := newTestDriver(t)
+	dest, sec := jobS3(true)
+	c := connect(t, d, dest, sec)
+	ctx := context.Background()
+
+	f.Expect(proc.Rclone, enginetest.Args("cat", "--count", "65536", "BKCRYPT:.bunkarr/destination.json", "--use-json-log"),
+		enginetest.Script{Stdout: many})
+	out, _, err := c.cat(ctx, ".bunkarr/destination.json", MarkerLimit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(out.stdout); n != MarkerLimit/1000+1 || !out.stdoutFull || out.status.Code != 0 {
+		t.Fatalf("collected %d lines of 1000 bytes (full %v, %+v); the limit is %d bytes", n, out.stdoutFull, out.status, MarkerLimit)
+	}
+	if st := f.CallsOf(proc.Rclone, "cat")[0].Status; !st.Cancelled {
+		t.Fatalf("the cat was not stopped: %+v", st)
+	}
+
+	// A directory that keeps printing until it is stopped: the marker check ends (not a marker)
+	// instead of waiting for all of it.
+	f.Expect(proc.Rclone, enginetest.Prefix("cat"), enginetest.Script{Stdout: many, UntilInterrupted: true})
+	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if _, err := c.CheckMarker(tctx); !errors.Is(err, engines.ErrMarkerMissing) {
+		t.Fatalf("CheckMarker of a directory: %v", err)
+	}
+}
+
 // TestRetryExit5: exit 5 is retried once after RetryWait, then fatal (§10.3).
 func TestRetryExit5(t *testing.T) {
 	d, f := newTestDriver(t)
@@ -574,9 +611,19 @@ func TestSmallCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.Expect(proc.Rclone, enginetest.Args("copyto", "BKDEST:media/bk/.bunkarr/plex/p-1/v/manifest.json", "/staging/manifest.json",
-		"--use-json-log"), enginetest.Script{Exit: 3})
-	if err := c.Download(ctx, ".bunkarr/plex/p-1/v/manifest.json", "/staging/manifest.json"); !errors.Is(err, ErrPathNotFound) {
+		"--max-transfer", "4096B", "--cutoff-mode", "hard", "--use-json-log"), enginetest.Script{Exit: 3})
+	if err := c.Download(ctx, ".bunkarr/plex/p-1/v/manifest.json", "/staging/manifest.json", 4096); !errors.Is(err, ErrPathNotFound) {
 		t.Fatalf("download of a missing object: %v", err)
+	}
+	f.Expect(proc.Rclone, enginetest.Prefix("copyto"), enginetest.Script{Exit: 8, Stderr: []string{
+		`{"time":"2026-09-28T20:46:52Z","level":"notice","msg":"Failed to copyto: max transfer limit reached as set by --max-transfer"}`}})
+	if err := c.Download(ctx, ".bunkarr/plex/p-1/v/manifest.json", "/staging/manifest.json", 4096); !errors.Is(err, ErrMaxTransfer) {
+		t.Fatalf("download over its cap: %v", err)
+	}
+	for _, capBytes := range []int64{0, -1, MaxDownloadCap + 1} {
+		if err := c.Download(ctx, ".bunkarr/plex/p-1/v/manifest.json", "/staging/manifest.json", capBytes); err == nil {
+			t.Fatalf("download with cap %d ran", capBytes)
+		}
 	}
 
 	sd, ss := jobSFTP(t, false)

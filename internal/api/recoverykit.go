@@ -116,9 +116,18 @@ func (s *Server) confirmRecoveryKit(w http.ResponseWriter, r *http.Request) {
 		s.log.Warn("Recovery kit confirmation refused without a login session", "destinationId", id, "remote", auth.ClientIP(r).String())
 		return
 	}
-	if s.limited(w, r) {
+	// Counted before the comparison, so guesses sent together cannot all be compared before the
+	// first is counted; only a wrong answer keeps the count (a right one leaves it as it was).
+	undo, ok := s.attempt(w, r)
+	if !ok {
 		return
 	}
+	wrong := false
+	defer func() {
+		if !wrong {
+			undo()
+		}
+	}()
 	hasCode, hasSecret := strings.TrimSpace(body.CheckCode) != "", body.Secret != ""
 	if hasCode == hasSecret {
 		s.fail(w, r, action, errorf(http.StatusBadRequest, "send either the kit's check code (checkCode) or your encryption password (secret)"))
@@ -134,7 +143,7 @@ func (s *Server) confirmRecoveryKit(w http.ResponseWriter, r *http.Request) {
 	err = s.app.Destinations.ConfirmKit(ctx, id, destinations.KitConfirmation{CheckCode: body.CheckCode, Secret: body.Secret})
 	switch {
 	case errors.Is(err, destinations.ErrWrongCheckCode), errors.Is(err, destinations.ErrWrongSecret):
-		s.auth.Limiter.Fail(client)
+		wrong = true
 		s.app.log.Warn("Wrong recovery kit confirmation", "destinationId", d.ID, "destination", d.Name, "remote", client)
 		msg := "wrong check code"
 		if errors.Is(err, destinations.ErrWrongSecret) {

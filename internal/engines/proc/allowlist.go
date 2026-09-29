@@ -131,6 +131,18 @@ func checkInt(lo, hi int64) valueCheck {
 	}
 }
 
+// checkBytes accepts a byte count lo-hi written with rclone's "B" suffix (rclone reads a bare
+// number in a size option as KiB).
+func checkBytes(lo, hi int64) valueCheck {
+	return func(v string) error {
+		n, ok := strings.CutSuffix(v, "B")
+		if !ok || checkInt(lo, hi)(n) != nil {
+			return fmt.Errorf("must be a byte count %d-%d with the B suffix (%dB)", lo, hi, lo)
+		}
+		return nil
+	}
+}
+
 func checkDuration(v string) error {
 	d, err := time.ParseDuration(v)
 	if err != nil || d < 0 {
@@ -328,7 +340,13 @@ var commands = func() map[Binary][]command {
 			"--backup-dir": val(checkRemotePath),
 			"--exclude":    val(checkText),
 		}), nArgs(2, localOrRemote, checkRemotePath)},
-		{[]string{"copyto"}, withFlags(rcloneLog, transfer, maxDelete, map[string]flagSpec{"--no-traverse": sw()}), copytoArgs},
+		// A download (Fetch and ReadFile of config versions) is capped: --max-transfer with
+		// --cutoff-mode hard stops it at the cap whatever the remote serves.
+		{[]string{"copyto"}, withFlags(rcloneLog, transfer, maxDelete, map[string]flagSpec{
+			"--no-traverse":  sw(),
+			"--max-transfer": val(checkBytes(1, 1<<50)),
+			"--cutoff-mode":  val(checkEnum("soft", "hard")),
+		}), copytoArgs},
 		// S1: move, moveto, delete, deletefile and purge only ever name remote paths.
 		{[]string{"move"}, withFlags(rcloneLog, transfer, filesFrom, maxDelete), nArgs(2, checkRemotePath, checkRemotePath)},
 		{[]string{"moveto"}, withFlags(rcloneLog, transfer, maxDelete, map[string]flagSpec{"--no-traverse": sw()}), nArgs(2, checkRemotePath, checkRemotePath)},

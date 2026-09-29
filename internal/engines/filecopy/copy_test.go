@@ -229,6 +229,59 @@ func TestWriteTempSourceErrors(t *testing.T) {
 	}
 }
 
+// TestOpenFIFOSwappedInAfterLstat: a source file replaced by a FIFO between openRegular's lstat
+// and its open is refused at once. Without O_NONBLOCK the open blocks in the kernel until a
+// writer appears, where the job's cancellation cannot reach it.
+func TestOpenFIFOSwappedInAfterLstat(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		open func(e *env) error
+	}{
+		{"WriteTemp", func(e *env) error {
+			_, err := WriteTemp(context.Background(), e.src, "a/pipe", e.dst, "out/file", CopyOptions{})
+			return err
+		}},
+		{"HashFile", func(e *env) error { _, _, err := HashFile(context.Background(), e.src, "a/pipe", nil); return err }},
+		{"HeadTailHash", func(e *env) error { _, err := HeadTailHash(e.src, "a/pipe"); return err }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newEnv(t)
+			e.writeSrc(t, "a/pipe", []byte("data"))
+			p := filepath.Join(e.srcDir, "a", "pipe")
+			faultinject.SetHook(func(name string) {
+				if name != "open.afterLstat" {
+					return
+				}
+				if err := os.Remove(p); err != nil {
+					t.Error(err)
+				}
+				if err := syscall.Mkfifo(p, 0o644); err != nil {
+					t.Error(err)
+				}
+			})
+			defer faultinject.SetHook(nil)
+			done := make(chan error, 1)
+			go func() { done <- tc.open(e) }()
+			select {
+			case err := <-done:
+				if !errors.Is(err, ErrSourceChanged) {
+					t.Fatalf("err = %v, want ErrSourceChanged", err)
+				}
+			case <-time.After(5 * time.Second):
+				// Release the blocked open(2) so the goroutine ends.
+				if w, err := os.OpenFile(p, os.O_WRONLY, 0); err == nil {
+					_ = w.Close()
+				}
+				<-done
+				t.Fatal("the open of a FIFO swapped in after the lstat blocked")
+			}
+			if left := temps(t, e.dstDir); len(left) != 0 {
+				t.Errorf("temp files left: %v", left)
+			}
+		})
+	}
+}
+
 func TestWriteTempSourceChangedDuringCopy(t *testing.T) {
 	tests := []struct {
 		name   string

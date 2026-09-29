@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"modernc.org/sqlite"
 )
@@ -219,7 +220,7 @@ func TestVerifyCustomCollation(t *testing.T) {
 		t.Fatalf("the process-wide driver has the stub collation: %q, %v", title, err)
 	}
 
-	// A second Verify reuses the registered stub.
+	// A second Verify registers its stub again, on a driver of its own.
 	if rep2, err := Verify(context.Background(), p); err != nil || !rep2.OK() || rep2.IgnoredLines != rep.IgnoredLines {
 		t.Fatalf("second verify: %+v, %v", rep2, err)
 	}
@@ -250,7 +251,14 @@ func TestFilterIntegrity(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kept, ignored, indexes := filterIntegrity(tt.lines, custom)
+			f := integrityFilter{custom: custom}
+			var kept []string
+			for _, l := range tt.lines {
+				if f.keep(l) {
+					kept = append(kept, l)
+				}
+			}
+			ignored, indexes := f.ignored, f.sorted()
 			if !slices.Equal(kept, tt.wantKept) || ignored != tt.wantIgnored || !slices.Equal(indexes, tt.wantIndexes) {
 				t.Fatalf("got %q %d %q, want %q %d %q", kept, ignored, indexes, tt.wantKept, tt.wantIgnored, tt.wantIndexes)
 			}
@@ -341,4 +349,235 @@ func TestQuickCheck(t *testing.T) {
 			t.Fatalf("cancelled: %v", err)
 		}
 	})
+}
+
+// craftedDB creates a database at a new path with the statements of setup (run on drv, or on the
+// process-wide driver when drv is nil), then replaces the sqlite_master text of the entries in
+// rewrite (name → SQL) with writable_schema, the way an attacker builds a schema SQLite would
+// not create; it returns the path.
+func craftedDB(t *testing.T, drv *sqlite.Driver, setup []string, rewrite map[string]string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "crafted.db")
+	var d *sql.DB
+	if drv != nil {
+		d = sql.OpenDB(testConnector{drv: drv, dsn: "file:" + p})
+		d.SetMaxOpenConns(1)
+	} else {
+		d = openRW(t, p)
+	}
+	for _, s := range setup {
+		mustExec(t, d, s)
+	}
+	if len(rewrite) > 0 {
+		mustExec(t, d, `PRAGMA writable_schema = ON`)
+		for name, text := range rewrite {
+			mustExec(t, d, `UPDATE sqlite_master SET sql = ? WHERE name = ?`, text, name)
+		}
+	}
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// checkBounded fails unless every line is at most maxLineBytes (plus the "…" mark) of valid
+// UTF-8 and there are at most maxReportedErrors+1 of them.
+func checkBounded(t *testing.T, lines []string) {
+	t.Helper()
+	if len(lines) > maxReportedErrors+1 {
+		t.Fatalf("%d lines kept", len(lines))
+	}
+	for _, l := range lines {
+		if len(l) > maxLineBytes+len("…") || !utf8.ValidString(l) {
+			t.Fatalf("a %d-byte line was kept: %.80q…", len(l), l)
+		}
+	}
+}
+
+// A crafted database makes integrity_check return a line per row, each naming a 4 KiB index:
+// the lines are handled one at a time, cut, and reading stops once the report is full (the
+// report used to hold all of them first: 825 MB for 200k rows).
+func TestVerifyBoundsIntegrityLines(t *testing.T) {
+	const rows = 2000
+	long := "idx_" + strings.Repeat("n", 4096)
+	for _, tt := range []struct {
+		name    string
+		collate string
+	}{{"plain index", ""}, {"stub-collated index", " COLLATE revsort"}} {
+		t.Run(tt.name, func(t *testing.T) {
+			drv := &sqlite.Driver{}
+			if err := drv.RegisterCollationUtf8("revsort", func(a, b string) int { return strings.Compare(b, a) }); err != nil {
+				t.Fatal(err)
+			}
+			// The long index is pointed at the empty b-tree of an index on an empty table (and that
+			// one at the long index's entries), so every row of t is missing from it.
+			p := craftedDB(t, drv, []string{
+				`CREATE TABLE t (a TEXT)`,
+				fmt.Sprintf(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < %d) INSERT INTO t SELECT 'v' || i FROM n`, rows),
+				`CREATE TABLE e (a TEXT)`,
+				`CREATE INDEX "` + long + `" ON t (a` + tt.collate + `)`,
+				`CREATE INDEX ei ON e (a)`,
+			}, nil)
+			d := openRW(t, p)
+			var rootLong, rootE int64
+			if err := d.QueryRow(`SELECT rootpage FROM sqlite_master WHERE name = ?`, long).Scan(&rootLong); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.QueryRow(`SELECT rootpage FROM sqlite_master WHERE name = 'ei'`).Scan(&rootE); err != nil {
+				t.Fatal(err)
+			}
+			mustExec(t, d, `PRAGMA writable_schema = ON`)
+			mustExec(t, d, `UPDATE sqlite_master SET rootpage = ? WHERE name = ?`, rootE, long)
+			mustExec(t, d, `UPDATE sqlite_master SET rootpage = ? WHERE name = 'ei'`, rootLong)
+			if err := d.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			rep, err := Verify(context.Background(), p)
+			if err != nil || rep.OK() || rep.IntegrityCheck != IntegrityFailed {
+				t.Fatalf("verify: %+v, %v", rep.IntegrityCheck, err)
+			}
+			checkBounded(t, rep.Errors)
+			checkBounded(t, rep.IgnoredIndexes)
+			if tt.collate == "" {
+				// Every line is a problem: reading stopped after the 51st.
+				if len(rep.Errors) != maxReportedErrors+1 || rep.Errors[maxReportedErrors] != "… and more (the check stopped there)" {
+					t.Fatalf("%d errors, last %.80q", len(rep.Errors), rep.Errors[len(rep.Errors)-1])
+				}
+				return
+			}
+			// The stub-collated index's lines are ignored and counted, never kept, and its name is
+			// noted cut.
+			if rep.IgnoredLines != rows || len(rep.IgnoredIndexes) != 1 || !strings.HasPrefix(rep.IgnoredIndexes[0], "idx_nnn") {
+				t.Fatalf("ignored %d lines, indexes %d", rep.IgnoredLines, len(rep.IgnoredIndexes))
+			}
+		})
+	}
+	if got := cutLine(strings.Repeat("é", maxLineBytes)); !utf8.ValidString(got) || len(got) > maxLineBytes+len("…") {
+		t.Fatalf("cutLine: %d bytes, valid UTF-8 %v", len(got), utf8.ValidString(got))
+	}
+}
+
+// A crafted *arr database with a 64 KiB table name and NULLs in a NOT NULL column: quick_check's
+// lines name the table, and each is cut (they used to be kept whole, 50 × 1 MiB for a 1 MiB name).
+func TestQuickCheckBoundsLines(t *testing.T) {
+	long := "t_" + strings.Repeat("n", 64<<10)
+	p := craftedDB(t, nil, []string{
+		`CREATE TABLE "` + long + `" (a INTEGER, b TEXT)`,
+		`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 200) INSERT INTO "` + long + `" SELECT i, NULL FROM n`,
+	}, map[string]string{long: `CREATE TABLE "` + long + `" (a INTEGER, b TEXT NOT NULL)`})
+	problems, err := QuickCheck(context.Background(), p)
+	if err != nil || len(problems) == 0 {
+		t.Fatalf("problems %d, %v", len(problems), err)
+	}
+	checkBounded(t, problems)
+	if !strings.HasPrefix(problems[0], "quick_check: NULL value in t_nnn") || problems[len(problems)-1] != "… and more (the check stopped there)" {
+		t.Fatalf("first %.80q, last %.80q", problems[0], problems[len(problems)-1])
+	}
+}
+
+// A schema names its collations in text the checks read (comments included): more than
+// maxCollations, or one SQLite would read cut at a NUL, is refused, and the stubs of a check never
+// reach a later one. A comment naming 400k collations used to register 400k stubs on the shared
+// driver, every later Open then took 40 s; "nocase\x00x" replaced NOCASE for every later check.
+func TestCollationLimits(t *testing.T) {
+	ctx := context.Background()
+	named := func(n int) string {
+		var b strings.Builder
+		for i := range n {
+			fmt.Fprintf(&b, " COLLATE c%02d", i)
+		}
+		return craftedDB(t, nil, []string{`CREATE TABLE t (a TEXT /*` + b.String() + ` */)`}, nil)
+	}
+	if problems, err := QuickCheck(ctx, named(maxCollations)); err != nil || len(problems) != 0 {
+		t.Fatalf("%d collations: %q, %v", maxCollations, problems, err)
+	}
+	for _, check := range []func(string) []string{
+		func(p string) []string { problems, _ := QuickCheck(ctx, p); return problems },
+		func(p string) []string { rep, _ := Verify(ctx, p); return rep.Errors },
+	} {
+		if problems := check(named(maxCollations + 1)); len(problems) != 1 || !strings.Contains(problems[0], "more than 16 collations") {
+			t.Fatalf("%d collations: %q", maxCollations+1, problems)
+		}
+		long := craftedDB(t, nil, []string{`CREATE TABLE t (a TEXT /* COLLATE ` + strings.Repeat("x", maxCollationBytes+1) + ` */)`}, nil)
+		if problems := check(long); len(problems) != 1 || !strings.Contains(problems[0], "longer than 64 bytes") {
+			t.Fatalf("long name: %q", problems)
+		}
+	}
+
+	// SQLite stops reading the schema text at the NUL, so the crafted database itself is fine; the
+	// name after it is refused.
+	nul := craftedDB(t, nil, []string{`CREATE TABLE t (a TEXT)`,
+		`PRAGMA writable_schema = ON`,
+		`UPDATE sqlite_master SET sql = sql || char(0) || ' COLLATE "nocase' || char(0) || 'x"' WHERE name = 't'`}, nil)
+	if problems, err := QuickCheck(ctx, nul); err != nil || len(problems) != 1 || !strings.Contains(problems[0], "control character") {
+		t.Fatalf("NUL in a name: %q, %v", problems, err)
+	}
+	// A healthy database with a NOCASE index on mixed-case values still passes afterwards.
+	healthy := craftedDB(t, nil, []string{`CREATE TABLE u (a TEXT)`, `CREATE INDEX ui ON u (a COLLATE NOCASE)`,
+		`INSERT INTO u VALUES ('b'), ('A'), ('c'), ('B'), ('a')`}, nil)
+	if rep, err := Verify(ctx, healthy); err != nil || !rep.OK() {
+		t.Fatalf("healthy NOCASE database after the crafted one: %+v, %v", rep, err)
+	}
+	// And the stub of one check is not on any shared driver.
+	if _, err := QuickCheck(ctx, craftedDB(t, nil, []string{`CREATE TABLE t (a TEXT /* COLLATE zz_leak */)`}, nil)); err != nil {
+		t.Fatal(err)
+	}
+	d := openDB(plainDriver, "file::memory:")
+	defer d.Close()
+	if _, err := d.Exec(`SELECT 'a' < 'b' COLLATE zz_leak`); err == nil || !strings.Contains(err.Error(), "no such collation sequence") {
+		t.Fatalf("a check's stub outlived it: %v", err)
+	}
+}
+
+// The checks never run SQL of the copy's own: quick_check would compute a virtual generated
+// column, integrity_check an index expression or a partial index's WHERE, row by row and beyond
+// the reach of cancellation. abs(-2^63) fails when computed, so a refusal that mentions no
+// overflow proves nothing ran.
+func TestChecksRefuseSchemaExpressions(t *testing.T) {
+	ctx := context.Background()
+	const boom = `abs(-9223372036854775807 - 1)`
+	base := []string{`CREATE TABLE t (a INTEGER)`, `INSERT INTO t VALUES (1), (2)`}
+	generated := craftedDB(t, nil, base, map[string]string{"t": `CREATE TABLE t (a INTEGER, b AS (` + boom + `) NOT NULL)`})
+	expr := craftedDB(t, nil, append(base, `CREATE INDEX i ON t ((a + 0))`), map[string]string{"i": `CREATE INDEX i ON t ((` + boom + `))`})
+	partial := craftedDB(t, nil, append(base, `CREATE INDEX i ON t (a) WHERE a > 0`), map[string]string{"i": `CREATE INDEX i ON t (a) WHERE ` + boom + ` > 0`})
+
+	refused := func(t *testing.T, problems []string, want string) {
+		t.Helper()
+		if len(problems) != 1 || !strings.Contains(problems[0], want) || strings.Contains(problems[0], "overflow") {
+			t.Fatalf("problems %q, want a refusal naming %s", problems, want)
+		}
+	}
+	problems, err := QuickCheck(ctx, generated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refused(t, problems, "virtual generated column (t.b)")
+	for p, want := range map[string]string{generated: "virtual generated column (t.b)", expr: "an expression or with a WHERE clause (i)",
+		partial: "an expression or with a WHERE clause (i)"} {
+		rep, err := Verify(ctx, p)
+		if err != nil || rep.OK() {
+			t.Fatalf("verify: %+v, %v", rep, err)
+		}
+		refused(t, rep.Errors, want)
+	}
+	// quick_check never computes index expressions, so an *arr database with such an index passes.
+	for _, p := range []string{expr, partial} {
+		if problems, err := QuickCheck(ctx, p); err != nil || len(problems) != 0 {
+			t.Fatalf("quick check of an index expression: %q, %v", problems, err)
+		}
+	}
+
+	// Plex's virtual tables (fts4, spellfix1) use modules modernc lacks; the schema checks leave
+	// them alone.
+	plex := cleanLibrary(t, 20, 20)
+	d := openRW(t, plex)
+	mustExec(t, d, `PRAGMA writable_schema = ON`)
+	mustExec(t, d, `INSERT INTO sqlite_master VALUES ('table', 'fts4_tag_titles', 'fts4_tag_titles', 0, 'CREATE VIRTUAL TABLE fts4_tag_titles USING fts4(tag)')`)
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if rep, err := Verify(ctx, plex); err != nil || !rep.OK() {
+		t.Fatalf("verify with a virtual table: %+v, %v", rep, err)
+	}
 }

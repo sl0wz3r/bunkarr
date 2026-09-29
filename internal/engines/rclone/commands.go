@@ -213,17 +213,29 @@ func (c *Conn) CopyTo(ctx context.Context, localPath, rel string) error {
 	return check(cmd, out)
 }
 
+// MaxDownloadCap is the largest cap Download takes (the allow-list's bound, 1 PiB).
+const MaxDownloadCap = 1 << 50
+
 // Download copies the object at rel to the local file localPath (rclone copyto; Fetch and
-// ReadFile of config versions).
-func (c *Conn) Download(ctx context.Context, rel, localPath string) error {
+// ReadFile of config versions), capped at maxBytes: rclone copyto <root>/<rel> <localPath>
+// --max-transfer <maxBytes>B --cutoff-mode hard. Whatever the remote serves (an object swapped
+// for a larger one after the caller listed it, a prefix copyto copies whole, an SFTP server that
+// lists one size and serves more), rclone stops at the cap, removes its partial file and exits 8
+// (ErrMaxTransfer). A transfer that reaches the cap exactly is refused too, so the cap must
+// exceed the expected size (transferCap).
+func (c *Conn) Download(ctx context.Context, rel, localPath string, maxBytes int64) error {
 	if err := checkLocal(localPath); err != nil {
 		return err
 	}
 	if err := CheckArgName(rel); err != nil {
 		return err
 	}
+	if maxBytes <= 0 || maxBytes > MaxDownloadCap {
+		return fmt.Errorf("rclone copyto: cap %d is not 1-%d bytes", maxBytes, int64(MaxDownloadCap))
+	}
 	cmd := command{words: []string{"copyto"}, args: func(*proc.RunDir) []string {
-		return append([]string{c.remote(rel), localPath}, jsonLog...)
+		return append([]string{c.remote(rel), localPath, "--max-transfer", strconv.FormatInt(maxBytes, 10) + "B",
+			"--cutoff-mode", "hard"}, jsonLog...)
 	}}
 	out, err := c.run(ctx, cmd)
 	if err != nil {
@@ -396,7 +408,9 @@ func (c *Conn) Rmdirs(ctx context.Context, dir string, leaveRoot bool) error {
 
 // Cat reads the object at rel, at most limit bytes (rclone cat --count). The runner delivers
 // output as lines, so the content comes back with "\n" line endings: for small text objects
-// (the marker, a manifest's first bytes); byte-exact reads use Download.
+// (the marker, a manifest's first bytes); byte-exact reads use Download. A directory at rel
+// prints the objects under it, one after the other; at most limit bytes of them are read
+// (command.stdoutLimit).
 func (c *Conn) Cat(ctx context.Context, rel string, limit int64) ([]byte, error) {
 	out, cmd, err := c.cat(ctx, rel, limit)
 	if err != nil {
@@ -415,7 +429,7 @@ func (c *Conn) cat(ctx context.Context, rel string, limit int64) (outcome, comma
 	if limit <= 0 {
 		return outcome{}, command{}, fmt.Errorf("rclone cat: limit %d", limit)
 	}
-	cmd := command{words: []string{"cat"}, budget: c.drv.listingBudget(), args: func(*proc.RunDir) []string {
+	cmd := command{words: []string{"cat"}, budget: c.drv.listingBudget(), stdoutLimit: limit, args: func(*proc.RunDir) []string {
 		return append([]string{"--count", strconv.FormatInt(limit, 10), c.remote(rel)}, jsonLog...)
 	}}
 	out, err := c.run(ctx, cmd)
@@ -712,7 +726,9 @@ const (
 )
 
 // readMarker reads the marker through the (crypt) root. A missing object, an S3 "directory"
-// that cats as nothing, and a wrong crypt password (the encrypted name differs) are missing.
+// with nothing under it (it cats as nothing), and a wrong crypt password (the encrypted name
+// differs) are missing. A directory with objects under it prints them all: at most MarkerLimit
+// bytes of them are read (cat) and parsed like an object's content.
 func (c *Conn) readMarker(ctx context.Context) (Marker, int, error) {
 	out, cmd, err := c.cat(ctx, filecopy.MarkerRel, MarkerLimit)
 	if err != nil {

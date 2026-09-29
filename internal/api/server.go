@@ -17,7 +17,6 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -96,7 +95,9 @@ func (s *Server) apiRoutes(r chi.Router) {
 	r.Get("/health", s.health)
 	r.Get("/openapi.json", s.openAPI)
 	r.Get("/auth/status", s.authStatus)
-	r.Post("/auth/setup", s.authSetup)
+	// A DNS rebinding page passes CrossOriginProtection (it is same-origin to the browser), so the
+	// setup, which needs no credential, also needs one of Bunkarr's own host names (ADR 0002).
+	r.With(s.auth.RequireTrustedHost).Post("/auth/setup", s.authSetup)
 	r.Post("/auth/login", s.authLogin)
 	r.Post("/auth/logout", s.authLogout)
 	// The *arrs' webhooks: the integration's webhook key only, never a session or the API key (D7).
@@ -265,34 +266,40 @@ func (s *Server) authSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.log.Info("First-run setup completed", "remote", auth.ClientIP(r).String())
-	s.startSession(w, r, body.Username, body.Password, http.StatusCreated)
+	s.startSession(w, r, body.Username, body.Password, http.StatusCreated, nil)
 }
 
+// authLogin counts the guess with the login limiter before the body is read or the password
+// checked (attempt), so logins sent together cannot all pass it before the first failure lands.
 func (s *Server) authLogin(w http.ResponseWriter, r *http.Request) {
-	client := auth.ClientIP(r).String()
-	if blocked, wait := s.auth.Limiter.Blocked(client); blocked {
-		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
-		writeError(w, http.StatusTooManyRequests, "too many failed logins; try again later")
+	undo, ok := s.attempt(w, r)
+	if !ok {
 		return
 	}
 	var body credentialsBody
 	if err := decodeJSON(w, r, &body); err != nil {
+		undo()
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.startSession(w, r, body.Username, body.Password, http.StatusOK)
+	s.startSession(w, r, body.Username, body.Password, http.StatusOK, undo)
 }
 
-func (s *Server) startSession(w http.ResponseWriter, r *http.Request, username, password string, status int) {
+// startSession logs in and sets the session cookie. undo takes back the login's limiter attempt
+// (nil after the setup, whose credentials were just created): a wrong password stays counted, a
+// right one clears the client's failures, an internal error is not held against the client.
+func (s *Server) startSession(w http.ResponseWriter, r *http.Request, username, password string, status int, undo func()) {
 	client := auth.ClientIP(r).String()
 	sess, err := s.auth.Login(r.Context(), username, password, auth.SessionMeta{RemoteAddr: client, UserAgent: r.UserAgent()})
 	if errors.Is(err, auth.ErrInvalidCredentials) {
-		s.auth.Limiter.Fail(client)
 		s.log.Warn("Failed login", "remote", client)
 		writeError(w, http.StatusUnauthorized, err.Error())
 		return
 	}
 	if err != nil {
+		if undo != nil {
+			undo()
+		}
 		s.internalError(w, "log in", err)
 		return
 	}
@@ -384,9 +391,10 @@ func (s *Server) changeCredentials(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The current password also gates off-site targets and the recovery kit (S29, §5.2), so a
-	// wrong guess here counts against the login limiter like a failed login, and a blocked client
-	// gets 429 before any password check.
-	if s.limited(w, r) {
+	// guess here counts against the login limiter like a login (before the check, so guesses sent
+	// together cannot all be checked), and a blocked client gets 429 before any password check.
+	undo, ok := s.attempt(w, r)
+	if !ok {
 		return
 	}
 	client := auth.ClientIP(r).String()
@@ -394,12 +402,14 @@ func (s *Server) changeCredentials(w http.ResponseWriter, r *http.Request) {
 	var verr auth.ValidationError
 	switch {
 	case errors.Is(err, auth.ErrInvalidCredentials):
-		s.auth.Limiter.Fail(client)
 		s.log.Warn("Wrong current password when changing credentials", "remote", client)
 		writeError(w, http.StatusBadRequest, "current password is incorrect")
 	case errors.As(err, &verr):
+		// The new username or password is refused after the current password matched.
+		undo()
 		writeError(w, http.StatusBadRequest, verr.Error())
 	case err != nil:
+		undo()
 		s.internalError(w, "change credentials", err)
 	default:
 		s.auth.Limiter.Success(client)

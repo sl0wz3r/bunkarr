@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -524,6 +526,22 @@ func (x *resticRun) alreadyDone(ctx context.Context, w batchWork) (bool, error) 
 
 // runBatch backs up one batch (§6.2 step 4) and records it (step 5).
 func (x *resticRun) runBatch(ctx context.Context, src catalog.Source, set *sourceSet, batch []batchWork, overrun bool) error {
+	root := x.roots[src.ID]
+	// A file that is no longer the planned version inside the source's root fails and is left
+	// out of the include list (checkSource).
+	checked := make([]batchWork, 0, len(batch))
+	for _, w := range batch {
+		if err := checkSource(root, w.file, w.size, w.mtimeNs); err != nil {
+			if err := x.failItem(ctx, w.it, err.Error()); err != nil {
+				return err
+			}
+			continue
+		}
+		checked = append(checked, w)
+	}
+	if batch = checked; len(batch) == 0 {
+		return nil
+	}
 	x.lastBatch++
 	x.batches++
 	k := x.lastBatch
@@ -532,7 +550,6 @@ func (x *resticRun) runBatch(ctx context.Context, src catalog.Source, set *sourc
 			return err
 		}
 	}
-	root := x.roots[src.ID]
 	inBatch := map[string]bool{}
 	for i := range batch {
 		w := &batch[i]
@@ -543,6 +560,7 @@ func (x *resticRun) runBatch(ctx context.Context, src catalog.Source, set *sourc
 		}
 	}
 	files := restic.CompressIncludes(src.Path, set.live, func(rel string) bool { return set.included[rel] || inBatch[rel] })
+	files = x.insideRoot(root, src, files)
 	if len(files) == 0 {
 		for _, w := range batch {
 			if err := x.failItem(ctx, w.it, "not in the catalog any more"); err != nil {
@@ -629,6 +647,39 @@ func (x *resticRun) runBatch(ctx context.Context, src catalog.Source, set *sourc
 	x.doneFiles += res.Summary.TotalFilesProcessed
 	x.doneBytes += res.Summary.TotalBytesProcessed
 	return x.relaxCutCap(ctx, batch, src, took, left, bounded)
+}
+
+// insideRoot drops the include paths that leave the source's root on the way (checkSource): the
+// list names the files earlier batches backed up and whole folders as well as the batch's own
+// files, restic is given them as absolute paths, and the kernel follows a folder on one that
+// became a symlink out of the source after the scan. The last component needs no check (restic
+// stores a symlink there as a link and does not follow it, S1), so os.Root's Lstat, which refuses
+// a path whose folders lead out of the root, decides. A path that is gone stays listed (restic
+// reports it, as before); a dropped one is as if it had vanished: the read-back keeps its record's
+// reference to a snapshot that holds its version.
+func (x *resticRun) insideRoot(root *os.Root, src catalog.Source, files []string) []string {
+	top := path.Clean(src.Path)
+	prefix := strings.TrimSuffix(top, "/") + "/"
+	kept := make([]string, 0, len(files))
+	for _, p := range files {
+		rel, ok := ".", true
+		if p != top {
+			rel, ok = strings.CutPrefix(p, prefix)
+		}
+		var err error
+		if !ok {
+			err = fmt.Errorf("not under %s", top)
+		} else if _, err = root.Lstat(rel); errors.Is(err, fs.ErrNotExist) {
+			err = nil
+		}
+		if err != nil {
+			x.warn("a source path leads outside the source folder (a folder on it was replaced by a symlink?); it is left out of the backup",
+				"source", src.Name, "path", rel, "error", err.Error())
+			continue
+		}
+		kept = append(kept, p)
+	}
+	return kept
 }
 
 // onStatus turns a status line into progress (§10.4): the batch's counts and totals plus the

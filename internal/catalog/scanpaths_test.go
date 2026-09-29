@@ -304,6 +304,42 @@ func TestScanPathsNeverFollowsWhatAFullScanSkips(t *testing.T) {
 	}
 }
 
+// TestScanPathsSkipsConfigDirSeenThroughAnotherView: a targeted scan treats a folder holding the
+// master key like the full scan does (TestScanSkipsConfigDirSeenThroughAnotherView): a target
+// under it is dropped, a hardlink partner inside it is not nominated, and the folder itself as a
+// target catalogs nothing and marks its stale rows deleted.
+func TestScanPathsSkipsConfigDirSeenThroughAnotherView(t *testing.T) {
+	st := newStore(t, StoreOptions{})
+	base := tempDir(t)
+	cfg, root := filepath.Join(base, "config"), filepath.Join(base, "src")
+	writeFiles(t, cfg, map[string]string{"bunkarr.key": testKey})
+	writeFiles(t, root, map[string]string{"a.mkv": "a", "appdata/bunkarr/bunkarr.key": testKey, "appdata/bunkarr/backups/b.db": "b", "media/x.mkv": "x"})
+	if err := os.Link(filepath.Join(root, "media/x.mkv"), filepath.Join(root, "appdata/bunkarr/x.mkv")); err != nil {
+		t.Fatal(err)
+	}
+	src := createSource(t, st, "S", root)
+	mustScan(t, NewScanner(st, ScannerOptions{}), src.ID) // the rows of a scan without the check
+	sc := NewScanner(st, ScannerOptions{KeyFile: filepath.Join(cfg, "bunkarr.key")})
+
+	for _, target := range []string{"appdata/bunkarr/backups/b.db", "appdata/bunkarr/backups"} {
+		r := mustScanPaths(t, sc, src.ID, target)
+		if r.Targets[0].State != TargetDropped || !strings.Contains(r.Targets[0].Reason, "appdata/bunkarr is Bunkarr's config directory") ||
+			r.Skipped[SkipOverlap] != 1 {
+			t.Fatalf("%s: %+v", target, r)
+		}
+	}
+	mustScanPaths(t, sc, src.ID, "media")
+	if g := liveRows(t, st, src.ID)["media/x.mkv"].HardlinkGroup; g != "" {
+		t.Fatalf("media/x.mkv was grouped (%s) with its partner inside the config directory", g)
+	}
+	r := mustScanPaths(t, sc, src.ID, "appdata/bunkarr")
+	got := keys(liveRows(t, st, src.ID))
+	slices.Sort(got)
+	if r.Targets[0].State != TargetScanned || r.Skipped[SkipOverlap] != 1 || !slices.Equal(got, []string{"a.mkv", "media/x.mkv"}) {
+		t.Fatalf("catalog = %v (%+v)", got, r)
+	}
+}
+
 func TestScanPathsESTALERetriedOnce(t *testing.T) {
 	st, sc, src, root := pathsFixture(t)
 	writeFiles(t, root, map[string]string{"Movies/A/new.mkv": "n"})

@@ -194,13 +194,21 @@ func TestIdentify(t *testing.T) {
 	_, _ = s.Setup(ctx, "admin", "correct horse")
 	sess, _ := s.Login(ctx, "admin", "correct horse", SessionMeta{})
 
+	// 172.17.0.1 is the container's gateway (Docker's bridge), as Init reads it on Linux.
+	s.relays = []netip.Addr{netip.MustParseAddr("172.17.0.1")}
 	req := func(remote string, mod func(*http.Request)) *http.Request {
 		r := httptest.NewRequest(http.MethodGet, "/api/v1/system/status", nil)
 		r.RemoteAddr = remote
+		r.Host = "192.168.1.10:8787"
 		if mod != nil {
 			mod(r)
 		}
 		return r
+	}
+	// A DNS rebinding page: the user's own browser, on the LAN, under the attacker's name.
+	rebound := func(r *http.Request) {
+		r.Host = "rebind.attacker.example:8787"
+		r.Header.Set("Sec-Fetch-Site", "same-origin")
 	}
 	cases := []struct {
 		name    string
@@ -222,6 +230,15 @@ func TestIdentify(t *testing.T) {
 		{"local, bypass", req("192.168.1.5:1", nil), ModeLocalDisabled, true, KindLocal, false},
 		{"public, bypass mode", req("203.0.113.9:1", nil), ModeLocalDisabled, false, "", false},
 		{"spoofed XFF ignored", req("203.0.113.9:1", func(r *http.Request) { r.Header.Set("X-Forwarded-For", "127.0.0.1") }), ModeLocalDisabled, false, "", false},
+		{"local, bypass, server name", req("192.168.1.5:1", func(r *http.Request) { r.Host = "tower.local:8787" }), ModeLocalDisabled, true, KindLocal, false},
+		{"local, bypass, rebinding host", req("192.168.1.5:1", rebound), ModeLocalDisabled, false, "", false},
+		{"rebinding host keeps the session", req("192.168.1.5:1", func(r *http.Request) {
+			rebound(r)
+			r.AddCookie(&http.Cookie{Name: SessionCookie, Value: sess.Token})
+		}), ModeLocalDisabled, true, KindSession, false},
+		// docker-proxy relays an IPv6 client from anywhere as the bridge gateway.
+		{"gateway, bypass", req("172.17.0.1:40000", nil), ModeLocalDisabled, false, "", false},
+		{"other bridge address, bypass", req("172.17.0.5:1", nil), ModeLocalDisabled, true, KindLocal, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -296,6 +313,117 @@ func TestLimiter(t *testing.T) {
 	l.Success("a")
 	if len(l.fails) != 0 {
 		t.Fatal("Success did not clear failures")
+	}
+}
+
+// TestLimiterAttemptCountsBeforeTheCheck checks that Attempt tests and counts under one lock: of
+// 50 attempts made at once, max may run however they interleave, and a blocked client gets the
+// wait of its oldest failure. undo takes back its own attempt only, once, and after Success it
+// has nothing to take back.
+func TestLimiterAttemptCountsBeforeTheCheck(t *testing.T) {
+	now := time.Now()
+	l := NewLimiter(5, time.Minute)
+	l.now = func() time.Time { return now }
+	var (
+		wg    sync.WaitGroup
+		mu    sync.Mutex
+		undos []func()
+	)
+	for range 50 {
+		wg.Go(func() {
+			if undo, _, ok := l.Attempt("192.168.1.9"); ok {
+				mu.Lock()
+				undos = append(undos, undo)
+				mu.Unlock()
+			}
+		})
+	}
+	wg.Wait()
+	if len(undos) != 5 {
+		t.Fatalf("%d of 50 attempts made at once may run, want 5", len(undos))
+	}
+	now = now.Add(10 * time.Second)
+	if _, wait, ok := l.Attempt("192.168.1.9"); ok || wait != 50*time.Second {
+		t.Fatalf("blocked client: ok %v, wait %v, want 50s", ok, wait)
+	}
+	if blocked, _ := l.Blocked("192.168.1.9"); !blocked {
+		t.Fatal("attempts in flight do not count as failures")
+	}
+	undos[0]()
+	undos[0]()
+	if n := len(l.fails["192.168.1.9"]); n != 4 {
+		t.Fatalf("undo twice left %d failures, want 4", n)
+	}
+	undo, _, ok := l.Attempt("192.168.1.9")
+	if !ok {
+		t.Fatal("undo did not free the attempt")
+	}
+	l.Success("192.168.1.9")
+	undo()
+	if len(l.fails) != 0 {
+		t.Fatalf("undo after Success: %v", l.fails)
+	}
+}
+
+// TestLimiterCountsIPv6By64 checks that a device rotating through the addresses of its /64
+// (SLAAC) shares one allowance, and that another /64 and IPv4 addresses do not.
+func TestLimiterCountsIPv6By64(t *testing.T) {
+	l := NewLimiter(5, time.Minute)
+	for i := range 5 {
+		l.Fail(netip.AddrFrom16([16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 1, 15: byte(i + 1)}).String())
+	}
+	if blocked, _ := l.Blocked("2001:db8:0:1:dead:beef:0:6"); !blocked {
+		t.Fatal("a fresh address of the same /64 was not blocked")
+	}
+	if blocked, _ := l.Blocked("2001:db8:0:2::1"); blocked {
+		t.Fatal("another /64 was blocked")
+	}
+	l.Success("2001:db8:0:1::99")
+	if blocked, _ := l.Blocked("2001:db8:0:1::1"); blocked {
+		t.Fatal("a login from the /64 did not clear its failures")
+	}
+	for in, want := range map[string]string{
+		"192.168.1.5": "192.168.1.5", "::ffff:192.168.1.5": "192.168.1.5", "fe80::1%eth0": "fe80::/64", "invalid IP": "invalid IP",
+	} {
+		if got := limiterKey(in); got != want {
+			t.Errorf("limiterKey(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// TestLimiterFullDropsOnlyTheOldest checks that a full limiter drops the least recently failing
+// client, not every entry: filling it must not unblock a client that is locked out.
+func TestLimiterFullDropsOnlyTheOldest(t *testing.T) {
+	now := time.Now()
+	l := NewLimiter(3, time.Hour)
+	l.now = func() time.Time { return now }
+	for i := range maxTracked - 1 {
+		l.Fail(netip.AddrFrom4([4]byte{10, byte(i >> 16), byte(i >> 8), byte(i)}).String())
+	}
+	now = now.Add(time.Second)
+	for range 3 {
+		l.Fail("192.168.1.50")
+	}
+	if len(l.fails) != maxTracked {
+		t.Fatalf("tracked %d, want %d", len(l.fails), maxTracked)
+	}
+	// Failing again for a known client makes no room.
+	l.Fail("10.0.0.0")
+	if len(l.fails) != maxTracked {
+		t.Fatalf("a known client made room: tracked %d", len(l.fails))
+	}
+	now = now.Add(time.Second)
+	l.Fail("203.0.113.1")
+	if blocked, _ := l.Blocked("192.168.1.50"); !blocked {
+		t.Fatal("a full limiter unblocked a locked-out client")
+	}
+	if len(l.fails) != maxTracked {
+		t.Fatalf("tracked %d after a new client, want %d", len(l.fails), maxTracked)
+	}
+	for _, c := range []string{"192.168.1.50", "10.0.0.0", "203.0.113.1"} {
+		if _, ok := l.fails[c]; !ok {
+			t.Errorf("%s was dropped; only one of the least recently failing clients should be", c)
+		}
 	}
 }
 

@@ -64,9 +64,12 @@ Acceptance (exact tests in §9; all pass):
 - **S4 No overlap.** On save, resolved (EvalSymlinks) paths: a destination target may not equal,
   contain or be inside any source, the config directory, `/` or another destination; a source may
   not equal, contain or be inside a destination target, nor be the config directory or inside it
-  (a source that contains the config directory is allowed: the scanner skips it). At scan time
-  the scanner also skips (and warns about) any directory whose `(dev, ino)` equals a destination
-  root or the config directory (bind-mount aliases).
+  (a source that contains the config directory is allowed: the scanner skips it), nor equal,
+  contain or be inside the engines' secret run directory (`<ShmDir>/bunkarr-run`, S22), nor be
+  `/dev`, `/proc`, `/sys` or inside them (process environments, devices and `/dev/shm` hold
+  secrets, never media). At scan time the scanner also skips (and warns about) any directory whose
+  `(dev, ino)` equals a destination root, the config directory or the secret run directory
+  (bind-mount aliases).
 - **S5 Deletes are not propagated.** A file that disappears from a source is moved (same-filesystem
   rename) into retention and deleted only after `retention.deletedDays` (1–3650, default 30).
   Content that is still referenced by a live name is never expired (§4.3 promotion). Records of a

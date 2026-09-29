@@ -21,7 +21,9 @@ import (
 // The copy, update and adopt items of an rclone sync (§7.3 step 3), in batches of at most
 // settings.rclone.batchFiles files and batchBytes bytes per source:
 //
-//   - before the batch: the retention intents of the records the batch replaces (the backup-dir
+//   - before the batch: each file checked through the source's root (checkSource: still the
+//     planned version inside the root, else its item fails and rclone never sees it; copyto's
+//     single files too), the retention intents of the records the batch replaces (the backup-dir
 //     path, reason replaced, or damaged for a missing record), each file's head/tail hash read
 //     through the source's root, and a listing of the batch's backup-dir paths: an item whose path
 //     there is taken (a resumed job) runs alone with a numbered retention name;
@@ -220,6 +222,23 @@ func (x *rcloneRun) alreadyDone(w copyWork) bool {
 
 // copyBatch runs one batch.
 func (x *rcloneRun) copyBatch(ctx context.Context, src catalog.Source, batch []copyWork, overrun bool) error {
+	root := x.roots[src.ID]
+	// A file that is no longer the planned version inside the source's root fails and is never
+	// listed for rclone (checkSource: rclone opens <source root>/<rel> and follows a folder
+	// swapped for a symlink out of the source).
+	checked := make([]copyWork, 0, len(batch))
+	for _, w := range batch {
+		if err := checkSource(root, w.rel, w.d.Size, w.d.MtimeNs); err != nil {
+			if err := x.failItem(ctx, w.it, err.Error()); err != nil {
+				return err
+			}
+			continue
+		}
+		checked = append(checked, w)
+	}
+	if batch = checked; len(batch) == 0 {
+		return nil
+	}
 	x.batches++
 	if x.batches > 1 && x.batches%recheckBatches == 1 {
 		if _, err := x.conn.CheckMarker(ctx); err != nil {
@@ -228,7 +247,6 @@ func (x *rcloneRun) copyBatch(ctx context.Context, src catalog.Source, batch []c
 	}
 	k := x.batches
 	x.report(func(p *jobs.Progress) { p.Batch, p.Batches = k, max(p.Batches, k) })
-	root := x.roots[src.ID]
 	// Items whose backup-dir path is taken (a resumed job) run alone with a numbered name.
 	rels := make([]string, len(batch))
 	for i, w := range batch {
@@ -617,7 +635,11 @@ func (x *rcloneRun) copyAlone(ctx context.Context, src catalog.Source, it jobs.I
 // upload copies one file to its free live path (rclone copyto; the caller made sure the path is
 // free) and records it after a listing.
 func (x *rcloneRun) upload(ctx context.Context, src catalog.Source, w copyWork) error {
-	w.d.HeadTail, w.d.HeadTailSize, w.d.HeadTailMtimeNs = headTail(x.roots[src.ID], w.rel)
+	root := x.roots[src.ID]
+	if err := checkSource(root, w.rel, w.d.Size, w.d.MtimeNs); err != nil {
+		return err // copyto would open the joined path below
+	}
+	w.d.HeadTail, w.d.HeadTailSize, w.d.HeadTailMtimeNs = headTail(root, w.rel)
 	local := filepath.Join(src.Path, filepath.FromSlash(w.rel))
 	x.started = true
 	faultinject.Point(PointBeforeBatch)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path"
@@ -88,6 +89,33 @@ func sourceRoots(plan *syncer.Plan) (map[int64]*os.Root, func(), error) {
 // relative path (S1).
 func absPath(src catalog.Source, rel string) string {
 	return path.Join(filepath.ToSlash(src.Path), rel)
+}
+
+// checkSource checks, through the source's root, that rel is still the version the plan backs
+// up: a regular file inside the root with the planned size and mtime (S1, S28; the mtime compared
+// as the read-back compares it, since a promote's version is its target record's). rclone and
+// restic open a source file by its absolute path (absPath), and the kernel follows a symlink
+// anywhere on it, while os.Root refuses one that leads out of the root: a folder of a source
+// replaced by a symlink after the scan (to /config, say) would otherwise hand the engine the file
+// of the same name behind it (bunkarr.key, bunkarr.db) as the media file. A file that fails here
+// fails its item and is never passed to an engine. A swap between this check and the engine's
+// open is not seen (DEFERRED.md, "Engine children read what Bunkarr can read").
+func checkSource(root *os.Root, rel string, size, mtimeNs int64) error {
+	if root == nil {
+		return itemErrorf("the source of %s is not open", rel)
+	}
+	st, err := filecopy.Lstat(root, rel)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return itemErrorf("%s is gone from the source", rel)
+	case err != nil:
+		return itemErrorf("%s cannot be read inside its source folder (%v); it is not backed up", rel, err)
+	case !st.Regular():
+		return itemErrorf("%s is no longer a regular file at the source", rel)
+	case st.Size != size || !mtimeHolds(st.MtimeNs, mtimeNs):
+		return itemErrorf("%s changed at the source since planning", rel)
+	}
+	return nil
 }
 
 // headTail reads a source file's head/tail hash through its root with the size and mtime it had
