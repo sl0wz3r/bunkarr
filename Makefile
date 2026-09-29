@@ -1,7 +1,8 @@
 # Bunkarr developer tasks. `make help` lists them.
 SHELL := /bin/sh
 
-VERSION    ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.1.0-dev)
+# Without the tag's leading v, like the release images (0.1.0-beta.1, not v0.1.0-beta.1).
+VERSION    ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null); echo $${v:-0.1.0-dev} | sed 's/^v//')
 COMMIT     ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 PKG        := github.com/sl0wz3r/bunkarr/internal/version
@@ -39,7 +40,7 @@ lint: ## gofmt, go vet, TypeScript typecheck, shellcheck
 	go vet ./...
 	go vet -tags e2e ./internal/e2e/...
 	cd web && npm run typecheck
-	@if command -v shellcheck >/dev/null; then shellcheck docker/*.sh unraid/ca/*.sh; else echo "shellcheck not installed, skipped"; fi
+	@if command -v shellcheck >/dev/null; then shellcheck docker/*.sh unraid/ca/*.sh scripts/*.sh; else echo "shellcheck not installed, skipped"; fi
 
 .PHONY: vuln
 vuln: ## govulncheck and npm audit (runtime dependencies)

@@ -2094,9 +2094,8 @@ metadata lookups and skips with a message without it)
    - Maintainerr marks movie X pending. With the skip rule, a real sync does not copy X. With the
      rule disabled, X is copied. (The stale case runs in the E2E suite, which has the clock hook.)
 
-CI runs unit, race, crash, web and e2e on every push. `make test-arr` runs on `workflow_dispatch`
-and on tags, like `make test-plex`. The release workflow adds it to the candidate image's Docker
-suite.
+CI runs unit, race, crash, web and e2e on every push. `make test-arr` is manual only: no workflow
+runs it (DEFERRED.md, "\*arr Docker tests").
 
 *(As built, Phase 2.)*
 - **E2E:** `TestWebhookPath` (the webhook path, the burst of 200, Rename, `MovieFileDelete-manual`,

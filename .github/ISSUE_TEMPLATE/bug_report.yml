@@ -1,6 +1,6 @@
 name: Bug report
 description: Something in Bunkarr is wrong or broken.
-labels: ["bug"]
+labels: ["bug", "needs-triage"]
 body:
   - type: markdown
     attributes:
@@ -9,15 +9,15 @@ body:
 
         > **Never post secrets.** That includes your Plex token, the Sonarr, Radarr and Lidarr API keys, Bunkarr's API key and webhook keys (a webhook URL can carry one as `?apikey=`), B2, S3 and SFTP credentials, recovery kits and encryption passwords, and Apprise URLs. Do not attach `bunkarr.db`, `bunkarr.key`, a recovery kit, a Plex `Preferences.xml` or a Sonarr, Radarr or Lidarr backup zip: they all hold secrets. If one leaks, replace it (Bunkarr's API key: *Settings → General*; a webhook key: **Regenerate key** on the connection's card).
 
-        - **Security vulnerability?** Do not open an issue. Report it privately through the repository's [Security tab](https://github.com/sl0wz3r/bunkarr/security) ("Report a vulnerability").
-        - **A question or setup help?** Check the [README](https://github.com/sl0wz3r/bunkarr#readme) and, on Unraid, the [install guide](https://github.com/sl0wz3r/bunkarr/blob/main/unraid/README.md); then open a blank issue.
-        - **Did Bunkarr change a source file, or lose a backed-up file or version?** Pause the jobs of the affected destination (*Destinations → Edit → disable*), leave the destination as it is, and say so below.
+        - **Security vulnerability?** Do not open an issue. Report it privately as described in the [security policy](https://github.com/sl0wz3r/bunkarr/security/policy).
+        - **A question, or not sure it is a bug?** Check the [README](https://github.com/sl0wz3r/bunkarr#readme) and, on Unraid, the [install guide](https://github.com/sl0wz3r/bunkarr/blob/main/unraid/README.md); then ask in [Discussions → Q&A](https://github.com/sl0wz3r/bunkarr/discussions/categories/q-a).
+        - **Is a backup missing, incomplete or not restorable, or did Bunkarr change a source file?** Pause the jobs of the affected destination (*Destinations → Edit → disable*), leave the destination as it is, and say so below ([SUPPORT.md](https://github.com/sl0wz3r/bunkarr/blob/main/SUPPORT.md#if-a-backup-is-missing-incomplete-or-cannot-be-restored)).
   - type: checkboxes
     id: checks
     attributes:
       label: Before you submit
       options:
-        - label: I searched the existing issues.
+        - label: I searched the existing issues and discussions.
           required: true
         - label: I removed every token, key and password from what I paste below, and checked the paths, host names and addresses I share.
           required: true
@@ -93,8 +93,11 @@ body:
   - type: dropdown
     id: data-safety
     attributes:
-      label: Did Bunkarr change or delete a source file, or lose a backed-up file or version?
-      description: Answer yes too if a backup Bunkarr reported as good could not be restored. These reports are handled first.
+      label: Is a backup missing, incomplete or not restorable, or did Bunkarr change a source file?
+      description: >-
+        Answer yes if a backed-up file or version is gone or damaged, a backup Bunkarr reported as
+        good could not be restored, or a file under a source was changed or deleted. If you answer
+        yes, this report gets the `safety` label and is handled first.
       options:
         - "No"
         - "Yes"

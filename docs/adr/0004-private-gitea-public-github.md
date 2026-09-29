@@ -20,8 +20,14 @@ names and home paths.
 - [ADR 0009](0009-unraid-community-applications.md) adds `docs/ca/` to the excluded paths and a
   gate before the term scan: the export's Unraid template must be current and valid
   (`make ca-validate`), or nothing is published.
+- [ADR 0010](0010-release-publishing.md) adds a second gate before the term scan: the deploy
+  tests pass on the export (`go test ./deploy/`, without `.gitea/`). A `v*` tag is created on the
+  public repository, annotated, only when that repository lacks it; a tag it already has is never
+  moved or pushed again.
 - `.gitea/workflows` and `.github/workflows` run the same CI; Gitea ignores `.github/workflows`
-  while `.gitea/workflows` exists.
+  while `.gitea/workflows` exists. The release workflows differ (ADR 0010): the public one
+  publishes the image and the GitHub release, the Gitea one only tests unless publishing is
+  switched on there.
 
 ## Consequences
 

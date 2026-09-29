@@ -31,6 +31,38 @@ verification; open follow-ups are in DEFERRED.md):
 
 ### Added
 
+- Release automation (decisions in ADR 0010). The release workflow publishes the GitHub release
+  itself, after the image is tagged: its notes name the image and the digest-pinned reference
+  (`ghcr.io/sl0wz3r/bunkarr:X.Y.Z@sha256:…`), what was tested (the Docker and off-site suites
+  against that digest, the e2e suite on the tagged source), the verify commands and the version's
+  CHANGELOG section. A pre-release (`vX.Y.Z-beta.N`, `-rc.N`) takes the [Unreleased]
+  section and is published as a GitHub pre-release, never marked latest.
+- GitHub artifact attestations (Sigstore build provenance) of the released image digest, pushed
+  next to the image, and of every release file, `checksums.txt` included:
+  `gh attestation verify oci://ghcr.io/sl0wz3r/bunkarr:X.Y.Z --owner sl0wz3r` (SECURITY.md,
+  "Verifying a release").
+- SBOMs as release files, SPDX 2.3 and CycloneDX 1.6 JSON made by Syft, with `checksums.txt`: of
+  the tagged source (Go modules, the web UI's runtime npm packages) and of each image platform
+  (the alpine packages, restic and rclone among them, and the Go modules in the binary).
+- Optional keyless cosign signing of the image (the repository variable `COSIGN_SIGN`, exactly
+  `true`; off).
+- The image is also tagged `:vX.Y.Z` (a pre-release `:vX.Y.Z-rc.N`) and carries the
+  `org.opencontainers.image.documentation` label (the README at the tag).
+- A version is released once: the release workflow refuses to move `:X.Y.Z` or `:vX.Y.Z` to
+  another digest, so a full re-run of a released tag fails instead of replacing the image;
+  re-running the failed jobs reuses the tested candidate.
+- The private development repository's CI gained its own release workflow (off unless its
+  registry is configured), a self-hosted Renovate (idle until it is given a token) and a weekly
+  dependency report (`scripts/dependency-report.sh`, which also runs by hand and flags when alpine
+  moves the pinned restic or rclone).
+- The Renovate configuration (`.github/renovate.json`) also covers Go modules and npm packages:
+  grouped, 3 days after their release, majors only once approved on the Dependency Dashboard, at
+  most 5 pull requests open. Until Renovate is switched on, the dependency report and Dependabot
+  alerts flag updates, which are applied by hand.
+- Community files: `SECURITY.md` (private vulnerability reporting, verifying a release),
+  `SUPPORT.md`, `ROADMAP.md` and a pull request template. Questions go to GitHub Discussions (Q&A,
+  Ideas) instead of blank issues, and the issue forms add the `needs-triage` label.
+
 - Unraid (decisions in ADR 0009). Bunkarr is not listed in Community Applications yet; until it
   is, the template is installed by hand (`unraid/README.md`).
 - Unraid template `unraid/bunkarr.xml` and the repository-root `ca_profile.xml` for Community
@@ -264,6 +296,16 @@ verification; open follow-ups are in DEFERRED.md):
 
 ### Changed
 
+- CI (`ci.yml`) runs on branch pushes and pull requests only, and its Plex backup/restore job on
+  manual runs only. Tags run only the release workflow, which now also runs gofmt, vet,
+  shellcheck, the compose test and the Unraid template check itself (and, as before, the Plex test
+  against every candidate).
+- A release fails when the image was built with an older Go patch release than the latest one of
+  its line (`docker/check-go-version.sh`); CI only warns.
+- `make build` and `make docker` stamp the version without the tag's `v` (`0.1.0-beta.1`).
+- The public export (`make publish`) also runs `go test ./deploy/` on the exported tree, and
+  creates each release tag there annotated, only when the public repository lacks it: a published
+  tag is never moved.
 - **Breaking for compose users:** the compose example sets `hostname: bunkarr-<server name>`
   (restic trusts host names for stale locks: one per install) and `stop_grace_period: 60s`.
   `SERVER_NAME` is now required: add `SERVER_NAME=<your server's name>` (unique per install) to
@@ -280,3 +322,5 @@ verification; open follow-ups are in DEFERRED.md):
   the same destination and covers all of its sources.
 - `Cross-Origin-Opener-Policy` is `same-origin-allow-popups`, so Bunkarr can close the plex.tv
   sign-in popup.
+
+[Unreleased]: https://github.com/sl0wz3r/bunkarr/compare/v0.1.0-beta.1...HEAD

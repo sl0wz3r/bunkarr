@@ -1,8 +1,15 @@
-# New-issue chooser. Support runs on GitHub Issues (the Unraid template's <Support>; there is no
-# forum thread or Discussions yet), so a blank issue stays open for questions and setup help next to
-# the bug and feature forms.
-blank_issues_enabled: true
+# New-issue chooser: only the bug and feature forms. Questions and setup help go to Discussions
+# (Q&A), ideas to Discussions (Ideas), vulnerabilities to the private security channel. The Unraid
+# template's <Support> still points at the Issues page, whose "New issue" button leads here, so
+# Unraid users find the same links.
+blank_issues_enabled: false
 contact_links:
+  - name: Question or setup help
+    url: https://github.com/sl0wz3r/bunkarr/discussions/categories/q-a
+    about: How do I…? Is this result expected? Ask in Discussions → Q&A.
+  - name: Idea or roadmap discussion
+    url: https://github.com/sl0wz3r/bunkarr/discussions/categories/ideas
+    about: Open-ended ideas and larger proposals. See ROADMAP.md first.
   - name: Unraid install guide
     url: https://github.com/sl0wz3r/bunkarr/blob/main/unraid/README.md
     about: Every template setting, the host name, the Docker Stop Timeout, Unassigned Devices, webhooks and updating.
@@ -10,8 +17,8 @@ contact_links:
     url: https://github.com/sl0wz3r/bunkarr#readme
     about: Setup, destinations, Sonarr, Radarr and Lidarr, tiers, restoring and upgrading.
   - name: Security vulnerability
-    url: https://github.com/sl0wz3r/bunkarr/security
-    about: Please do not open a public issue. Report it privately (Security tab, "Report a vulnerability").
+    url: https://github.com/sl0wz3r/bunkarr/security/policy
+    about: Please do not open a public issue. Report it privately as the security policy describes.
   # Add once the Unraid forum support thread exists (DEFERRED.md):
   # - name: Unraid support thread
   #   url: https://forums.unraid.net/topic/<id>-support-sl0wz3r-bunkarr/

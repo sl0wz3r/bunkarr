@@ -808,9 +808,10 @@ cifs-utils and nfs-utils: a Samba server mounted over CIFS with Unassigned Devic
 (`nounix,noserverino,vers=3.1.1,file_mode=0777`) and the kernel NFS server over NFSv4.
 
 CI runs lint, the race tests, the e2e suite, the image smoke, kill and share tests on every push;
-the Plex job on `workflow_dispatch` and on tags. The release workflow builds the multi-arch image
-once as a candidate, runs the e2e suite and the whole Docker suite against that image (by digest,
-on amd64 and arm64), and only when all pass puts the release tags on the same digest.
+the Plex job on `workflow_dispatch`. The release workflow (on tags) builds the multi-arch image
+once as a candidate, runs the e2e suite on the tagged source and the whole Docker suite, the Plex
+test included, against that image (by digest, on amd64 and arm64), and only when all pass puts
+the release tags on the same digest.
 
 ## 10. UI
 - Activity → **Queue** (`/activity/queue`): active jobs, progress bar, bytes, throughput, ETA,

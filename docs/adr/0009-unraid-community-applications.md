@@ -4,6 +4,8 @@
 - Date: 2026-09-28
 - Amends: [ADR 0004](0004-private-gitea-public-github.md) (a new excluded path and a template gate
   in the public export)
+- Amended by: [ADR 0010](0010-release-publishing.md) (automatic GitHub releases; questions in
+  GitHub Discussions)
 
 ## Context
 
@@ -71,8 +73,10 @@ reports (ADR 0004), so once Bunkarr is listed, a broken template would reach CA 
   own tag, which lets a release candidate be installed on a real Unraid server before `:latest`
   exists. There is no LAN variant and no registry-free (`docker save`) path.
 - **Support is GitHub Issues** until a forum support thread exists (`SUPPORT_URL`, `FORUM_URL`);
-  issue forms ask for what an Unraid report needs.
-- **GitHub releases are made by hand**; `release.yml` publishes the image only.
+  issue forms ask for what an Unraid report needs. *Amended by ADR 0010:* questions and setup help
+  go to GitHub Discussions (Q&A); `<Support>` stays the Issues page, whose chooser links Q&A.
+- **GitHub releases are made by hand**; `release.yml` publishes the image only. *Amended by
+  ADR 0010:* `release.yml` publishes the GitHub release itself, with attestations and SBOMs.
 - **Never rename** the repository or the account, and never move `unraid/bunkarr.xml`, once the
   app is listed.
 - **Amends ADR 0004:** the public export also leaves out `docs/ca/` (the maintainer's submission

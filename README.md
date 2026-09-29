@@ -1,5 +1,13 @@
 # Bunkarr
 
+<p align="center">
+  <a href="https://github.com/sl0wz3r/bunkarr/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/sl0wz3r/bunkarr/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/sl0wz3r/bunkarr/actions/workflows/release.yml"><img alt="Release workflow status" src="https://github.com/sl0wz3r/bunkarr/actions/workflows/release.yml/badge.svg"></a>
+  <a href="https://github.com/sl0wz3r/bunkarr/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/sl0wz3r/bunkarr?include_prereleases&amp;sort=semver"></a>
+  <a href="https://github.com/sl0wz3r/bunkarr/pkgs/container/bunkarr"><img alt="Container image on ghcr.io (amd64, arm64)" src="https://img.shields.io/badge/ghcr.io-bunkarr-blue?logo=docker&amp;logoColor=white"></a>
+  <a href="LICENSE"><img alt="License: GPL-3.0-or-later" src="https://img.shields.io/github/license/sl0wz3r/bunkarr"></a>
+</p>
+
 **Your library's bunker.** Bunkarr is a self-hosted, *arr-style backup app for Plex media libraries
 and the *arr stack. It knows which media can be re-downloaded:
 
@@ -233,9 +241,11 @@ wget -O /boot/config/plugins/dockerMan/templates-user/my-bunkarr.xml \
 ```
 
 then **Docker** → **Add Container** → Template **bunkarr**. The template pulls
-`ghcr.io/sl0wz3r/bunkarr:latest`, which is published from the first release (0.1.0) on; until
-then, use the [Quick start](#quick-start-docker-compose) below, which builds the image from the
-checkout. Before **Apply**, check three things:
+`ghcr.io/sl0wz3r/bunkarr:latest`, which arrives with the first full release (0.1.0). Until then
+only pre-releases are published, each under its own tag: set **Repository** to one
+(`ghcr.io/sl0wz3r/bunkarr:0.1.0-beta.1`, the first) to try it, or use the
+[Quick start](#quick-start-docker-compose) below, which builds the image from the checkout.
+Before **Apply**, check three things:
 
 - **Extra Parameters** (Advanced View): `--hostname=bunkarr-tower`, with `tower` replaced by this
   server's name. Every install needs its own, stable host name
@@ -967,6 +977,17 @@ only way back. To downgrade:
 
 Whatever Bunkarr recorded after the upgrade (jobs, backup versions, settings) is not in the copy.
 
+### Verifying a release
+
+Every [release](https://github.com/sl0wz3r/bunkarr/releases) names its image digest: pin a version
+**and its digest** (`ghcr.io/sl0wz3r/bunkarr:X.Y.Z@sha256:<digest>`) to pull exactly the image the
+test suites ran against, and check where it was built with
+`gh attestation verify oci://ghcr.io/sl0wz3r/bunkarr:X.Y.Z --owner sl0wz3r`. Each release also
+has SBOMs (SPDX and CycloneDX) of the source and of each image platform, and `checksums.txt`:
+[verifying a release](SECURITY.md#verifying-a-release). GitHub releases, with their
+attestations and SBOMs, start with the release after 0.1.0-beta.1; for that one,
+`docker buildx imagetools inspect ghcr.io/sl0wz3r/bunkarr:0.1.0-beta.1` prints the digest.
+
 ## The mass-change guard
 
 An unmounted share, a bad script or ransomware looks to a backup like "delete or rewrite
@@ -1088,8 +1109,16 @@ curl -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' -d '{"dryRun":true
 | 5 | Restore & disaster recovery: restore wizard, manifest re-acquisition, restore tests |
 | 6 | Release polish: Unraid CA listing (the template is in [`unraid/`](unraid/README.md)), metrics, notifications, docs site, hardening |
 
-Decisions are recorded in [`docs/adr`](docs/adr); postponed items with reasons in
-[`DEFERRED.md`](DEFERRED.md).
+What comes after the phases, and the postponed items that matter most to users:
+[`ROADMAP.md`](ROADMAP.md). Decisions are recorded in [`docs/adr`](docs/adr); postponed items with
+reasons in [`DEFERRED.md`](DEFERRED.md).
+
+## Help and security
+
+Questions and setup help: [Discussions → Q&A](https://github.com/sl0wz3r/bunkarr/discussions/categories/q-a).
+Bugs and feature requests: the [issue forms](https://github.com/sl0wz3r/bunkarr/issues/new/choose).
+[SUPPORT.md](SUPPORT.md) says what to include and how to share logs safely. Report a vulnerability
+privately, never in a public issue: [SECURITY.md](SECURITY.md).
 
 ## Development
 

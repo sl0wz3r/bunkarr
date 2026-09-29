@@ -1,13 +1,14 @@
 name: Feature request
 description: Suggest a specific, well-defined change or addition.
-labels: ["enhancement"]
+labels: ["enhancement", "needs-triage"]
 body:
   - type: markdown
     attributes:
       value: |
         Thanks for the suggestion! Before you write it up:
 
-        - Check the [roadmap](https://github.com/sl0wz3r/bunkarr#roadmap) and [DEFERRED.md](https://github.com/sl0wz3r/bunkarr/blob/main/DEFERRED.md), which lists postponed work with the reasons. If your idea is there, say so and add your use case.
+        - Check the [roadmap](https://github.com/sl0wz3r/bunkarr/blob/main/ROADMAP.md) and [DEFERRED.md](https://github.com/sl0wz3r/bunkarr/blob/main/DEFERRED.md), which lists postponed work with the reasons. If your idea is on the roadmap, add your use case to that item's issue (label `roadmap`) rather than opening a new one.
+        - Open-ended ideas, and anything large (a new destination kind, a new integration), are best discussed first in [Discussions → Ideas](https://github.com/sl0wz3r/bunkarr/discussions/categories/ideas).
         - Bunkarr handles backups, so every feature has to fail safe: it never writes to source media, everything that deletes can be previewed first, and a fact Bunkarr cannot know never lowers a file's protection ([CONTRIBUTING.md](https://github.com/sl0wz3r/bunkarr/blob/main/CONTRIBUTING.md#ground-rules)).
 
         Please do not post tokens, keys, passwords or private paths.

@@ -87,12 +87,16 @@ The Go binary embeds `web/dist`; a Go-only build works (the UI then answers with
 the UI with `make web`: `npm run build` empties `web/dist`, including the tracked `.gitkeep`,
 which `make web` puts back.
 
-CI runs lint, the race tests, the e2e suite, govulncheck and npm audit on every push, the Unraid
-template check (`make ca-validate`), the engine binary tests, the image build with the smoke,
-compose, kill and share tests and the off-site acceptance, and the Plex test on
-`workflow_dispatch` and tags. The release workflow tags an image only after the e2e suite, the
-whole Docker suite and the off-site acceptance pass against it. The GitHub and Gitea workflows are
-kept identical below their headers.
+CI (`ci.yml`, on every branch push and pull request) runs lint, the race tests, the e2e suite,
+govulncheck and npm audit, the Unraid template check (`make ca-validate`), the engine binary
+tests, the image build with the smoke, compose, kill and share tests (and a warning when the image
+was built with an older Go patch release than the latest, `docker/check-go-version.sh --warn`)
+and the off-site acceptance; the Plex test runs on `workflow_dispatch`. Tags run only the release
+workflow, which repeats those gates and tags an image only after the e2e suite passes on the tagged
+source and the whole Docker suite (the Plex test included) and the off-site acceptance pass
+against the image ([Releases](#releases)).
+The development repository runs the same CI jobs; its copies differ only where its shared runner
+needs it (per-run image names, removed afterwards; shellcheck installed when missing).
 
 The Unraid template (`unraid/bunkarr.xml`) and `ca_profile.xml` are generated from `unraid/ca/`
 ([`unraid/ca/README.md`](unraid/ca/README.md)): edit the `.tmpl` files or `publish.env`, run
@@ -179,6 +183,7 @@ unraid/                    the Unraid template (bunkarr.xml, generated), icon an
 docker/                    entrypoint; image smoke, compose, container kill, Plex restore, share,
                            engine and off-site test wrappers; engines/ (test image and the pinned
                            restic/rclone versions), offsite/ (argv shims, SFTP setup, kit restore)
+scripts/                   the dependency report (dependency-report.sh)
 docs/design/               phase designs (the contracts packages are built against)
 docs/adr/                  architecture decision records
 docs/spikes/               spike reports
@@ -242,7 +247,10 @@ manifest queries.
   and `lucide-react` (icons).
 - **Tests:** Go tests with `-race`; UI tests with Vitest and Testing Library. Security-relevant
   behaviour (auth, redaction, CSRF, where secrets are sent) needs a test.
-- **Actions and base images** are pinned by commit SHA / digest; Renovate proposes updates.
+- **Actions and base images** are pinned by commit SHA / digest; how they are updated is in
+  [Dependency updates](#dependency-updates).
+- **Pull requests:** the [template](.github/pull_request_template.md) asks what could go wrong for
+  users' sources or backups and how the change was tested, and has a short checklist.
 
 ### Fault points and the crash matrix
 
@@ -272,14 +280,62 @@ Crash safety is tested by stopping the program at named step boundaries.
   `BUNKARR_FAULTPOINT_FILE=<path>` make the process write the file and block at that point; the
   test kills it with SIGKILL and restarts it without the variable.
 
+## Dependency updates
+
+Every dependency is pinned: Go modules by `go.sum`, the web UI's npm packages by
+`web/package-lock.json`, base images and the release workflow's builder images (binfmt, BuildKit,
+the SBOM scanner) by digest, and CI actions by full commit SHA with the release as a `# vX.Y.Z`
+comment (`go test ./deploy/` enforces the digests and SHAs).
+[Renovate](https://docs.renovatebot.com/) is configured to keep them current, with the rules in
+[`.github/renovate.json`](.github/renovate.json):
+
+- grouped pull requests, at most 5 open at a time (each one runs the Docker suites): CI actions,
+  base image digests, builder images, Go modules, the web UI's runtime packages, and its build and
+  test tooling; `web/package-lock.json` is refreshed once a month;
+- a new release of an action, a builder image, a Go module or an npm package waits 3 days before
+  it is proposed (a compromised or retracted release is usually caught by then); base image
+  digests do not wait;
+- major updates, and a CI action whose release tag was moved to another commit (how a hijacked tag
+  shows up; the 3-day wait cannot catch it), wait on the *Dependency Dashboard* issue until they
+  are ticked there;
+- nothing is merged automatically: every update goes through CI like any other change;
+- by hand, all places together: the Go and Node.js release lines (go.mod's `go` directive, the
+  minimum Go version, with no `toolchain` line; the `golang` and `node` image tags in the
+  Dockerfiles; the workflows' `go-version` and `node-version`; the `@types/node` major), and
+  restic and rclone (`docker/engines/versions.env`, then `make test-engines` and
+  `make test-offsite`).
+
+Renovate is set up to run weekly in the private development repository, not on GitHub, but it is
+not switched on there yet: until it is, the weekly dependency report (below) and GitHub's
+Dependabot alerts flag updates, and they are applied by hand. Either way, updates are merged in the
+development repository and reach the public repository with the next sync, and a pull request
+merged on GitHub would be overwritten by it. So please do not open pull requests that only bump a
+dependency. If an update is urgent (a security fix), open an issue, or report a vulnerability
+privately ([SECURITY.md](SECURITY.md)).
+
+The dependency report the development repository's CI writes every week (Go modules and npm
+packages with newer releases, the Go and Node.js release lines, base image digests behind their
+tag, the restic and rclone packages the image's alpine release ships, govulncheck, npm audit) also
+runs by hand; it needs Go, npm, jq, curl and tar, and no token. It exits 0 however many updates are
+available, 1 on CI's vulnerability gates and 2 when a check could not run:
+
+```sh
+(cd web && npm ci) && sh scripts/dependency-report.sh > dependency-report.md
+```
+
 ## Releases
 
 Maintainers only. The development repository publishes every commit on `main` to the public
 repository through the sanitizing export (`make publish`, ADR 0004); a release tag there starts
-`.github/workflows/release.yml`.
+`.github/workflows/release.yml`, which tests the image, tags and attests it, and publishes the
+GitHub release with its SBOMs (ADR 0010). Nothing is done by hand after the tag.
+
+A full release (`vX.Y.Z`):
 
 1. `CHANGELOG.md`: move the `[Unreleased]` entries under `## [X.Y.Z] - YYYY-MM-DD` (the tag's
-   date) and start a new, empty `## [Unreleased]` above it.
+   date) and start a new, empty `## [Unreleased]` above it. That section becomes the release
+   notes, so write it for users. Update the compare links at the end
+   (`[Unreleased]: .../compare/vX.Y.Z...HEAD`, `[X.Y.Z]: .../compare/<previous>...vX.Y.Z`).
 2. `unraid/ca/bunkarr.xml.tmpl`: add `### X.Y.Z (YYYY-MM-DD)` and a few user-facing lines at the
    top of `<Changes>` (plain ASCII, no square brackets, `arr` rather than `*arr`). It is the change
    log Community Applications shows, and the only way to tell installed containers about a new
@@ -290,16 +346,70 @@ repository through the sanitizing export (`make publish`, ADR 0004); a release t
    CHANGELOG heading, the `<Changes>` heading, `VERSION` and `RELEASE_DATE` agree.
 5. Commit on `main` (`chore(release): X.Y.Z`); the post-commit hook publishes it. To review the
    export first, commit with `BUNKARR_NO_MIRROR=1`, run `make publish-dry`, check the result in
-   `.git/public-mirror`, then run `make publish`.
-6. `git tag vX.Y.Z` on exactly that commit, the current `HEAD`, and run `make publish` at once.
-   The hook ran before the tag existed, and the export pushes only the tags on the commit it
-   publishes, so only this second run pushes the tag. It never force-pushes a tag: never move a
-   published tag, and never tag an older commit.
-7. `release.yml` tests the candidate image and tags it `:X.Y.Z`, `:X.Y` and `:latest`; a
-   pre-release (`vX.Y.Z-rc.N`) gets only its own tag and never moves `:latest`, which Unraid's
-   update check follows. It creates no GitHub release: make one by hand
-   (`gh release create vX.Y.Z --verify-tag`, with the version's CHANGELOG section and the image
-   digest as notes; `--prerelease` for a pre-release).
+   `.git/public-mirror`, then run `make publish`. The export also runs `go test ./deploy/` on the
+   exported tree and publishes nothing when it fails.
+6. `git tag -a vX.Y.Z -m "Bunkarr vX.Y.Z"` on exactly that commit, the current `HEAD`, and run
+   `make publish` at once. The hook ran before the tag existed, and the export pushes only the
+   tags on the commit it publishes, so only this second run pushes the tag. The export creates the
+   public tag (annotated) only when the public repository does not have it yet, and never moves or
+   pushes again a tag it has: never move a published tag, and never tag an older commit. Push the
+   tag to the development repository too (`git push origin vX.Y.Z`).
+7. `release.yml` runs; the off-site suite alone may take two hours. It checks the tag, repeats
+   CI's gates (`ci.yml` does not run on tags), builds the multi-arch image once as
+   `:candidate-<commit>`, runs the Docker suite on amd64 and arm64 and the off-site suite against
+   that digest, and the e2e suite on the tagged source. Then:
+   - the `image` job tags that digest `:X.Y.Z`, `:vX.Y.Z`, `:X.Y` and `:latest`, attests it, and
+     signs it when `COSIGN_SIGN` is `true` (below);
+   - the `sbom` job writes SPDX 2.3 and CycloneDX 1.6 SBOMs of the source and of each image
+     platform;
+   - the `github-release` job publishes the GitHub release (`--verify-tag`): the SBOMs and
+     `checksums.txt`, attested together, and notes that name the image and its digest-pinned
+     reference, the tests it passed, the `gh attestation verify` commands, the SBOM files and the
+     version's CHANGELOG section. The notes can be edited on the release page afterwards.
+
+   A release fails when the image was built with an older Go patch release than the latest one of
+   its line (`docker/check-go-version.sh`; CI only warns): bump the `golang` digest in the
+   Dockerfiles and release the next version.
+
+**Pre-releases** (`vX.Y.Z-beta.N`, `vX.Y.Z-rc.N`) skip steps 1 to 4: no CHANGELOG heading, no
+`<Changes>` entry, `publish.env` unchanged, so the template, which Community Applications reads
+from `main`, never names a pre-release. Tag the published `HEAD` as in step 6. The image gets only
+`:X.Y.Z-rc.N` and `:vX.Y.Z-rc.N`, never `:latest` or `:X.Y`, which Unraid's update check follows.
+The GitHub release is created with `--prerelease --latest=false`, and its notes take the
+`[Unreleased]` section as of the tag, under "Pre-release: changes not yet in a released version".
+
+**When a release run fails:**
+
+- Before the `image` job (a test, the Go check), nothing but the candidate is published. A flaky
+  test: re-run the failed jobs. Anything else: fix it on `main` and release the next version (the
+  pushed tag is never moved or reused).
+- In the `sbom` or `github-release` job, the image is already tagged and has no GitHub release
+  yet. Re-run only the failed jobs: `gh run rerun <run id> --failed`, or *Re-run failed jobs* on
+  the run's page. They reuse this run's tested candidate and its digest; `github-release` replaces
+  the files of an existing release (`gh release upload --clobber`) and keeps its notes.
+- Never *Re-run all jobs* once the `image` job has tagged: that builds a new candidate, and the
+  `image` job then fails, because a version's tags never move to another digest.
+- Never delete a released version's `:candidate-<commit>` tag in the package settings: it is the
+  same package version (one digest) as the release tags, so the release image goes with it.
+
+**Public record.** The repository is public, so the two attestations (the image's and the release
+files') are signed through Sigstore's public-good instance and recorded in the public Rekor
+transparency log with the workflow's identity (repository, workflow file, tag, commit, run), for
+good: pushing a release tag makes these entries, and they cannot be removed.
+
+**Signing.** `COSIGN_SIGN` is an optional repository variable (Settings → Secrets and variables →
+Actions → Variables). Exactly `true`, in lower case (the `image` job checks the value in a shell
+step, so `True` signs nothing), makes the `image` job also sign the digest with cosign, keyless
+(Sigstore, the workflow's GitHub OIDC identity), and adds a `cosign verify` command to the notes.
+It is unset: a signature is a second, separate entry in the same public Rekor log for each
+release, and the attestations already prove where the image was built. Deleting the variable
+only stops new ones.
+
+**The development repository** (the private Gitea) has its own release workflow: on every tag it
+runs CI's test gates, builds the image for its runner's platform and runs the smoke, kill and Go
+version checks on it, and publishes nothing. It pushes an image to that Gitea's registry and publishes a release there only once its
+`PUBLISH_TO_GITEA` variable and registry secrets are set, which they are not. Public releases are
+made on GitHub only.
 
 Once Bunkarr is listed in Community Applications:
 
@@ -320,8 +430,9 @@ Once Bunkarr is listed in Community Applications:
 
 ## Security
 
-Please report vulnerabilities privately through GitHub's "Report a vulnerability" (Security tab),
-not in a public issue.
+Please report vulnerabilities privately, never in a public issue: [SECURITY.md](SECURITY.md) (the
+Security tab's "Report a vulnerability"). It also says how to verify a release. Questions and
+setup help: [SUPPORT.md](SUPPORT.md).
 
 ## License
 

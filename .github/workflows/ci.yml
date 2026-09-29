@@ -1,17 +1,18 @@
 # CI on every branch push and pull request: web UI (typecheck, tests, build), Go (gofmt, vet, race
 # tests, build, the e2e acceptance suite, govulncheck), npm audit, shellcheck, the Unraid template
-# (make ca-validate), and the Docker image (build + smoke test + container kill test + SMB/NFS
-# share test, no push). The slow Plex backup/restore test runs only on manual runs
-# (workflow_dispatch) and on tags. Releases: release.yml, on tags (it builds the multi-arch image
-# once, runs the e2e suite and the Docker suite against that image on amd64 and arm64, and tags it
-# as a release only when they pass). Actions are pinned to full commit SHAs (the comment names the
-# release; Renovate bumps both). The token is read-only and never persisted.
+# (make ca-validate), and the Docker image (build + smoke test + Go patch release check + container
+# kill test + SMB/NFS share test, no push). The slow Plex backup/restore test runs only on manual
+# runs (workflow_dispatch). Tags run release.yml only: it runs these gates itself (its off-site job
+# stands in for the engine binary tests), builds the multi-arch image once, runs the e2e suite on
+# the tagged source, the Docker suite (the Plex test included) against that image on amd64 and
+# arm64 and the off-site suite on amd64, and tags it as a release only when they pass. Actions are pinned to full commit
+# SHAs (the comment names the release; Renovate bumps both). The token is read-only and never
+# persisted.
 name: ci
 
 on:
   push:
     branches: ["**"]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -99,7 +100,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=moderate
 
       - name: Shell - shellcheck
-        run: shellcheck docker/*.sh unraid/ca/*.sh
+        run: shellcheck docker/*.sh unraid/ca/*.sh scripts/*.sh
 
       # The committed Unraid CA template (unraid/bunkarr.xml) and ca_profile.xml are current with
       # unraid/ca/ and publish.env and pass every template and repository rule (see
@@ -153,6 +154,12 @@ jobs:
       # restart with other PUID/PGID.
       - name: Test image
         run: sh docker/test-image.sh bunkarr:ci
+
+      # The Go release compiled into the image against the latest patch release (setup-go above,
+      # check-latest): a warning here, a failure in release.yml. The fix is a golang digest bump in
+      # the Dockerfile.
+      - name: Go version of the image
+        run: sh docker/check-go-version.sh --warn bunkarr:ci
 
       # deploy/docker-compose.yml renders with every required value and refuses without
       # SERVER_NAME (docker compose config; nothing starts).
@@ -228,8 +235,9 @@ jobs:
   plex:
     name: plex restore
     # Slow (two Plex Media Server containers) and pulls plexinc/pms-docker (pinned by digest in
-    # docker/test-plex-restore.sh): manual runs and tags only.
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    # docker/test-plex-restore.sh): manual runs only. release.yml runs it on every tag, on amd64
+    # and arm64, against the image it releases.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

@@ -46,12 +46,15 @@ FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cab
 ARG VERSION=0.1.0-dev
 ARG COMMIT=unknown
 ARG BUILD_DATE=
+# The release workflows pass the repository's own URLs (DOCS_URL: the README at the release tag).
 ARG SOURCE_URL=https://github.com/sl0wz3r/bunkarr
+ARG DOCS_URL=https://github.com/sl0wz3r/bunkarr#readme
 
 LABEL org.opencontainers.image.title="Bunkarr" \
       org.opencontainers.image.description="Your library's bunker: *arr-style backups for Plex and the *arr stack, with full backups for what is irreplaceable and manifests for what can be re-downloaded." \
       org.opencontainers.image.source="${SOURCE_URL}" \
       org.opencontainers.image.url="${SOURCE_URL}" \
+      org.opencontainers.image.documentation="${DOCS_URL}" \
       org.opencontainers.image.licenses="GPL-3.0-or-later" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}" \

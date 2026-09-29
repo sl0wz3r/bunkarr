@@ -24,20 +24,30 @@ Either way, review [the settings](#3-settings) and
 
 The template pulls `ghcr.io/sl0wz3r/bunkarr:latest` from the GitHub Container Registry. It is
 built for `linux/amd64` (every Unraid server) and `linux/arm64`, anyone can pull it (no login, no
-Docker setting), and Unraid's update check follows the `latest` tag. **The first image comes with
-the first release (0.1.0):** until then the template has nothing to pull, and the
-[Docker Compose quick start](../README.md#quick-start-docker-compose) builds the image from a
-checkout instead (Unraid's Compose Manager plugin runs it the same way).
+Docker setting), and Unraid's update check follows the `latest` tag. **`:latest` comes with the
+first full release (0.1.0):** until then only pre-releases exist, each under its own tag (the
+first is `:0.1.0-beta.1`). Set **Repository** to one to try it, or use the
+[Docker Compose quick start](../README.md#quick-start-docker-compose), which builds the image from
+a checkout (Unraid's Compose Manager plugin runs it the same way).
 
-- `:latest` moves only for a full release (`vX.Y.Z`), which also gets `:X.Y.Z` and `:X.Y`. A
-  pre-release (`vX.Y.Z-rc.N`) gets only its own tag, `:X.Y.Z-rc.N`, and never moves `:latest`.
+- A full release (`vX.Y.Z`) gets `:X.Y.Z`, `:vX.Y.Z`, `:X.Y` and `:latest`. A pre-release
+  (`vX.Y.Z-beta.N`, `vX.Y.Z-rc.N`) gets only its own two tags, such as `:X.Y.Z-rc.N` and
+  `:vX.Y.Z-rc.N`, and never moves `:latest` or `:X.Y`. (The `:v` tags start with the release
+  after 0.1.0-beta.1.)
 - A release tag is set only on an image that passed the end-to-end, Docker and off-site test
-  suites as the very image that ships (`.github/workflows/release.yml`).
+  suites as the very image that ships (`.github/workflows/release.yml`), and a version's tags
+  never move to another image.
 - To run exactly one image, set **Repository** to a version tag, or pin its digest as well:
-  `ghcr.io/sl0wz3r/bunkarr:X.Y.Z@sha256:<digest>` (`docker buildx imagetools inspect
-  ghcr.io/sl0wz3r/bunkarr:X.Y.Z` prints it). Docker then checks every byte it pulls against the
-  digest. A version tag never moves, so Unraid offers no update for it: change the tag (and the
-  digest) to update.
+  `ghcr.io/sl0wz3r/bunkarr:X.Y.Z@sha256:<digest>`. The
+  [GitHub release](https://github.com/sl0wz3r/bunkarr/releases) of that version prints the
+  digest-pinned reference to copy (from the release after 0.1.0-beta.1 on;
+  `docker buildx imagetools inspect ghcr.io/sl0wz3r/bunkarr:X.Y.Z` prints the digest of any
+  version). Docker then checks every byte it pulls against the digest. A version tag never
+  moves, so Unraid offers no update for it: change the tag (and the digest) to update.
+- To check that an image was built by this repository's release workflow from the tagged commit
+  (from the release after 0.1.0-beta.1 on), on any machine with the GitHub CLI:
+  `gh attestation verify oci://ghcr.io/sl0wz3r/bunkarr:X.Y.Z --owner sl0wz3r`. The release's SBOMs
+  and checksums: [SECURITY.md](../SECURITY.md#verifying-a-release).
 
 ## 2. Install the template
 
@@ -237,9 +247,11 @@ make ca-vars                  # every derived value, such as the URLs for the su
 make ca-preflight             # online, read-only: public repository, license, raw URLs, icon, image amd64/arm64
 ```
 
-- The ghcr.io package is created private by the first release run and must be made public on its
-  package page (Package settings → Change visibility). That cannot be undone, and it makes every
-  tag public, the `:candidate-<commit>` tags included.
+- The ghcr.io package has been public since 0.1.0-beta.1 (a new package is created private; it
+  was made public on its package page, which cannot be undone). Every tag is public, the
+  `:candidate-<commit>` tags included, failed candidates as well. A released version's candidate
+  tag is the same package version (one digest) as its release tags: deleting that candidate in
+  the package settings deletes the release image with it.
 - The submission form is at <https://ca.unraid.net/submit/new> (the public repository's URL, then
   Validate and Scan).
 - Once listed, Community Applications reads the template from `main` at its next feed build.
@@ -250,5 +262,5 @@ make ca-preflight             # online, read-only: public repository, license, r
   containers keep reading their `TemplateURL`.
 - When the icon changes, run `make ca-icon` and append `?v=2` (then `?v=3`, ...) to `ICON_URL` in
   `ca/publish.env`: Unraid and Community Applications cache icons by URL.
-- Releases (CHANGELOG, `<Changes>`, `VERSION`, `RELEASE_DATE`, the tag):
-  [CONTRIBUTING.md](../CONTRIBUTING.md#releases).
+- Releases (CHANGELOG, `<Changes>`, `VERSION`, `RELEASE_DATE`, the tag; the GitHub release is
+  made by the release workflow): [CONTRIBUTING.md](../CONTRIBUTING.md#releases).

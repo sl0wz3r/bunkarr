@@ -1,13 +1,15 @@
 # Release on tags vX.Y.Z (or vX.Y.Z-pre.N) in the public GitHub repository. The multi-arch image
 # (linux/amd64, linux/arm64) is built ONCE and pushed to ghcr.io/<owner>/bunkarr as a candidate,
 # :candidate-<commit>, with the workflow's own GITHUB_TOKEN; the acceptance tests
-# (docs/design/phase1.md §9) run the e2e suite and the Docker suite against that very image, pulled
-# by digest on an amd64 and an arm64 runner (test-image.sh also checks that its restic and rclone
-# are the versions of docker/engines/versions.env), and the off-site acceptance suite
-# (docs/design/phase4.md §14.6) runs its restic and rclone on amd64; only then does the image job
-# put the release tags on the same digest (no rebuild, so what ships is byte for byte what was
+# (docs/design/phase1.md §9) run the e2e suite on the tagged source (it builds its own binary), the
+# Docker suite against that very image, pulled by digest on an amd64 and an arm64 runner
+# (test-image.sh also checks that its restic and rclone are the versions of
+# docker/engines/versions.env), and the off-site acceptance suite (docs/design/phase4.md §14.6)
+# against its restic and rclone on amd64; only then does the image job put the release tags on the
+# same digest (no rebuild, so what ships is byte for byte what the Docker and off-site suites
 # tested). Nothing gets a release tag unless every test job passed; a failed candidate stays under
-# its candidate tag.
+# its candidate tag. The image job then attests the digest (and optionally signs it), the sbom job
+# makes the SBOMs, and the github-release job publishes the GitHub release with them.
 #
 # The image is ghcr.io/<repository owner, lower-case>/bunkarr (the "Image name" step). It must
 # match REGISTRY and IMAGE_NAME in unraid/ca/publish.env, <Repository> in the Unraid template
@@ -15,11 +17,53 @@
 # ghcr.io package public by hand (package page -> Package settings -> Change visibility): a new
 # package is private, does not inherit the repository's visibility, and Unraid needs an anonymous
 # pull. Public cannot be undone, and it makes every tag of the package public, the
-# :candidate-<commit> tags (failed candidates included) as well as the release tags. This workflow
-# publishes the image only; the GitHub release and its notes (CHANGELOG.md) are made by hand.
+# :candidate-<commit> tags (failed candidates included) as well as the release tags. A release's
+# candidate tag and its release tags are one package version (one digest): deleting that
+# candidate in the package settings deletes the release image with it.
 #
-# Tags: vX.Y.Z pushes :X.Y.Z, :X.Y and :latest; a pre-release pushes only its own tag, so :latest
-# never points at a pre-release. Any other v* tag fails before anything is built.
+# Repository variable (Settings -> Secrets and variables -> Actions -> Variables), optional:
+#   COSIGN_SIGN  exactly "true" ("True" or anything else signs nothing): also sign the image with
+#                cosign, keyless (Sigstore, GitHub OIDC), a second signature besides the image's
+#                attestation. It adds one more permanent public Rekor entry per release (see
+#                Supply chain below: the attestations already make two).
+#
+# Tags: vX.Y.Z pushes :X.Y.Z, :vX.Y.Z, :X.Y and :latest. A pre-release tag (vX.Y.Z-rc.1) pushes only
+# :X.Y.Z-rc.1 and :vX.Y.Z-rc.1 and is published as a GitHub pre-release (never marked latest), so
+# :latest and :X.Y never point at a pre-release. Any other v* tag fails the "Check the tag" step
+# before anything is built (git allows characters such as $ ( ) ; in tag names, and the version
+# ends up in command lines). A version is released once: the image job refuses to move :X.Y.Z or
+# :vX.Y.Z to another digest. When a job fails after the candidate job, re-run the failed jobs only
+# (they reuse the tested candidate and its digest); a full re-run builds a new candidate, which the
+# image job then refuses. The github-release job is re-run safe: it replaces the release files and
+# keeps the notes.
+#
+# Supply chain: every action is pinned to a full commit SHA (the comment names its release;
+# Renovate, .github/renovate.json, bumps both) and every image the build runs by digest, like the
+# Dockerfile's base images (deploy/workflows_test.go); the test job gates on govulncheck and npm
+# audit, and the docker jobs on the Go patch release compiled into the image
+# (docker/check-go-version.sh); the image carries BuildKit SBOM and SLSA provenance (mode=max)
+# attestations; and GitHub artifact attestations (Sigstore) cover the image digest and every
+# release file, checksums.txt included:
+#   gh attestation verify oci://ghcr.io/<owner>/bunkarr:X.Y.Z --owner <owner>
+#   gh attestation verify bunkarr_X.Y.Z_source.spdx.json --owner <owner>
+# The repository is public, so both attestations are signed through Sigstore's public-good instance
+# and recorded in the public Rekor transparency log with this workflow's identity (repository,
+# workflow file, tag, commit, run): every release tag pushed makes two permanent public entries,
+# whatever COSIGN_SIGN says.
+# The release notes name the image digest, so users can pin exactly this image
+# (IMAGE:X.Y.Z@sha256:...), followed by the "## [X.Y.Z]" section of CHANGELOG.md; a pre-release
+# without a section of its own gets the [Unreleased] section as of its tag.
+#
+# SBOMs: the release files are software bills of materials, SPDX 2.3 and CycloneDX 1.6 JSON, made by
+# Syft (the sbom job), and checksums.txt: bunkarr_X.Y.Z_source.{spdx,cdx}.json for the tagged source
+# (Go modules from go.mod/go.sum, the web UI's runtime npm packages from web/package-lock.json, the
+# workflows' actions) and bunkarr_X.Y.Z_image_linux_{amd64,arm64}.{spdx,cdx}.json for each platform
+# of the released image, by digest (the alpine packages, restic and rclone among them, and the Go
+# modules compiled into the binary). One attestation covers them and checksums.txt itself. No
+# separate SBOM attestation on the image: BuildKit's SBOM attestation is part of the image index,
+# whose digest the image's provenance attestation already covers. There are no native binaries:
+# the image, with its pinned restic and rclone, tini, su-exec and entrypoint, is the only
+# supported install.
 name: release
 
 on:
@@ -78,6 +122,33 @@ jobs:
           go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
           (cd web && npm audit --omit=dev --audit-level=moderate)
 
+      # The gates of ci.yml that no other job here repeats, after the Test step's web build (the
+      # binary embeds web/dist): ci.yml does not run on tags, and the tag's commit is not
+      # necessarily one that it tested. ci.yml's engine binary tests are left out: the off-site job
+      # runs the candidate's own restic and rclone against the same servers. make ca-validate needs
+      # make and xmllint (libxml2-utils), installed when the runner image lacks them.
+      - name: Lint, compose file and Unraid template
+        run: |
+          set -eu
+          unformatted="$(git ls-files -z '*.go' | xargs -0 gofmt -l)"
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+          go vet ./...
+          go vet -tags e2e ./internal/e2e/...
+          shellcheck docker/*.sh unraid/ca/*.sh scripts/*.sh
+          sh docker/test-compose.sh
+          set --
+          command -v make >/dev/null || set -- "$@" make
+          command -v xmllint >/dev/null || set -- "$@" libxml2-utils
+          if [ "$#" -gt 0 ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends "$@"
+          fi
+          make ca-validate
+
   # Acceptance 1-3 (docs/design/phase1.md §9): builds the real binary and drives it through its
   # API over generated fixture trees: full and incremental syncs, hardlinks, kill -9 at fault
   # points and resume, missing marker, empty source, dry run, change guard, source never modified.
@@ -120,8 +191,11 @@ jobs:
       - name: Image name
         id: image
         run: |
-          echo "name=ghcr.io/$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')/bunkarr" >> "$GITHUB_OUTPUT"
-          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          {
+            echo "name=ghcr.io/$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')/bunkarr"
+            echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "docs=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/README.md"
+          } >> "$GITHUB_OUTPUT"
 
       # The builder images are pinned by digest like the Dockerfile's base images: binfmt runs
       # privileged and registers the QEMU that the arm64 runtime stage's RUN (apk add restic
@@ -169,6 +243,7 @@ jobs:
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ steps.image.outputs.date }}
             SOURCE_URL=${{ github.server_url }}/${{ github.repository }}
+            DOCS_URL=${{ steps.image.outputs.docs }}
 
   # The Docker suite against the candidate, pulled by digest, on each platform it ships for. The
   # drivers are Go tests (internal/e2e).
@@ -224,6 +299,12 @@ jobs:
             echo "bunkarr:release-test is $got, want $PLATFORM" >&2
             exit 1
           fi
+
+      # The Dockerfile's golang image is pinned by digest, so the standard library compiled into the
+      # binary only gets security fixes when that digest is bumped: never release an image built
+      # with an older Go patch release than the latest one (setup-go above, check-latest).
+      - name: Check the image's Go version
+        run: sh docker/check-go-version.sh bunkarr:release-test
 
       # Healthcheck, first-run setup, API key auth, restic and rclone (present, the versions of
       # docker/engines/versions.env, restic runs), UI, PUID/PGID ownership, clean SIGTERM stop, a
@@ -297,7 +378,8 @@ jobs:
       - name: Off-site acceptance
         run: sh docker/test-offsite.sh bunkarr:release-test
 
-  # Puts the release tags on the tested candidate's digest; every tag must resolve to it.
+  # Puts the release tags on the tested candidate's digest (every tag must resolve to it), then
+  # attests that digest and, with COSIGN_SIGN exactly "true", signs it.
   image:
     name: image
     needs: [test, e2e, candidate, docker, offsite]
@@ -305,7 +387,15 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      # Tag the image on ghcr.io with GITHUB_TOKEN, and push the attestation next to it.
       packages: write
+      # Sigstore certificate (OIDC) for the attestation and the optional cosign signature, and
+      # GitHub's attestation store.
+      id-token: write
+      attestations: write
+    outputs:
+      # "true" only when this job signed the digest with cosign (the notes then say how to verify).
+      signed: ${{ steps.cosign.outputs.sign }}
     steps:
       # imagetools only talks to the registry: the docker driver starts no BuildKit container in
       # this packages:write job (the default docker-container driver would pull
@@ -320,6 +410,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # :X.Y.Z and :vX.Y.Z are set once. A re-run of the failed jobs finds them on this run's
+      # candidate (same digest) and goes on; a full re-run, which built a new candidate, stops here
+      # instead of moving a published version to an image its users never pulled.
       - name: Tag the tested image
         env:
           IMAGE: ${{ needs.candidate.outputs.image }}
@@ -328,13 +421,25 @@ jobs:
           PRERELEASE: ${{ needs.test.outputs.prerelease }}
         run: |
           set -eu
-          tags="${IMAGE}:${VERSION}"
+          case "$DIGEST" in
+            sha256:*) ;;
+            *) echo "The candidate job reported no image digest ('$DIGEST')" >&2; exit 1 ;;
+          esac
+          fixed="${IMAGE}:${VERSION} ${IMAGE}:v${VERSION}"
+          for t in $fixed; do
+            if got=$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$t" 2>/dev/null) && [ -n "$got" ] && [ "$got" != "$DIGEST" ]; then
+              echo "$t is already $got, not this run's tested $DIGEST: a version is released once. A full re-run builds a new candidate; re-run only the failed jobs, or release a new version." >&2
+              exit 1
+            fi
+          done
+          tags="$fixed"
           if [ "$PRERELEASE" = false ]; then
             tags="${tags} ${IMAGE}:${VERSION%.*} ${IMAGE}:latest"
           fi
           set --
           for t in $tags; do set -- "$@" --tag "$t"; done
           docker buildx imagetools create "$@" "${IMAGE}@${DIGEST}"
+          listed=""
           for t in $tags; do
             got=$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$t")
             if [ "$got" != "$DIGEST" ]; then
@@ -342,4 +447,315 @@ jobs:
               exit 1
             fi
             echo "$t -> $got"
+            listed="${listed} \`${t}\`"
           done
+          {
+            echo "Image: \`${IMAGE}:${VERSION}@${DIGEST}\` (linux/amd64, linux/arm64)"
+            echo
+            echo "Tags:${listed}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Build provenance signed with a Sigstore certificate for this workflow run (the run that
+      # built and tested the digest), stored in GitHub's attestation store and pushed next to the
+      # image (OCI referrer). Storage records only exist for organization-owned repositories. The
+      # repository is public, so the signature is also a permanent entry in the public Rekor log,
+      # with this run's identity: made on every release tag, COSIGN_SIGN or not.
+      - name: Attest the image
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ needs.candidate.outputs.image }}
+          subject-digest: ${{ needs.candidate.outputs.digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      # if: compares strings case-insensitively and the shell does not: the cosign steps and the
+      # release notes read this one output, never the variable, so only exactly "true" signs and
+      # a signed image always gets its cosign verify line.
+      - name: Signing setting
+        id: cosign
+        env:
+          COSIGN_SIGN: ${{ vars.COSIGN_SIGN }}
+        run: |
+          set -eu
+          if [ "${COSIGN_SIGN:-}" = true ]; then
+            echo "sign=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "sign=false" >> "$GITHUB_OUTPUT"
+          case "${COSIGN_SIGN:-}" in
+            "" | false) ;;
+            *) echo "::warning::COSIGN_SIGN is set but not exactly \"true\": the image is not signed." ;;
+          esac
+
+      - name: Install cosign
+        if: steps.cosign.outputs.sign == 'true'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign the image (keyless)
+        if: steps.cosign.outputs.sign == 'true'
+        env:
+          IMAGE: ${{ needs.candidate.outputs.image }}
+          DIGEST: ${{ needs.candidate.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
+
+  # The release's SBOMs, SPDX 2.3 and CycloneDX 1.6 JSON: of the tagged source and of each platform
+  # of the released image, by digest. After the image job, so they describe what was released.
+  sbom:
+    name: SBOMs
+    needs: [test, candidate, image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # Read the image by digest. Nothing is written here: the github-release job publishes the
+      # files.
+      packages: read
+    steps:
+      # The version ends up in file names and command lines below: validate it here too.
+      - name: Check the tag
+        run: |
+          set -eu
+          if ! printf '%s\n' "${GITHUB_REF_NAME}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "Tag '${GITHUB_REF_NAME}' is not a release version (vX.Y.Z or vX.Y.Z-pre.N)" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Syft, the generator behind BuildKit's in-image SBOM as well. The action installs the Syft
+      # release its own commit pins, through Syft's installer, which checks the download against the
+      # release's checksums; Renovate bumps the action (and with it Syft).
+      - name: Install Syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+
+      # On the fresh checkout, before anything is installed or built: the Go modules of go.mod/go.sum,
+      # the web UI's runtime npm packages from web/package-lock.json (what the embedded UI bundles;
+      # its build tooling is left out, as in the npm audit --omit=dev gate) and the actions the
+      # workflows use. Explicit format versions, so a Syft update cannot change them unannounced.
+      - name: Source SBOMs
+        env:
+          SYFT: ${{ steps.syft.outputs.cmd }}
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          out="${RUNNER_TEMP}/sbom"
+          mkdir -p "$out"
+          "$SYFT" scan dir:. --source-name bunkarr --source-version "$version" \
+            -o "spdx-json@2.3=${out}/bunkarr_${version}_source.spdx.json" \
+            -o "cyclonedx-json@1.6=${out}/bunkarr_${version}_source.cdx.json"
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # One SBOM per platform of the released index, read from the registry by digest (nothing is
+      # run): the alpine packages (tini, su-exec, restic, rclone, ...), the Go modules compiled into
+      # /app/bunkarr (from its build info) and those of the restic and rclone binaries. The web UI's
+      # npm packages are inside the binary, where no scanner can see them: the source SBOM lists them.
+      - name: Image SBOMs
+        env:
+          SYFT: ${{ steps.syft.outputs.cmd }}
+          IMAGE: ${{ needs.candidate.outputs.image }}
+          DIGEST: ${{ needs.candidate.outputs.digest }}
+        run: |
+          set -eu
+          case "$DIGEST" in
+            sha256:*) ;;
+            *) echo "The candidate job reported no image digest ('$DIGEST')" >&2; exit 1 ;;
+          esac
+          version="${GITHUB_REF_NAME#v}"
+          out="${RUNNER_TEMP}/sbom"
+          for platform in linux/amd64 linux/arm64; do
+            name="bunkarr_${version}_image_$(printf '%s' "$platform" | tr / _)"
+            "$SYFT" scan "registry:${IMAGE}@${DIGEST}" --platform "$platform" --source-version "$version" \
+              -o "spdx-json@2.3=${out}/${name}.spdx.json" \
+              -o "cyclonedx-json@1.6=${out}/${name}.cdx.json"
+          done
+
+      # Refuse an empty or partial SBOM (a cataloger that silently found nothing): each file must list
+      # a Go module, an npm package (source) or an alpine package (image) that the release contains.
+      - name: Check the SBOMs
+        run: |
+          set -eu
+          cd "${RUNNER_TEMP}/sbom"
+          lists() {
+            file=$1
+            shift
+            case "$file" in
+              *.spdx.json) items=.packages ;;
+              *) items=.components ;;
+            esac
+            for name in "$@"; do
+              if ! jq -e --arg n "$name" "any(${items}[]?; .name == \$n)" "$file" > /dev/null; then
+                echo "$file does not list $name" >&2
+                exit 1
+              fi
+            done
+          }
+          version="${GITHUB_REF_NAME#v}"
+          for format in spdx cdx; do
+            lists "bunkarr_${version}_source.${format}.json" modernc.org/sqlite golang.org/x/crypto react
+            for arch in amd64 arm64; do
+              lists "bunkarr_${version}_image_linux_${arch}.${format}.json" modernc.org/sqlite stdlib tini restic rclone
+            done
+          done
+          ls -l
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom
+          path: ${{ runner.temp }}/sbom/
+          if-no-files-found: error
+          # Only a hand-over to the github-release job (and its re-runs): the release keeps the files.
+          retention-days: 7
+
+  # The GitHub release: the SBOMs and checksums.txt as its files, attested together, and notes that
+  # name the released image by digest, how to verify it, and the CHANGELOG.md section.
+  github-release:
+    name: GitHub release
+    # After the image job (the notes name the digest it released, and whether it signed it) and the
+    # SBOMs (the files).
+    needs: [test, candidate, image, sbom]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # Create the GitHub release and upload its files.
+      contents: write
+      # Sigstore certificate (OIDC) and GitHub's attestation store, for the files' attestation.
+      id-token: write
+      attestations: write
+    steps:
+      # The version ends up in file names and command lines below: validate it here too.
+      - name: Check the tag
+        run: |
+          set -eu
+          if ! printf '%s\n' "${GITHUB_REF_NAME}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "Tag '${GITHUB_REF_NAME}' is not a release version (vX.Y.Z or vX.Y.Z-pre.N)" >&2
+            exit 1
+          fi
+
+      # CHANGELOG.md as of the tag, for the notes.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The sbom job's files, from this run (the download checks the artifact's digest).
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: sbom
+          path: dist
+
+      - name: Write checksums.txt
+        run: |
+          set -eu
+          version="${GITHUB_REF_NAME#v}"
+          cd dist
+          for f in "bunkarr_${version}_source" "bunkarr_${version}_image_linux_amd64" "bunkarr_${version}_image_linux_arm64"; do
+            for ext in spdx.json cdx.json; do
+              if [ ! -s "${f}.${ext}" ]; then
+                echo "Missing SBOM ${f}.${ext}" >&2
+                exit 1
+              fi
+            done
+          done
+          sha256sum bunkarr_* > checksums.txt
+          cat checksums.txt
+
+      # One provenance attestation whose subjects are every release file: the SBOMs and
+      # checksums.txt itself (which cannot list its own sum), the same list the publish step
+      # uploads, so gh attestation verify succeeds on any of them. Like the image's, a permanent
+      # entry in the public Rekor log.
+      - name: Attest the release files
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.spdx.json
+            dist/*.cdx.json
+            dist/checksums.txt
+
+      # The CHANGELOG.md section of this version ("## [X.Y.Z] ..." up to the next "## [" heading or
+      # the link references at the end, "[X.Y.Z]: URL"). A pre-release without a section of its own
+      # gets the [Unreleased] section as of its tag, so CHANGELOG.md (and the Unraid template's
+      # <Changes>, deploy/unraid_changes_test.go) never has to name a pre-release.
+      - name: Write the release notes
+        env:
+          IMAGE: ${{ needs.candidate.outputs.image }}
+          DIGEST: ${{ needs.candidate.outputs.digest }}
+          VERSION: ${{ needs.test.outputs.version }}
+          OWNER: ${{ github.repository_owner }}
+          SIGNED: ${{ needs.image.outputs.signed }}
+        run: |
+          set -eu
+          case "$DIGEST" in
+            sha256:*) ;;
+            *) echo "The candidate job reported no image digest ('$DIGEST')" >&2; exit 1 ;;
+          esac
+          section() {
+            awk -v h="## [$1]" '
+              index($0, h) == 1 { on = 1; next }
+              on && (/^## \[/ || /^\[.+\]: /) { exit }
+              on { print }
+            ' CHANGELOG.md
+          }
+          section "$VERSION" > changes.md
+          intro=""
+          if ! grep -q '[^[:space:]]' changes.md; then
+            case "$VERSION" in
+              *-*)
+                section Unreleased > changes.md
+                intro="## Pre-release: changes not yet in a released version"
+                ;;
+            esac
+          fi
+          identity="${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}"
+          {
+            echo "Container image (linux/amd64, linux/arm64): \`${IMAGE}:${VERSION}\`"
+            echo
+            echo "Pin exactly this image (Docker verifies every byte it pulls): \`${IMAGE}:${VERSION}@${DIGEST}\`"
+            echo
+            echo "Tested before tagging: the Docker suite on amd64 and arm64 and the off-site suite ran against this very digest; the e2e suite ran on the tagged source."
+            echo
+            echo "Verify the build provenance: \`gh attestation verify oci://${IMAGE}:${VERSION} --owner ${OWNER}\` (image) and \`gh attestation verify <file> --owner ${OWNER}\` (the SBOMs and \`checksums.txt\`). SHA-256 sums: \`checksums.txt\`."
+            if [ "$SIGNED" = true ]; then
+              echo
+              echo "Verify the cosign signature: \`cosign verify ${IMAGE}:${VERSION} --certificate-identity ${identity} --certificate-oidc-issuer https://token.actions.githubusercontent.com\`"
+            fi
+            echo
+            echo "SBOMs (SPDX 2.3 and CycloneDX 1.6 JSON): \`bunkarr_${VERSION}_source.*.json\` (Go modules, the web UI's npm packages) and \`bunkarr_${VERSION}_image_linux_{amd64,arm64}.*.json\` (each platform of the image above)."
+            echo
+            if grep -q '[^[:space:]]' changes.md; then
+              if [ -n "$intro" ]; then
+                echo "$intro"
+                echo
+              fi
+              cat changes.md
+            else
+              echo "See [CHANGELOG.md](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/CHANGELOG.md)."
+            fi
+          } > notes.md
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      # A re-run (of the failed jobs) finds the release: it replaces the files and keeps the notes,
+      # which may have been edited by hand since.
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          tag="${GITHUB_REF_NAME}"
+          set -- dist/*.spdx.json dist/*.cdx.json dist/checksums.txt
+          if gh release view "$tag" > /dev/null 2>&1; then
+            gh release upload "$tag" "$@" --clobber
+            exit 0
+          fi
+          # --verify-tag: never let gh create the tag (on the default branch) when it is missing.
+          case "$tag" in
+            *-*) gh release create "$tag" "$@" --verify-tag --title "$tag" --notes-file notes.md --prerelease --latest=false ;;
+            *) gh release create "$tag" "$@" --verify-tag --title "$tag" --notes-file notes.md ;;
+          esac
